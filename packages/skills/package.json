@@ -1,0 +1,51 @@
+{
+  "name": "@codexydsh/skills",
+  "description": "Model-facing skill loading tool for the DeepSeek Harness",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-skill": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@deepseek-ai/dsh": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-system-prompt": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@codexydsh/tool-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-agent-loop-testkit": "0.2.1-alpha.2",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-scope": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-skill": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-skill-filesystem": "0.2.1-alpha.2",
+    "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@codexydsh/runtime-testkit": "workspace:*",
+    "@codexydsh/skill-filesystem": "workspace:*",
+    "@codexydsh/test-support": "workspace:*"
+  }
+}

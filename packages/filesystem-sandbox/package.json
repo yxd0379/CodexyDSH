@@ -1,0 +1,39 @@
+{
+  "name": "@codexydsh/filesystem-sandbox",
+  "description": "Sandbox-enforcing implementation of the DeepSeek Harness filesystem seam: fences write/edit by the per-call sandbox mode (read-only denies mutation, workspace-write contains it to the workspace + temp roots) while reads pass through",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@codexydsh/filesystem": "workspace:*",
+    "@codexydsh/filesystem-local": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
+  },
+  "devDependencies": {
+    "@codexydsh/filesystem": "workspace:*",
+    "@codexydsh/filesystem-local": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-alpha.2",
+    "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@deepseek-ai/dsh-session-projection": "0.2.1-alpha.2",
+    "@codexydsh/test-support": "workspace:*"
+  }
+}

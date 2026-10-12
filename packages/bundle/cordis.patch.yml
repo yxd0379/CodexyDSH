@@ -1,0 +1,247 @@
+# Codexy plugins use independent rows; DSH patch names only guard an existing row.
+- id: agent-loop
+  disabled: true
+- id: tools
+  disabled: true
+- id: session-persistence-jsonl
+  disabled: true
+- id: llm-pi-ai
+  disabled: true
+- id: llm-deepseek
+  disabled: true
+- id: deepseek-llm-api-extensions
+  disabled: true
+- id: llm-deepseek-account
+  disabled: true
+- id: llm-retry
+  disabled: true
+- id: sandbox
+  disabled: true
+- id: subprocess
+  disabled: true
+- id: approval
+  disabled: true
+- id: permission
+  disabled: true
+- id: subagent
+  disabled: true
+- id: subagent-spawn-in-process
+  disabled: true
+- id: subagent-fork-in-process
+  disabled: true
+- id: session-log-deepseek
+  config:
+    enabled: false
+- id: session-telemetry-otel
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: session-title-llm
+  disabled: true
+- id: tool-bash
+  disabled: true
+- id: tool-pwsh
+  disabled: true
+- id: tool-fs
+  disabled: true
+- id: agent-instructions
+  disabled: true
+- id: tool-todo
+  disabled: true
+- id: compaction-basic
+  disabled: true
+- id: token-meter
+  disabled: true
+- id: tool-skill
+  disabled: true
+- id: skill-filesystem
+  disabled: true
+- id: tool-web
+  disabled: false
+  config:
+    fetch: true
+    searchTimeoutMs: 60000
+- id: command-compact
+  disabled: false
+- id: tool-jobs
+  disabled: true
+- id: tool-fs-search
+  disabled: true
+- id: tool-goal
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: workflow-ptc
+  disabled: true
+- id: plan-mode
+  disabled: true
+- id: tool-result-pruner
+  disabled: true
+- insert:
+    - id: codexy-schedule
+      name: '@codexydsh/schedule'
+    - id: codexy-prompt-registry
+      name: '@codexydsh/prompt-registry'
+    - id: codexy-requests
+      name: '@codexydsh/bridges'
+    - id: codexy-tool-port
+      name: '@codexydsh/bridges/tool-port'
+    - id: codexy-filesystem
+      name: '@codexydsh/filesystem-sandbox'
+      config:
+        protectWorkspaceMetadata: true
+    - id: codexy-memory
+      name: '@codexydsh/memory'
+      config:
+        root: !!js dshHomePath('codexy')
+    - id: codexy-prompt
+      name: '@codexydsh/prompt'
+      config:
+        streamToolsDuringResponse: true
+        protectExistingWorkspaceMetadata: true
+        maxProviderRetryAfterMs: 300000
+        additionalRetryableCodes:
+          - STREAM_CLOSED
+    - id: codexy-exec-policy
+      name: '@codexydsh/exec-policy'
+    - id: codexy-recap
+      name: '@codexydsh/prompt/recap'
+    - id: codexy-auto-review
+      name: '@codexydsh/auto-review'
+      config:
+        mode: codexful
+    - id: codexy-tool-history
+      name: '@codexydsh/tool-history'
+    - id: codexy-v2
+      name: '@codexydsh/subagents/codexful-v2'
+      config:
+        spawnProvider: spawn
+        forkProvider: fork
+    - id: codexy-v1
+      name: '@codexydsh/subagents/codex-v1'
+      config:
+        spawnProvider: spawn
+        forkProvider: fork
+    - id: codexy-mcp
+      name: '@codexydsh/mcp'
+- insert:
+    - id: codexy-agent-loop
+      name: '@codexydsh/runtime'
+      config:
+        agents: []
+      disabled: false
+    - id: codexy-tools
+      name: '@codexydsh/bridges/tools'
+      config:
+        mode: native
+    - id: codexy-session-persistence-jsonl
+      name: '@codexydsh/runtime/persistence'
+      config:
+        root: !!js dshHomePath('sessions/codexy')
+    - id: codexy-llm-pi-ai
+      name: '@codexydsh/models'
+    - id: codexy-deepseek-extensions
+      name: '@codexydsh/deepseek-extensions'
+    - id: codexy-llm-deepseek
+      name: '@codexydsh/deepseek'
+    - id: codexy-llm-deepseek-account
+      name: '@codexydsh/deepseek/account'
+    - id: codexy-llm-retry
+      name: '@codexydsh/retry'
+    - id: codexy-sandbox
+      name: '@codexydsh/sandbox'
+      config:
+        protectExistingWorkspaceMetadata: true
+    - id: codexy-subprocess
+      name: '@codexydsh/processes'
+    - id: codexy-approval
+      name: '@codexydsh/approval'
+      config:
+        policy: !!js '(process.env.DSH_PERMISSION_MODE ?? ''workspace-write'') === ''danger-full-access'' ? ''never'' : ''ask'''
+    - id: codexy-permission
+      name: '@codexydsh/permissions'
+      config:
+        presets:
+          read-only:
+            sandbox: read-only
+            approval: ask
+          workspace-write:
+            sandbox: workspace-write
+            approval: ask
+          danger-full-access:
+            sandbox: danger-full-access
+            approval: never
+    - id: codexy-subagent
+      name: '@codexydsh/delegation'
+    - id: codexy-subagent-spawn-in-process
+      name: '@codexydsh/spawn'
+      config:
+        providerName: spawn
+    - id: codexy-subagent-fork-in-process
+      name: '@codexydsh/fork'
+      config:
+        providerName: fork
+        codexfulHistory: true
+    - id: codexy-tool-bash
+      name: '@codexydsh/exec'
+      config:
+        toolFormat: codex
+        codexMaxOutputTokens: 10000
+        enableUserShellCommand: true
+        codexOutputPolicy: codexful-model
+      disabled: false
+    - id: codexy-tool-fs
+      name: '@codexydsh/files'
+      config:
+        applyPatch: true
+        applyPatchOnly: true
+      disabled: false
+    - id: codexy-agent-instructions
+      name: '@codexydsh/instructions'
+      config:
+        maxBytes: 32768
+        instructionFormat: codex
+        codexGlobalInstructions: true
+        instructionRefresh: session
+      disabled: false
+    - id: codexy-tool-todo
+      name: '@codexydsh/plans'
+      config:
+        allowParallelInProgress: false
+        toolFormat: codex
+      disabled: false
+    - id: codexy-compaction-basic
+      name: '@codexydsh/compaction'
+      config:
+        checkpointFormat: codex
+        thresholdRatio: 0.9
+        headroomTokens: 0
+        maxTokens: 2048
+      disabled: false
+    - id: codexy-token-meter
+      name: '@codexydsh/token-meter'
+      config:
+        preferProviderUsage: true
+    - id: codexy-goals
+      name: '@codexydsh/goals'
+      config:
+        enabled: false
+    - id: codexy-tool-skill
+      name: '@codexydsh/skills'
+      config:
+        catalogFormat: codex
+        catalogDescriptionMaxLength: 1024
+        codexUsageInstructionModels:
+          - gpt-5.5
+      disabled: false
+    - id: codexy-skill-filesystem
+      name: '@codexydsh/skill-filesystem'
+      disabled: false

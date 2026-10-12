@@ -1,0 +1,244 @@
+diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
+--- a/dist/api/anthropic-messages.js
++++ b/dist/api/anthropic-messages.js
+@@ -500,7 +500,6 @@
+                         const block = blocks[index];
+                         if (block && block.type === "toolCall") {
+                             block.partialJson += event.delta.partial_json;
+-                            block.arguments = parseStreamingJson(block.partialJson);
+                             stream.push({
+                                 type: "toolcall_delta",
+                                 contentIndex: index,
+diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
+--- a/dist/api/bedrock-converse-stream.js
++++ b/dist/api/bedrock-converse-stream.js
+@@ -453,7 +453,6 @@
+     }
+     else if (delta?.toolUse && block?.type === "toolCall") {
+         block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
+-        block.arguments = parseStreamingJson(block.partialJson);
+         stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
+     }
+     else if (delta?.reasoningContent) {
+diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
+--- a/dist/api/mistral-conversations.js
++++ b/dist/api/mistral-conversations.js
+@@ -543,7 +543,6 @@
+                 ? toolCall.function.arguments
+                 : JSON.stringify(toolCall.function.arguments || {});
+             block.partialArgs = (block.partialArgs || "") + argsDelta;
+-            block.arguments = parseStreamingJson(block.partialArgs);
+             stream.push({
+                 type: "toolcall_delta",
+                 contentIndex: toolBlocksByKey.get(key),
+diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
+--- a/dist/api/openai-completions.js
++++ b/dist/api/openai-completions.js
+@@ -453,7 +453,6 @@
+                             if (toolCall.function?.arguments) {
+                                 delta = toolCall.function.arguments;
+                                 block.partialArgs = (block.partialArgs ?? "") + toolCall.function.arguments;
+-                                block.arguments = parseStreamingJson(block.partialArgs);
+                             }
+                             else if (toolCall.custom?.input) {
+                                 const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
+diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
+--- a/dist/api/openai-responses-shared.js
++++ b/dist/api/openai-responses-shared.js
+@@ -95,11 +95,15 @@
+             content: sanitizeSurrogates(context.systemPrompt),
+         });
+     }
++    const dshToolKinds = new Map();
+     let msgIndex = 0;
+     for (const msg of transformedMessages) {
++        const dshItemIdBase = typeof msg.__dshCodexfulResponseItemIdBase === "string"
++            ? msg.__dshCodexfulResponseItemIdBase : undefined;
+         if (msg.role === "user") {
+             if (typeof msg.content === "string") {
+                 messages.push({
++                    ...(dshItemIdBase === undefined ? {} : { type: "message", id: `msg_${dshItemIdBase}` }),
+                     role: "user",
+                     content: [{ type: "input_text", text: sanitizeSurrogates(msg.content) }],
+                 });
+@@ -121,6 +125,7 @@
+                 if (content.length === 0)
+                     continue;
+                 messages.push({
++                    ...(dshItemIdBase === undefined ? {} : { type: "message", id: `msg_${dshItemIdBase}` }),
+                     role: "user",
+                     content,
+                 });
+@@ -147,10 +152,10 @@
+                     textBlockIndex++;
+                     // OpenAI requires id to be max 64 characters
+                     let msgId = parsedSignature?.id;
+-                    if (!msgId) {
++                    if (!msgId && dshItemIdBase === undefined) {
+                         msgId = fallbackMessageId;
+                     }
+-                    else if (msgId.length > 64) {
++                    else if (msgId && msgId.length > 64) {
+                         msgId = `msg_${shortHash(msgId)}`;
+                     }
+                     output.push({
+@@ -165,7 +170,10 @@
+                 else if (block.type === "toolCall") {
+                     const toolCall = block;
+                     const [callId, itemIdRaw] = toolCall.id.split("|");
+-                    const customInputProperty = options?.grammarToolInputProperties?.get(toolCall.name);
++                    const customInputProperty = typeof toolCall.__dshFreeformInput === "string"
++                        ? "input" : typeof toolCall.__dshRawArguments === "string"
++                            ? undefined : options?.grammarToolInputProperties?.get(toolCall.name);
++                    dshToolKinds.set(callId, customInputProperty !== undefined);
+                     let itemId = itemIdRaw;
+                     // For different-model messages, set id to undefined to avoid pairing validation.
+                     // OpenAI tracks which fc_xxx IDs were paired with rs_xxx reasoning items.
+@@ -183,7 +191,8 @@
+                             id: itemId,
+                             call_id: callId,
+                             name: toolCall.name,
+-                            input: sanitizeSurrogates(getGrammarToolInput(toolCall.name, toolCall.arguments, customInputProperty)),
++                            input: sanitizeSurrogates(typeof toolCall.__dshFreeformInput === "string"
++                                ? toolCall.__dshFreeformInput : getGrammarToolInput(toolCall.name, toolCall.arguments, customInputProperty)),
+                             ...(canReplayNamespace && toolCall.namespace !== undefined
+                                 ? { namespace: toolCall.namespace }
+                                 : {}),
+@@ -195,7 +204,8 @@
+                             id: itemId,
+                             call_id: callId,
+                             name: toolCall.name,
+-                            arguments: JSON.stringify(toolCall.arguments),
++                            arguments: typeof toolCall.__dshRawArguments === "string"
++                                ? toolCall.__dshRawArguments : JSON.stringify(toolCall.arguments),
+                             ...(canReplayNamespace && toolCall.namespace !== undefined
+                                 ? { namespace: toolCall.namespace }
+                                 : {}),
+@@ -210,9 +220,11 @@
+         else if (msg.role === "toolResult") {
+             const [callId] = msg.toolCallId.split("|");
+             const output = convertToolResultOutput(model, msg.content);
+-            if (options?.grammarToolInputProperties?.has(msg.toolName)) {
++            if (msg.__dshToolKind === "freeform" ||
++                (dshToolKinds.get(callId) ?? options?.grammarToolInputProperties?.has(msg.toolName))) {
+                 messages.push({
+                     type: "custom_tool_call_output",
++                    ...(dshItemIdBase === undefined ? {} : { id: `ctco_${dshItemIdBase}` }),
+                     call_id: callId,
+                     output,
+                 });
+@@ -220,6 +232,7 @@
+             else {
+                 messages.push({
+                     type: "function_call_output",
++                    ...(dshItemIdBase === undefined ? {} : { id: `fco_${dshItemIdBase}` }),
+                     call_id: callId,
+                     output,
+                 });
+@@ -315,6 +328,7 @@
+         return undefined;
+     const delta = appendGrammarToolInputJsonDelta(customInput.jsonBuffer, customInput.property, nextInput, close);
+     block.arguments = { [customInput.property]: nextInput };
++    block.__dshFreeformInput = nextInput;
+     return delta;
+ }
+ export async function processResponsesStream(openaiStream, output, stream, model, options) {
+@@ -330,13 +344,14 @@
+         const slot = outputSlots.get(outputIndex);
+         return slot?.type === type ? slot : undefined;
+     };
+-    const pushToolCallDelta = (slot, delta) => {
++    const pushToolCallDelta = (slot, delta, dshFreeformInputDelta) => {
+         if (delta === undefined)
+             return;
+         stream.push({
+             type: "toolcall_delta",
+             contentIndex: slot.contentIndex,
+             delta,
++            ...(dshFreeformInputDelta === undefined ? {} : { __dshFreeformInputDelta: dshFreeformInputDelta }),
+             partial: output,
+         });
+     };
+@@ -389,6 +404,7 @@
+                 id: `${item.call_id}|${item.id}`,
+                 name: item.name,
+                 arguments: { [inputProperty]: input },
++                __dshFreeformInput: input,
+                 ...(item.namespace !== undefined ? { namespace: item.namespace } : {}),
+                 customInput: {
+                     property: inputProperty,
+@@ -402,7 +418,7 @@
+                 contentIndex: output.content.length - 1,
+             };
+             outputSlots.set(outputIndex, slot);
+-            stream.push({ type: "toolcall_start", contentIndex: slot.contentIndex, partial: output });
++            stream.push({ type: "toolcall_start", contentIndex: slot.contentIndex, partial: output, __dshFreeformInitialInput: input });
+             return slot;
+         }
+         return undefined;
+@@ -433,6 +449,8 @@
+     const finalizeResponse = (response) => {
+         sawTerminalResponseEvent = true;
+         backfillReasoningSignatures(response.output ?? []);
++        if (response?.end_turn === false)
++            output.__dshEndTurn = false;
+         if (response?.id) {
+             output.responseId = response.id;
+         }
+@@ -546,7 +564,6 @@
+             if (!slot || slot.block.partialJson === undefined)
+                 continue;
+             slot.block.partialJson += event.delta;
+-            slot.block.arguments = parseStreamingJson(slot.block.partialJson);
+             pushToolCallDelta(slot, event.delta);
+         }
+         else if (event.type === "response.function_call_arguments.done") {
+@@ -566,13 +583,14 @@
+             const slot = getSlot(event.output_index, "toolCall");
+             if (!slot || !slot.block.customInput)
+                 continue;
+-            pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, getCustomToolCallInput(slot.block) + event.delta, false));
++            pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, getCustomToolCallInput(slot.block) + event.delta, false), event.delta);
+         }
+         else if (event.type === "response.custom_tool_call_input.done") {
+             const slot = getSlot(event.output_index, "toolCall");
+             if (!slot || !slot.block.customInput)
+                 continue;
+-            pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, event.input, true));
++            const previousInput = getCustomToolCallInput(slot.block);
++            pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, event.input, true), event.input.slice(previousInput.length));
+         }
+         else if (event.type === "response.output_item.done") {
+             const item = event.item;
+@@ -606,6 +624,8 @@
+             else if (item.type === "function_call" &&
+                 slot?.type === "toolCall" &&
+                 slot.block.partialJson !== undefined) {
++                slot.block.__dshRawArguments = typeof item.arguments === "string"
++                    ? item.arguments : slot.block.partialJson;
+                 slot.block.arguments = parseStreamingJson(item.arguments || slot.block.partialJson || "{}");
+                 if (item.namespace !== undefined)
+                     slot.block.namespace = item.namespace;
+@@ -621,7 +641,9 @@
+                 outputSlots.delete(event.output_index);
+             }
+             else if (item.type === "custom_tool_call" && slot?.type === "toolCall" && slot.block.customInput) {
+-                pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, item.input ?? getCustomToolCallInput(slot.block), true));
++                const previousInput = getCustomToolCallInput(slot.block);
++                const nextInput = item.input ?? previousInput;
++                pushToolCallDelta(slot, appendCustomToolCallInput(slot.block, nextInput, true), nextInput.slice(previousInput.length));
+                 if (item.namespace !== undefined)
+                     slot.block.namespace = item.namespace;
+                 delete slot.block.customInput;
+diff --git a/dist/api/pi-messages.js b/dist/api/pi-messages.js
+--- a/dist/api/pi-messages.js
++++ b/dist/api/pi-messages.js
+@@ -155,8 +155,6 @@
+             case "toolcall_delta": {
+                 const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
+                 toolJson.set(event.contentIndex, json);
+-                partial.content[event.contentIndex].arguments =
+-                    parseStreamingJson(json);
+                 break;
+             }
+             case "toolcall_end":

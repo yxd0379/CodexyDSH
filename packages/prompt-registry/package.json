@@ -1,0 +1,24 @@
+{
+  "name": "@codexydsh/prompt-registry",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1",
+    "@deepseek-ai/dsh-scope": "0.2.0-rc.2 || 0.2.1-alpha.2"
+  },
+  "dependencies": {
+    "@codexydsh/runtime": "workspace:*"
+  }
+}

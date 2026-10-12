@@ -1,0 +1,140 @@
+.root {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 12px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+}
+
+.root[data-review-status='approved'] {
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.verdict {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.root[data-review-status='approved'] .verdict {
+  color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 60%, var(--dsw-alias-label-primary));
+}
+
+.root:is([data-review-status='started'], [data-review-status='inspecting']) .verdict {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.root:is([data-review-status='denied'], [data-review-status='failed']) .verdict {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.root:is([data-review-status='manual'], [data-review-status='cancelled']) .verdict {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+summary.header {
+  min-height: 24px;
+  cursor: pointer;
+  list-style: none;
+}
+
+summary.header::-webkit-details-marker {
+  display: none;
+}
+
+summary.header:focus-visible {
+  outline: 1px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.inlineExplanation {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 400;
+}
+
+.chevron {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.root[open] .chevron {
+  transform: rotate(90deg);
+}
+
+.root[open] .inlineExplanation {
+  display: none;
+}
+
+.tool {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 400;
+}
+
+.root[data-review-status='approved'] .tool {
+  flex: 0 1 auto;
+  max-width: 35%;
+  margin-left: 0;
+  color: var(--dsw-alias-label-primary);
+}
+
+.root[data-review-status='approved'] .explanation {
+  max-width: 70ch;
+  margin: 2px 0 4px 7px;
+  padding: 2px 0 2px 14px;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.explanation {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hint {
+  flex: 1 1 180px;
+  min-width: 0;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.failure {
+  margin-top: 8px;
+  color: var(--dsw-alias-state-error-primary);
+  overflow-wrap: anywhere;
+}

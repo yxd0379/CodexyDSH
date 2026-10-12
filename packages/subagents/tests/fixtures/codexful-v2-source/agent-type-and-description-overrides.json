@@ -1,0 +1,490 @@
+{
+  "specs": [
+    {
+      "type": "function",
+      "name": "spawn_agent",
+      "description": "\n        \n        Available model overrides (optional; inherited parent model is preferred):\n- `visible-model`: visible description Reasoning efforts: medium (default). Service tiers: priority.\n        Catalog spawning guidance.\nSpawned agents inherit your current model by default. Omit `model` to use that preferred default; set `model` only when an explicit override is needed.\nSpawn only when useful.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_type": {
+            "type": "string",
+            "description": "Agent type override for the new agent. Omit unless explicitly asked. The selected role applies regardless of how much parent history is inherited.\nrole help"
+          },
+          "fork_turns": {
+            "type": "string",
+            "description": "Optional number of turns to fork. Defaults to `all`. Use `none`, `all`, or a positive integer string such as `3` to fork only the most recent turns."
+          },
+          "message": {
+            "type": "string",
+            "description": "Initial plain-text task for the new agent.",
+            "encrypted": true
+          },
+          "model": {
+            "type": "string",
+            "description": "Model override for the new agent. Omit unless an explicit override is needed."
+          },
+          "reasoning_effort": {
+            "type": "string",
+            "description": "Reasoning effort override for the new agent. Omit to inherit the parent effort."
+          },
+          "task_name": {
+            "type": "string",
+            "description": "Task name for the new agent. Use lowercase letters, digits, and underscores."
+          }
+        },
+        "required": [
+          "task_name",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "spawn_agent"
+      }
+    },
+    {
+      "type": "function",
+      "name": "send_message",
+      "description": "",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Message text to queue on the target agent.",
+            "encrypted": true
+          },
+          "target": {
+            "type": "string",
+            "description": "Relative or canonical task name to message (from spawn_agent)."
+          }
+        },
+        "required": [
+          "target",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "send_message"
+      }
+    },
+    {
+      "type": "function",
+      "name": "followup_task",
+      "description": "Send a follow-up task to an existing non-root target agent and trigger a turn if it is idle. If the target is already running, deliver the task promptly at message boundaries while sampling, or after the pending tool call completes.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Message text to send to the target agent.",
+            "encrypted": true
+          },
+          "target": {
+            "type": "string",
+            "description": "Agent id or canonical task name to send a follow-up task to (from spawn_agent)."
+          }
+        },
+        "required": [
+          "target",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "followup_task"
+      }
+    },
+    {
+      "type": "function",
+      "name": "wait_agent",
+      "description": "Wait override.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "timeout_ms": {
+            "type": "number",
+            "description": "Timeout in milliseconds. Defaults to 12345, min 2345, max 45678."
+          }
+        },
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "wait_agent"
+      }
+    },
+    {
+      "type": "function",
+      "name": "interrupt_agent",
+      "description": "Interrupt an agent's current turn, if any, and return its previous status. The agent remains available for messages and follow-up tasks.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Agent id or canonical task name to interrupt (from spawn_agent)."
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "interrupt_agent"
+      }
+    },
+    {
+      "type": "function",
+      "name": "list_agents",
+      "description": "List live agents in the current root thread tree. Optionally filter by task-path prefix.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path_prefix": {
+            "type": "string",
+            "description": "Task-path prefix filter without a trailing slash. Omit to list all live agents."
+          }
+        },
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "list_agents"
+      }
+    }
+  ],
+  "dshTools": [
+    {
+      "name": "spawn_agent",
+      "description": "\n        \n        Available model overrides (optional; inherited parent model is preferred):\n- `visible-model`: visible description Reasoning efforts: medium (default). Service tiers: priority.\n        Catalog spawning guidance.\nSpawned agents inherit your current model by default. Omit `model` to use that preferred default; set `model` only when an explicit override is needed.\nSpawn only when useful.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_type": {
+            "type": "string",
+            "description": "Agent type override for the new agent. Omit unless explicitly asked. The selected role applies regardless of how much parent history is inherited.\nrole help"
+          },
+          "fork_turns": {
+            "type": "string",
+            "description": "Optional number of turns to fork. Defaults to `all`. Use `none`, `all`, or a positive integer string such as `3` to fork only the most recent turns."
+          },
+          "message": {
+            "type": "string",
+            "description": "Initial plain-text task for the new agent.",
+            "encrypted": true
+          },
+          "model": {
+            "type": "string",
+            "description": "Model override for the new agent. Omit unless an explicit override is needed."
+          },
+          "reasoning_effort": {
+            "type": "string",
+            "description": "Reasoning effort override for the new agent. Omit to inherit the parent effort."
+          },
+          "task_name": {
+            "type": "string",
+            "description": "Task name for the new agent. Use lowercase letters, digits, and underscores."
+          }
+        },
+        "required": [
+          "task_name",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "spawn_agent"
+      }
+    },
+    {
+      "name": "send_message",
+      "description": "",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Message text to queue on the target agent.",
+            "encrypted": true
+          },
+          "target": {
+            "type": "string",
+            "description": "Relative or canonical task name to message (from spawn_agent)."
+          }
+        },
+        "required": [
+          "target",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "send_message"
+      }
+    },
+    {
+      "name": "followup_task",
+      "description": "Send a follow-up task to an existing non-root target agent and trigger a turn if it is idle. If the target is already running, deliver the task promptly at message boundaries while sampling, or after the pending tool call completes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Message text to send to the target agent.",
+            "encrypted": true
+          },
+          "target": {
+            "type": "string",
+            "description": "Agent id or canonical task name to send a follow-up task to (from spawn_agent)."
+          }
+        },
+        "required": [
+          "target",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "followup_task"
+      }
+    },
+    {
+      "name": "wait_agent",
+      "description": "Wait override.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "timeout_ms": {
+            "type": "number",
+            "description": "Timeout in milliseconds. Defaults to 12345, min 2345, max 45678."
+          }
+        },
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "wait_agent"
+      }
+    },
+    {
+      "name": "interrupt_agent",
+      "description": "Interrupt an agent's current turn, if any, and return its previous status. The agent remains available for messages and follow-up tasks.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Agent id or canonical task name to interrupt (from spawn_agent)."
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "interrupt_agent"
+      }
+    },
+    {
+      "name": "list_agents",
+      "description": "List live agents in the current root thread tree. Optionally filter by task-path prefix.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path_prefix": {
+            "type": "string",
+            "description": "Task-path prefix filter without a trailing slash. Omit to list all live agents."
+          }
+        },
+        "additionalProperties": false
+      },
+      "namespace": {
+        "name": "collaboration",
+        "description": "Tools for spawning and managing sub-agents.",
+        "toolName": "list_agents"
+      }
+    }
+  ],
+  "responses": [
+    {
+      "type": "namespace",
+      "name": "collaboration",
+      "description": "Tools for spawning and managing sub-agents.",
+      "tools": [
+        {
+          "type": "function",
+          "name": "spawn_agent",
+          "description": "\n        \n        Available model overrides (optional; inherited parent model is preferred):\n- `visible-model`: visible description Reasoning efforts: medium (default). Service tiers: priority.\n        Catalog spawning guidance.\nSpawned agents inherit your current model by default. Omit `model` to use that preferred default; set `model` only when an explicit override is needed.\nSpawn only when useful.",
+          "strict": false,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "agent_type": {
+                "type": "string",
+                "description": "Agent type override for the new agent. Omit unless explicitly asked. The selected role applies regardless of how much parent history is inherited.\nrole help"
+              },
+              "fork_turns": {
+                "type": "string",
+                "description": "Optional number of turns to fork. Defaults to `all`. Use `none`, `all`, or a positive integer string such as `3` to fork only the most recent turns."
+              },
+              "message": {
+                "type": "string",
+                "description": "Initial plain-text task for the new agent.",
+                "encrypted": true
+              },
+              "model": {
+                "type": "string",
+                "description": "Model override for the new agent. Omit unless an explicit override is needed."
+              },
+              "reasoning_effort": {
+                "type": "string",
+                "description": "Reasoning effort override for the new agent. Omit to inherit the parent effort."
+              },
+              "task_name": {
+                "type": "string",
+                "description": "Task name for the new agent. Use lowercase letters, digits, and underscores."
+              }
+            },
+            "required": [
+              "task_name",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "type": "function",
+          "name": "send_message",
+          "description": "",
+          "strict": false,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "Message text to queue on the target agent.",
+                "encrypted": true
+              },
+              "target": {
+                "type": "string",
+                "description": "Relative or canonical task name to message (from spawn_agent)."
+              }
+            },
+            "required": [
+              "target",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "type": "function",
+          "name": "followup_task",
+          "description": "Send a follow-up task to an existing non-root target agent and trigger a turn if it is idle. If the target is already running, deliver the task promptly at message boundaries while sampling, or after the pending tool call completes.",
+          "strict": false,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "Message text to send to the target agent.",
+                "encrypted": true
+              },
+              "target": {
+                "type": "string",
+                "description": "Agent id or canonical task name to send a follow-up task to (from spawn_agent)."
+              }
+            },
+            "required": [
+              "target",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "type": "function",
+          "name": "wait_agent",
+          "description": "Wait override.",
+          "strict": false,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "timeout_ms": {
+                "type": "number",
+                "description": "Timeout in milliseconds. Defaults to 12345, min 2345, max 45678."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "type": "function",
+          "name": "interrupt_agent",
+          "description": "Interrupt an agent's current turn, if any, and return its previous status. The agent remains available for messages and follow-up tasks.",
+          "strict": false,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "description": "Agent id or canonical task name to interrupt (from spawn_agent)."
+              }
+            },
+            "required": [
+              "target"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "type": "function",
+          "name": "list_agents",
+          "description": "List live agents in the current root thread tree. Optionally filter by task-path prefix.",
+          "strict": false,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path_prefix": {
+                "type": "string",
+                "description": "Task-path prefix filter without a trailing slash. Omit to list all live agents."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    }
+  ],
+  "serializedResponses": "[{\"type\":\"namespace\",\"name\":\"collaboration\",\"description\":\"Tools for spawning and managing sub-agents.\",\"tools\":[{\"type\":\"function\",\"name\":\"spawn_agent\",\"description\":\"\\n        \\n        Available model overrides (optional; inherited parent model is preferred):\\n- `visible-model`: visible description Reasoning efforts: medium (default). Service tiers: priority.\\n        Catalog spawning guidance.\\nSpawned agents inherit your current model by default. Omit `model` to use that preferred default; set `model` only when an explicit override is needed.\\nSpawn only when useful.\",\"strict\":false,\"parameters\":{\"type\":\"object\",\"properties\":{\"agent_type\":{\"type\":\"string\",\"description\":\"Agent type override for the new agent. Omit unless explicitly asked. The selected role applies regardless of how much parent history is inherited.\\nrole help\"},\"fork_turns\":{\"type\":\"string\",\"description\":\"Optional number of turns to fork. Defaults to `all`. Use `none`, `all`, or a positive integer string such as `3` to fork only the most recent turns.\"},\"message\":{\"type\":\"string\",\"description\":\"Initial plain-text task for the new agent.\",\"encrypted\":true},\"model\":{\"type\":\"string\",\"description\":\"Model override for the new agent. Omit unless an explicit override is needed.\"},\"reasoning_effort\":{\"type\":\"string\",\"description\":\"Reasoning effort override for the new agent. Omit to inherit the parent effort.\"},\"task_name\":{\"type\":\"string\",\"description\":\"Task name for the new agent. Use lowercase letters, digits, and underscores.\"}},\"required\":[\"task_name\",\"message\"],\"additionalProperties\":false}},{\"type\":\"function\",\"name\":\"send_message\",\"description\":\"\",\"strict\":false,\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"Message text to queue on the target agent.\",\"encrypted\":true},\"target\":{\"type\":\"string\",\"description\":\"Relative or canonical task name to message (from spawn_agent).\"}},\"required\":[\"target\",\"message\"],\"additionalProperties\":false}},{\"type\":\"function\",\"name\":\"followup_task\",\"description\":\"Send a follow-up task to an existing non-root target agent and trigger a turn if it is idle. If the target is already running, deliver the task promptly at message boundaries while sampling, or after the pending tool call completes.\",\"strict\":false,\"parameters\":{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"description\":\"Message text to send to the target agent.\",\"encrypted\":true},\"target\":{\"type\":\"string\",\"description\":\"Agent id or canonical task name to send a follow-up task to (from spawn_agent).\"}},\"required\":[\"target\",\"message\"],\"additionalProperties\":false}},{\"type\":\"function\",\"name\":\"wait_agent\",\"description\":\"Wait override.\",\"strict\":false,\"parameters\":{\"type\":\"object\",\"properties\":{\"timeout_ms\":{\"type\":\"number\",\"description\":\"Timeout in milliseconds. Defaults to 12345, min 2345, max 45678.\"}},\"additionalProperties\":false}},{\"type\":\"function\",\"name\":\"interrupt_agent\",\"description\":\"Interrupt an agent's current turn, if any, and return its previous status. The agent remains available for messages and follow-up tasks.\",\"strict\":false,\"parameters\":{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Agent id or canonical task name to interrupt (from spawn_agent).\"}},\"required\":[\"target\"],\"additionalProperties\":false}},{\"type\":\"function\",\"name\":\"list_agents\",\"description\":\"List live agents in the current root thread tree. Optionally filter by task-path prefix.\",\"strict\":false,\"parameters\":{\"type\":\"object\",\"properties\":{\"path_prefix\":{\"type\":\"string\",\"description\":\"Task-path prefix filter without a trailing slash. Omit to list all live agents.\"}},\"additionalProperties\":false}}]}]"
+}

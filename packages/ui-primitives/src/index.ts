@@ -1,0 +1,10 @@
+/** Product code cards and references layered over the shared DSH primitives. */
+export * from '@deepseek-ai/dsh-client-ui-primitives'
+export { DiffBlock, DEFAULT_DIFF_MAX_LINES, diffTotals } from './DiffBlock.tsx'
+export type { DiffBlockProps, DiffBlockLabels, DiffHunk } from './DiffBlock.tsx'
+export { TerminalBlock, DEFAULT_TERMINAL_MAX_LINES } from './TerminalBlock.tsx'
+export type { TerminalBlockProps, TerminalBlockLabels } from './TerminalBlock.tsx'
+export { projectUserText } from './user-text.tsx'
+export type { UserTextReferences } from './user-text.tsx'
+export { useCopyFeedback } from './use-copy-feedback.ts'
+export type { CopyFeedback } from './use-copy-feedback.ts'

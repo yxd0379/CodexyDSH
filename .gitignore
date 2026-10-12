@@ -1,0 +1,12 @@
+node_modules/
+packages/*/lib/
+.build/
+.artifacts/
+.test-homes/
+coverage/
+.env
+*.tsbuildinfo
+.DS_Store
+codexydsh-*.tar.gz
+.playwright-mcp/
+tmp/

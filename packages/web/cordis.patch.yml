@@ -1,0 +1,99 @@
+# Codexy plugins use independent rows; DSH patch names only guard an existing row.
+- id: desktop-product-telemetry
+  disabled: true
+- id: product-analytics
+  disabled: true
+- id: agent-preset-registry
+  disabled: true
+- id: preset-standard
+  disabled: true
+- id: preset-ptc
+  disabled: true
+- id: preset-minimal
+  disabled: true
+- id: preset-cordis
+  disabled: true
+- id: ui-agent-preset
+  disabled: true
+- id: ui-settings-agent-loop
+  disabled: true
+- id: api-remotes
+  disabled: true
+- id: session-controller
+  disabled: true
+- id: ui-chat
+  disabled: true
+- id: ui-conversation
+  disabled: true
+- id: ui-commands
+  disabled: true
+- id: ui-input-trigger
+  disabled: true
+- id: ui-skill
+  disabled: true
+- id: ui-approval
+  disabled: true
+- id: ui-permission
+  disabled: true
+- id: ui-deliverables
+  disabled: true
+- id: ui-tool
+  disabled: true
+- id: ui-trajectory
+  disabled: true
+- insert:
+    - id: codexy-browser-session
+      name: '@codexydsh/browser-session'
+    - id: codexy-ui-settings
+      name: '@codexydsh/ui-settings'
+    - id: codexy-session-controller
+      name: '@codexydsh/api-session-controller'
+    - id: codexy-remote
+      name: '@codexydsh/remote'
+    - id: codexy-ui-remote
+      name: '@codexydsh/ui-remote'
+    - id: codexy-ui-mcp
+      name: '@codexydsh/ui-mcp'
+    - id: codexy-api-memory
+      name: '@codexydsh/api-memory'
+    - id: codexy-ui-memory
+      name: '@codexydsh/ui-memory'
+    - id: codexy-api-usage
+      name: '@codexydsh/api-usage'
+    - id: codexy-ui-usage
+      name: '@codexydsh/ui-usage'
+    - id: codexy-draft
+      name: '@codexydsh/api-prompt'
+    - id: codexy-commands
+      name: '@codexydsh/api-session'
+- insert:
+    - id: codexy-api-remotes
+      name: '@codexydsh/api-remotes'
+    - id: codexy-ui-chat
+      name: '@codexydsh/ui-chat'
+      config:
+        codexful: true
+    - id: codexy-ui-conversation
+      name: '@codexydsh/ui-conversation'
+      config:
+        busyEnter: steer
+    - id: codexy-ui-commands
+      name: '@codexydsh/ui-commands'
+      config:
+        shellInput: true
+    - id: codexy-ui-input-trigger
+      name: '@codexydsh/ui-input-trigger'
+    - id: codexy-ui-skill
+      name: '@codexydsh/ui-skill'
+      config:
+        trigger: $
+    - id: codexy-ui-approval
+      name: '@codexydsh/ui-approval'
+    - id: codexy-ui-permission
+      name: '@codexydsh/ui-permission-presets'
+    - id: codexy-ui-deliverables
+      name: '@codexydsh/ui-deliverables'
+    - id: codexy-ui-tool
+      name: '@codexydsh/ui-tool'
+    - id: codexy-ui-trajectory
+      name: '@codexydsh/ui-trajectory'

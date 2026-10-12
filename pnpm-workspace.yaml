@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+
+nodeLinker: hoisted
+autoInstallPeers: false
+
+patchedDependencies:
+  '@earendil-works/pi-ai@0.85.1': patches/pi-ai-0.85.1.patch

@@ -1,0 +1,11 @@
+.page { display: flex; flex-direction: column; gap: 16px; }
+.secondary { color: var(--dsw-alias-label-secondary); margin: 0; font-size: 13px; line-height: 20px; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 0; border-bottom: 0.5px solid var(--dsw-alias-border-l4); }
+.identity { display: flex; flex: 1; min-width: 140px; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.identity strong { font-weight: 500; }
+.editor { display: flex; flex-direction: column; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 20px; }
+.actions { display: flex; gap: 8px; }
+.error { color: var(--dsw-alias-state-error-primary); margin: 0; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.loading { display: flex; justify-content: center; padding: 24px; }
+.badge { position: fixed; right: 16px; bottom: 12px; max-width: calc(100vw - 32px); padding: 6px 12px; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; pointer-events: auto; }

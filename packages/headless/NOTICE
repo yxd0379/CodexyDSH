@@ -1,0 +1,1 @@
+The product AgentFactory, stream continuation, input admission, recovery, and relationship validation incorporate MIT-licensed DeepSeek Harness source from the Codexful branch. The independent runtime uses unmodified published DSH services. Its product artifact codec and importer preserve released source artifacts without changing the upstream Session format implementations.

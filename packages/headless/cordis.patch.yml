@@ -1,0 +1,15 @@
+# Only the headless profile replaces its startup parser and one-shot runner.
+- id: headless-startup
+  disabled: true
+- id: headless-runner
+  disabled: true
+- insert:
+    - id: codexy-headless-startup
+      name: '@codexydsh/headless/startup'
+    - id: codexy-headless-runner
+      name: '@codexydsh/headless'
+      inject: [headlessStartup]
+      config:
+        task: !!js ctx.headlessStartup.task
+        sessionId: !!js ctx.headlessStartup.sessionId
+        json: !!js ctx.headlessStartup.json

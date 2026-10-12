@@ -1,0 +1,51 @@
+{
+  "name": "@codexydsh/test-support",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./config": "./src/config.ts",
+    "./client": "./src/client/index.ts",
+    "./host-tools": "./src/host-tools.ts",
+    "./workspace": "./src/workspace.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@deepseek-ai/cosmokit": "1.8.6-alpha.1",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.6-alpha.1",
+    "vitest": "^4.1.8",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-client-store": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-alpha.2",
+    "react": "^18.2.0",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-api-workspace-controller": "0.2.1-alpha.2",
+    "@testing-library/react": "^14.3.1",
+    "@testing-library/dom": "^9.3.4",
+    "@codexydsh/ui-conversation": "workspace:*",
+    "@codexydsh/ui-chat": "workspace:*",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-alpha.2",
+    "typescript": "^6.0.3",
+    "use-sync-external-store": "^1.5.0",
+    "@types/use-sync-external-store": "^0.0.6",
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/bridges": "workspace:*",
+    "@codexydsh/prompt-registry": "workspace:*",
+    "@deepseek-ai/dsh-system-prompt": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-llm": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-alpha.2"
+  },
+  "files": [
+    "lib"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-session": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-attachment": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-subagent": "0.2.1-alpha.2"
+  }
+}

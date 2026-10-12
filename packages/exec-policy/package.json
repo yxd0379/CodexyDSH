@@ -1,0 +1,49 @@
+{
+  "name": "@codexydsh/exec-policy",
+  "description": "Codexful POSIX command approval policy",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "tree-sitter-bash": "0.25.1",
+    "web-tree-sitter": "0.25.10"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@codexydsh/exec": "workspace:*",
+    "@deepseek-ai/dsh": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@codexydsh/approval": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@deepseek-ai/dsh-agent": "0.2.1-alpha.2",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-session": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.1-alpha.2",
+    "@codexydsh/exec": "workspace:*",
+    "@deepseek-ai/dsh-bash-local": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-shell-env": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-subprocess": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-subprocess-local": "0.2.1-alpha.2",
+    "@codexydsh/approval": "workspace:*",
+    "@codexydsh/bridges": "workspace:*",
+    "@codexydsh/prompt-registry": "workspace:*"
+  }
+}

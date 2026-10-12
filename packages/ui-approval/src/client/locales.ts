@@ -1,0 +1,68 @@
+/** `approval` namespace dictionaries. */
+
+/** Simplified Chinese dictionary and key-set source of truth. */
+export const zh = {
+  'review.action.command': '执行命令',
+  'review.action.process': '进程交互',
+  'review.action.edit': '修改文件',
+  'review.action.tool': '工具操作',
+  'review.pending': '正在自动审核权限',
+  'review.inspecting': '正在检查操作范围',
+  'review.approved': '已自动批准',
+  'review.denied': '自动审核拒绝了此操作',
+  'review.failed': '自动审核失败，此操作未执行',
+  'review.cancelled': '权限审核已取消',
+  'review.manual': '自动审核未完成，转由你审批',
+  'review.budget': '自动审核的输入超出预算，未能给出结论',
+  'review.approve': '批准此操作',
+  'review.retryHelp': '你的批准会用于此操作，执行前仍会重新自动审核',
+  'review.sending': '正在提交…',
+  'review.sent': '已提交你的批准，等待重新审核',
+  'review.sendFailed': '批准提交失败：{reason}',
+  'review.sessionUnavailable': '此会话暂不可用',
+  'review.unavailable': '此会话未启用自动审批',
+  waiting: '等待审批',
+  answerFailed: '审批未提交：{reason}。请重试',
+  'detail.aria': '审批详情',
+  escalation: '工具 {toolName} 请求越权执行',
+  reject: '拒绝',
+  allowOnce: '允许一次',
+  allowForSession: '本会话允许此命令',
+  prefixScope: '前缀 {prefix}：本会话后续匹配的命令将越过文件沙箱',
+  allowPrefixForSession: '本会话允许此前缀',
+} satisfies Record<string, string>
+
+/** Approval dictionary key union. */
+export type ApprovalKey = keyof typeof zh
+
+/** English dictionary, checked against the Chinese key set. */
+export const en = {
+  'review.action.command': 'Run command',
+  'review.action.process': 'Process interaction',
+  'review.action.edit': 'Edit files',
+  'review.action.tool': 'Tool action',
+  'review.pending': 'Reviewing permissions automatically',
+  'review.inspecting': 'Checking the action scope',
+  'review.approved': 'Approved automatically',
+  'review.denied': 'Automatic review denied this action',
+  'review.failed': 'Automatic review failed; this action was not run',
+  'review.cancelled': 'Permission review cancelled',
+  'review.manual': 'Automatic review did not finish; your decision is required',
+  'review.budget': 'The automatic review input exceeded its budget, so it returned no verdict',
+  'review.approve': 'Approve this action',
+  'review.retryHelp': 'Your approval applies to this action. It will be reviewed again before execution.',
+  'review.sending': 'Sending…',
+  'review.sent': 'Your approval was sent. Waiting for another review.',
+  'review.sendFailed': 'Could not send approval: {reason}',
+  'review.sessionUnavailable': 'This Session is unavailable',
+  'review.unavailable': 'Automatic approval is unavailable in this Session',
+  waiting: 'Waiting for approval',
+  answerFailed: 'Could not submit your decision: {reason}. Please try again.',
+  'detail.aria': 'Approval details',
+  escalation: 'Tool {toolName} requests privileged execution',
+  reject: 'Reject',
+  allowOnce: 'Allow once',
+  allowForSession: 'Allow this command for this Session',
+  prefixScope: 'Prefix {prefix}: future matching commands in this Session run outside the file sandbox',
+  allowPrefixForSession: 'Allow this prefix for this Session',
+} satisfies Record<ApprovalKey, string>

@@ -1,0 +1,36 @@
+{
+  "name": "@codexydsh/filesystem-local",
+  "description": "Local-filesystem implementation of the DeepSeek Harness filesystem seam (ctx.fs)",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@codexydsh/filesystem": "workspace:*",
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "koffi": "^3.1.0"
+  },
+  "devDependencies": {
+    "@codexydsh/filesystem": "workspace:*",
+    "@deepseek-ai/dsh-llm": "0.2.1-alpha.2",
+    "@deepseek-ai/cordis": "4.0.5-alpha.1"
+  }
+}

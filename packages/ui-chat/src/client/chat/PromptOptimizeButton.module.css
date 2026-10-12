@@ -1,0 +1,41 @@
+/* Composer prompt-optimize trigger. Sits in the input row's left tool group,
+   matching the 28px attach control beside it. */
+
+.trigger {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  corner-shape: round;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.trigger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+}
+
+.trigger:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+
+/* One turn marks the rewrite in flight. */
+.trigger[data-busy] {
+  animation: prompt-optimize-spin 900ms linear infinite;
+}
+
+@keyframes prompt-optimize-spin {
+  to { transform: rotate(360deg); }
+}

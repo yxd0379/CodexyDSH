@@ -1,0 +1,18 @@
+{
+  "name": "dsh-profile-codexy-headless",
+  "private": true,
+  "dependencies": {
+    "@codexydsh/bundle": "0.1.0",
+    "@codexydsh/headless": "0.1.0"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless",
+        "@codexydsh/bundle",
+        "@codexydsh/headless"
+      ]
+    }
+  }
+}

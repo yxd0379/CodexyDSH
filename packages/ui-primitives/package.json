@@ -1,0 +1,32 @@
+{
+  "name": "@codexydsh/ui-primitives",
+  "version": "0.1.0",
+  "description": "CodexyDSH code cards and user references using shared DSH primitives",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "dependencies": {
+    "clsx": "^2.0.0",
+    "diff": "^8.0.2",
+    "anser": "^2.3.2"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2 || 0.2.1-alpha.2"
+  },
+  "devDependencies": {
+    "@types/react": "~18.3.1",
+    "@types/diff": "^7.0.2",
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/test-support": "workspace:*"
+  }
+}

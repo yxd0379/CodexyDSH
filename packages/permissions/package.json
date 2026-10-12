@@ -1,0 +1,79 @@
+{
+  "name": "@codexydsh/permissions",
+  "description": "Permission presets with Session-local sandbox, approval and reviewer controls",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./typert": {
+      "types": "./lib/types/typert.d.ts",
+      "default": "./lib/typert.js"
+    },
+    "./remote": {
+      "types": "./lib/types/remote.d.ts",
+      "default": "./lib/remote.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-shell": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-commands": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@codexydsh/approval": "workspace:*",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-settings": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-typert-registry": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
+  },
+  "dependencies": {
+    "zod": "^4.4.3",
+    "@codexydsh/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-shell": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-commands": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-alpha.2",
+    "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@deepseek-ai/dsh-settings": "0.2.1-alpha.2",
+    "@codexydsh/approval": "workspace:*",
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/test-support": "workspace:*",
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-api-gateway": "0.2.1-alpha.2"
+  },
+  "scripts": {},
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
+    }
+  }
+}

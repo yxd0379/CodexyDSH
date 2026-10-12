@@ -1,0 +1,11 @@
+{
+  "package": "@deepseek-ai/dsh",
+  "version": "0.2.1-alpha.2",
+  "compatibility": [
+    { "version": "0.2.0-rc.2", "status": "verified", "surfaces": ["web", "headless", "desktop"] },
+    { "version": "0.2.1-alpha.2", "status": "verified", "surfaces": ["web", "headless"] }
+  ],
+  "upstreamCommit": "d743267388641bc76f17c45ce8b4c231aed1d32c",
+  "sourceCheckpoint": "c0b4417c90b07ff7301f92aa9d5ddf006917f586",
+  "profiles": { "web": "codexy", "headless": "codexy-headless", "desktop": "desktop" }
+}

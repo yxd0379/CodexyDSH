@@ -1,0 +1,40 @@
+{
+  "name": "@codexydsh/token-meter",
+  "version": "0.1.0",
+  "description": "Codexy replay token metering and upstream-compatible tokenMeter service",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./estimate": {
+      "types": "./lib/types/estimate.d.ts",
+      "default": "./lib/estimate.js"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@deepseek-ai/dsh-token-meter": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-compaction": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-compaction-image-offload": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-util-values": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
+  },
+  "dependencies": {
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/retry": "workspace:*",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,43 @@
+/** Localized MCP settings and Session picker copy. */
+export const zh = {
+  title: 'MCP', description: '配置外部工具服务器。连接开关通过 /mcp 在当前会话中控制',
+  add: '添加服务器', edit: '编辑', remove: '删除', confirmRemove: '确认删除', cancel: '取消', save: '保存',
+  empty: '还没有 MCP 服务器。添加后，可在对话中输入 /mcp 选择连接',
+  unavailable: '当前配置无法写入，请在本机 Web 设置中配置 MCP',
+  name: '服务器名称', transport: '连接方式', stdio: '本地进程（stdio）', http: 'HTTP',
+  command: '启动程序', args: '参数（JSON 数组）', cwd: '工作目录（可选）', url: 'MCP 地址',
+  env: '环境变量（JSON 对象）', headers: '请求头（JSON 对象）',
+  secretHint: '留空保留已保存的值；填 {} 可清空。敏感值不会回显',
+  autoConnect: '自动连接未设置会话开关的对话', autoOn: '默认自动连接', autoOff: '手动连接',
+  saved: 'MCP 配置已保存', removed: 'MCP 服务器已删除', failed: 'MCP 操作失败：{message}',
+  rejected: '配置保存失败，请重新打开编辑器后重试', duplicate: '服务器名称已存在',
+  invalidName: '名称需为 1–32 个英文字母、数字、下划线或连字符', invalidCommand: '请填写启动程序',
+  invalidUrl: '请填写有效的 HTTP 或 HTTPS 地址；认证信息请填写在请求头中',
+  invalidArgs: '参数需为 JSON 字符串数组，例如 ["-y", "@example/mcp-server"]',
+  invalidSecrets: '请填写 JSON 对象，键和值都需为字符串',
+  connect: '连接', disconnect: '关闭', connected: '已连接', connecting: '连接中', retrying: '重连中',
+  disabled: '已关闭', connectionFailed: '连接失败', closed: '连接已结束', tools: '{count} 个工具',
+  noServers: '尚未配置服务器，请打开设置 → MCP 添加', missingSession: '当前会话尚未就绪',
+}
+
+/** English dictionary with the same keys as the Chinese dictionary. */
+export const en: Record<keyof typeof zh, string> = {
+  title: 'MCP', description: 'Configure external tool servers. Use /mcp to control connections in the current Session.',
+  add: 'Add server', edit: 'Edit', remove: 'Delete', confirmRemove: 'Confirm delete', cancel: 'Cancel', save: 'Save',
+  empty: 'No MCP servers yet. Add one, then enter /mcp in a conversation to connect.',
+  unavailable: 'This configuration is read-only. Configure MCP in the local Web settings.',
+  name: 'Server name', transport: 'Transport', stdio: 'Local process (stdio)', http: 'HTTP',
+  command: 'Executable', args: 'Arguments (JSON array)', cwd: 'Working directory (optional)', url: 'MCP URL',
+  env: 'Environment variables (JSON object)', headers: 'Headers (JSON object)',
+  secretHint: 'Leave blank to preserve saved values; enter {} to clear. Secret values are never displayed.',
+  autoConnect: 'Auto-connect conversations without a Session override', autoOn: 'Auto-connect by default', autoOff: 'Connect manually',
+  saved: 'MCP configuration saved', removed: 'MCP server deleted', failed: 'MCP operation failed: {message}',
+  rejected: 'Configuration was not saved. Reopen the editor and try again.', duplicate: 'This server name already exists.',
+  invalidName: 'Use 1–32 letters, digits, underscores, or hyphens.', invalidCommand: 'Enter an executable.',
+  invalidUrl: 'Enter a valid HTTP or HTTPS URL. Put authentication in the headers.',
+  invalidArgs: 'Arguments must be a JSON string array, for example ["-y", "@example/mcp-server"].',
+  invalidSecrets: 'Enter a JSON object with string keys and values.',
+  connect: 'Connect', disconnect: 'Disconnect', connected: 'Connected', connecting: 'Connecting', retrying: 'Reconnecting',
+  disabled: 'Disabled', connectionFailed: 'Connection failed', closed: 'Connection closed', tools: '{count} tools',
+  noServers: 'No servers configured. Add one in Settings → MCP.', missingSession: 'The current Session is not ready.',
+}

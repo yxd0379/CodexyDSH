@@ -1,0 +1,60 @@
+{
+  "name": "@codexydsh/models",
+  "description": "Multi-provider model routes with Codexy native tools and durable protocol replay",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
+    "@deepseek-ai/dsh-attachment": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-authorization": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-credentials": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-fs": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-launch-environment": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.5 || 1.0.6-alpha.1",
+    "@deepseek-ai/dsh": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-settings": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-brand": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/dsh-util-values": "0.2.0-rc.2 || 0.2.1-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.85.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@deepseek-ai/dsh-attachment": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-authorization": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-credentials": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-fs": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-launch-environment": "0.2.1-alpha.2",
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/deepseek": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-http-proxy": "0.2.1-alpha.2",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.6-alpha.1",
+    "@deepseek-ai/dsh-settings": "0.2.1-alpha.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis-plugin-loader": {
+      "optional": true
+    }
+  }
+}

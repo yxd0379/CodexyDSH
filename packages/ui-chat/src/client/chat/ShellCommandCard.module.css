@@ -1,0 +1,19 @@
+.root {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  font-weight: 500;
+}
+
+.caption > span {
+  font-weight: 400;
+}

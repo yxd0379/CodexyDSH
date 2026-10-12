@@ -1,0 +1,46 @@
+/** Codex 8f195c93 tool text; wait placeholders use names for interpolation. */
+/** Effective application defaults at the pinned commit. */
+export const SOURCE_DEFAULTS = {
+  'toolNamespace': 'collaboration',
+  'hideSpawnAgentMetadata': true,
+  'exposeSpawnAgentModelOverrides': true,
+  'waitAgentEnabled': true,
+  'disableDirectMessage': false,
+  'defaultWaitTimeoutMs': 30000,
+  'minWaitTimeoutMs': 10000,
+  'maxWaitTimeoutMs': 3600000,
+  'maxModelOverrides': 5,
+  'maxEffortCharacters': 64,
+} as const
+
+/** Tool descriptions and parameter annotations extracted from the pinned Rust source. */
+export const TEXT = {
+  'namespaceDescription': 'Tools for spawning and managing sub-agents.',
+  'inheritedModelGuidance': 'Spawned agents inherit your current model by default. Omit `model` to use that preferred default; set `model` only when an explicit override is needed.',
+  'modelOverride': 'Model override for the new agent. Omit unless an explicit override is needed.',
+  'taskName': 'Task name for the new agent. Use lowercase letters, digits, and underscores.',
+  'spawnMessage': 'Initial plain-text task for the new agent.',
+  'agentType': 'Agent type override for the new agent. Omit unless explicitly asked. The selected role applies regardless of how much parent history is inherited.\n{agent_type_description}',
+  'forkTurns': 'Optional number of turns to fork. Defaults to `all`. Use `none`, `all`, or a positive integer string such as `3` to fork only the most recent turns.',
+  'reasoningEffort': 'Reasoning effort override for the new agent. Omit to inherit the parent effort.',
+  'sendDescription': 'Send a message to an existing agent. The message will be delivered promptly. Does not trigger a new turn.',
+  'sendTarget': 'Relative or canonical task name to message (from spawn_agent).',
+  'sendMessage': 'Message text to queue on the target agent.',
+  'followupDescription': 'Send a follow-up task to an existing non-root target agent and trigger a turn if it is idle. If the target is already running, deliver the task promptly at message boundaries while sampling, or after the pending tool call completes.',
+  'followupTarget': 'Agent id or canonical task name to send a follow-up task to (from spawn_agent).',
+  'followupMessage': 'Message text to send to the target agent.',
+  'waitDescription': 'Wait for a mailbox update from any live agent, including queued messages and final-status notifications. The wait also ends early when new user input is steered into the active turn. Does not return the content; returns either a summary of which agents have updates (if any), an interruption summary for steered input, or a timeout summary if no activity arrives before the deadline.',
+  'waitTimeout': 'Timeout in milliseconds. Defaults to {default}, min {min}, max {max}.',
+  'interruptDescription': "Interrupt an agent's current turn, if any, and return its previous status. The agent remains available for messages and follow-up tasks.",
+  'interruptTarget': 'Agent id or canonical task name to interrupt (from spawn_agent).',
+  'listDescription': 'List live agents in the current root thread tree. Optionally filter by task-path prefix.',
+  'pathPrefix': 'Task-path prefix filter without a trailing slash. Omit to list all live agents.',
+  'emptyCatalog': 'No picker-visible model overrides are currently loaded.',
+  'modelLine': '- `{model_slug}`: {description}{reasoning_efforts_suffix}{service_tiers_suffix}',
+  'effortSuffix': ' Reasoning efforts: {efforts}.',
+  'tierSuffix': ' Service tiers: {service_tiers}.',
+  'catalogTemplate': 'Available model overrides (optional; inherited parent model is preferred):\n{model_descriptions}',
+  'spawnOverrideTemplate': '\n        {agent_role_guidance}\n        {description}\n{inherited_model_guidance}',
+  'spawnTemplate': "\n        {agent_role_guidance}\n        Spawns an agent to work on the specified task. If your current task is `/root/task1` and you spawn_agent with task_name \"task_3\" the agent will have canonical task name `/root/task1/task_3`.\nYou are then able to refer to this agent as `task_3` or `/root/task1/task_3` interchangeably. However an agent `/root/task2/task_3` would only be able to communicate with this agent via its canonical name `/root/task1/task_3`.\nThe spawned agent will have the same tools as you and the ability to spawn its own subagents.\n{inherited_model_guidance}\nIt will be able to send you and other running agents messages, and its final answer will be provided to you when it finishes.\nThe new agent's canonical task name will be provided to it along with the message.\n\nNote that passing `fork_turns=\"none\"` will not pass any surrounding context to the spawned subagent, which may cause the agent to lack the context it needs to complete its task, whereas `fork_turns=\"all\"` will provide the subagent with all surrounding context.",
+  'spawnUsageTemplate': '\n        {tool_description}\n{usage_hint_text}',
+} as const
