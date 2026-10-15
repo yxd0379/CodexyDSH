@@ -10,3 +10,4 @@ coverage/
 codexydsh-*.tar.gz
 .playwright-mcp/
 tmp/
+.pnpm-store/
