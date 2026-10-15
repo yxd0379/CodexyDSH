@@ -14,7 +14,7 @@ const limits: Omit<TransportOptions, 'ssh'> = {
   connectTimeoutMs: 10_000, startupTimeoutMs: 15_000, stopTimeoutMs: 1000,
   maxOutputBytes: 65_536, serverAliveSeconds: 10, serverAliveCount: 3, readinessPollMs: 10,
 }
-const target: RemoteHostConfig = { host: 'example', profile: 'codexy', directory: '', node: process.execPath, dsh: 'dsh' }
+const target: RemoteHostConfig = { host: 'example', deployment: 'existing', profile: 'codexy', directory: '', node: process.execPath, dsh: 'dsh' }
 
 async function fixture(url = 'http://127.0.0.1:1/?token=example') {
   const ssh = await sshFixture({ url })

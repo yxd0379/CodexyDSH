@@ -18,6 +18,11 @@ import type { Context as PiContext, ImageContent, Message as PiMessage, TextCont
 import { toPiAssistant } from './replay.ts'
 import { requestImageDimensions } from '@deepseek-ai/dsh-attachment'
 import { DEFAULT_REQUEST_IMAGE_MAX_BYTES, DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET } from './config.ts'
+import { prepareNativeViewImage } from './native-image.ts'
+import type { NativePreparedImage } from './native-image.ts'
+
+type ImageBlock = Extract<ContentBlock, { type: 'image' }>
+type PreparedImage = RequestImageAttachment | NativePreparedImage
 
 /** Join the text blocks of a harness message. */
 function flattenText(message: RequestMessage): string {
@@ -70,7 +75,7 @@ function assertSupportedHistory(messages: readonly RequestMessage[]): void {
 
 function userContent(
   blocks: readonly ContentBlock[],
-  requestImages: ReadonlyMap<AttachmentId, RequestImageAttachment>,
+  requestImages: ReadonlyMap<ImageBlock, PreparedImage>,
   resolveImageAccess: ImageAttachmentAccessResolver,
 ): string | (TextContent | ImageContent)[] {
   const content: (TextContent | ImageContent)[] = []
@@ -80,8 +85,8 @@ function userContent(
         if (block.text.length > 0) content.push({ type: 'text', text: block.text })
         break
       case 'image': {
-        const version = requestImages.get(block.attachment.attachmentId) as RequestImageAttachment
-        content.push({
+        const version = requestImages.get(block) as PreparedImage
+        if (!('nativeViewImage' in version)) content.push({
           type: 'text',
           text: requestImageHandleText(block.attachment, version, resolveImageAccess(block.attachment)),
         })
@@ -101,32 +106,35 @@ function userContent(
   return content
 }
 
-function collectImageRefs(
-  blocks: readonly ContentBlock[],
-  refs: Map<AttachmentId, ImageAttachmentRef>,
-): void {
-  for (const block of blocks) {
-    if (block.type === 'image') {
-      if (block.offloaded !== true) refs.set(block.attachment.attachmentId, block.attachment)
-    }
-  }
-}
-
 async function prepareRequestImages(
   messages: readonly RequestMessage[],
   attachments: AttachmentStore,
   budget: PiImageRequestBudget,
+  nativeProfile: boolean,
   signal?: AbortSignal,
-): Promise<Map<AttachmentId, RequestImageAttachment>> {
-  const refs = new Map<AttachmentId, ImageAttachmentRef>()
-  for (const message of messages) collectImageRefs(message.content, refs)
-  const orderedRefs = [...refs.values()]
-  const prepared = await Promise.all(orderedRefs.map(
-    ref => attachments.readImageRequest(ref, requestImageTarget(ref, budget), signal),
-  ))
-  const versions = new Map<AttachmentId, RequestImageAttachment>()
-  for (const [index, ref] of orderedRefs.entries()) {
-    versions.set(ref.attachmentId, prepared[index] as RequestImageAttachment)
+): Promise<Map<ImageBlock, PreparedImage>> {
+  // Image occurrences can share their normalized UI attachment while carrying
+  // different original source assets. Keep representation selection per block.
+  const ordinary = new Map<AttachmentId, Promise<RequestImageAttachment>>()
+  const native = new Map<string, Promise<NativePreparedImage>>()
+  const versions = new Map<ImageBlock, PreparedImage>()
+  for (const message of messages) {
+    for (const block of message.content) {
+      if (block.type !== 'image' || block.offloaded === true) continue
+      let pending: Promise<PreparedImage>
+      if (nativeProfile && message.role === 'tool' && block.codexNativeImage !== undefined) {
+        const facts = block.codexNativeImage
+        const key = JSON.stringify([facts.version, facts.tool, facts.file.attachmentId, facts.file.name,
+          facts.file.bytes, facts.mediaType, facts.width, facts.height])
+        pending = native.get(key) ?? prepareNativeViewImage(attachments, facts, signal)
+        native.set(key, pending as Promise<NativePreparedImage>)
+      } else {
+        const ref = block.attachment
+        pending = ordinary.get(ref.attachmentId) ?? attachments.readImageRequest(ref, requestImageTarget(ref, budget), signal)
+        ordinary.set(ref.attachmentId, pending as Promise<RequestImageAttachment>)
+      }
+      versions.set(block, await pending)
+    }
   }
   return versions
 }
@@ -317,12 +325,13 @@ async function toPiContextWithImages(
   }
   assertSupportedHistory(options.messages)
   const split = splitSystemPrompt(options)
-  const requestImages = await prepareRequestImages(split.messages, attachments, requestImagePolicy, options.signal)
+  const requestImages = await prepareRequestImages(split.messages, attachments, requestImagePolicy,
+    options.codexfulResponses?.wireProfile === 'codex-0.162.1', options.signal)
   if (maxRequestImageBytes !== undefined) {
     const offloadImages = requiredImageOffload(
       split.messages,
       { representation: 'base64', maxBytes: maxRequestImageBytes },
-      block => (requestImages.get(block.attachment.attachmentId) as RequestImageAttachment).bytes,
+      block => (requestImages.get(block) as PreparedImage).bytes,
     )
     if (offloadImages > 0) {
       throw new LlmError(

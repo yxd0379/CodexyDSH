@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { build, type UserConfig, type TsdownPlugin } from 'tsdown'
 import { transform } from 'lightningcss'
 import { generateCompilerConfigs } from './configure.mjs'
+import { buildNativeImageCodec } from './build-native-image-codec.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const configRoot = await generateCompilerConfigs()
@@ -95,6 +96,7 @@ for (const directory of await readdir(resolve(root, 'packages'))) {
     const source = resolve(cwd, 'lib/types', destination.slice('./lib/'.length))
     try { await access(source); await cp(source, resolve(cwd, destination)) } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
   }
+  if (directory === 'models') await buildNativeImageCodec(root)
   const client = manifest.dsh?.client
   if (client === undefined) continue
   const declared = manifest.exports?.['./client']?.types

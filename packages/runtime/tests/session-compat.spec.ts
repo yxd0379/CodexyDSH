@@ -21,7 +21,7 @@ async function verifySession(nodeModules: string, version: string): Promise<void
   await writeFile(join(root, 'package.json'), JSON.stringify({ type: 'module' }))
   // A temporary product-owned build retains bare imports, so Node resolves every
   // public platform dependency from this runtime rather than Vitest's aliases.
-  for (const name of ['session', 'events', 'recovery', 'fork', 'persistence-codec', 'v5-content', 'v5-validation', 'product-relationships']) {
+  for (const name of ['session', 'events', 'recovery', 'fork', 'persistence-codec', 'v5-content', 'v5-validation', 'product-relationships', 'response-metadata']) {
     const input = await readFile(join(source, `${name}.ts`), 'utf8')
     const output = ts.transpileModule(input, { compilerOptions: {
       target: ts.ScriptTarget.ES2024, module: ts.ModuleKind.ESNext, rewriteRelativeImportExtensions: true,

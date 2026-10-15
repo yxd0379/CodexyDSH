@@ -8,7 +8,11 @@ import { createServer, type Socket } from 'node:net'
  * @param options - Remote environment and optional ready server URL.
  * @returns fixture executable, owned files, and joined cleanup.
  */
-export async function sshFixture(options: { env?: Record<string, string>; url?: string } = {}) {
+export async function sshFixture(options: {
+  env?: Record<string, string>
+  url?: string
+  responses?: { output?: string; error?: string; code?: number; input?: boolean; pending?: boolean }[]
+} = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'codexy-remote-test-')))
   const executable = join(root, 'ssh')
   await writeFile(join(root, 'config.json'), JSON.stringify(options))
@@ -42,6 +46,25 @@ if (destination === 'pending') {
   });
   server.listen(match[1], () => fs.writeFileSync(path.join(root, 'forward'), String(process.pid)));
   process.once('SIGTERM', () => { for (const socket of sockets) socket.destroy(); server.close(); });
+} else if (config.responses) {
+  const indexPath = path.join(root, 'response-index');
+  const index = fs.existsSync(indexPath) ? Number(fs.readFileSync(indexPath, 'utf8')) : 0;
+  fs.writeFileSync(indexPath, String(index + 1));
+  const response = config.responses[index];
+  if (!response) { console.error('Unexpected SSH fixture command'); process.exit(2); }
+  const finish = () => {
+    if (response.output) process.stdout.write(response.output);
+    if (response.error) process.stderr.write(response.error);
+    if (response.pending) {
+      fs.writeFileSync(path.join(root, 'pending'), String(process.pid));
+      setInterval(() => {}, 1000);
+    } else process.exitCode = response.code ?? 0;
+  };
+  if (response.input) {
+    const upload = fs.createWriteStream(path.join(root, 'upload-' + index + '.tar.gz'));
+    process.stdin.pipe(upload);
+    upload.once('finish', finish);
+  } else finish();
 } else if (config.url) {
   console.log('DSH_REMOTE_READY ' + JSON.stringify({ url: config.url }));
 } else {

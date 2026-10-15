@@ -16,7 +16,7 @@ export interface RemoteSettingsInjected {
   removeHost(name: string, revision: number): Promise<void>
   connectHost(name: string): Promise<void>
   disconnectHost(name: string): Promise<void>
-  openHost(url: string): void
+  openHost(name: string): void
   retryHosts(): void
 }
 
@@ -65,7 +65,6 @@ export function RemoteSettingsPage({
   }
   return <div className={css.page}>
     <p className={css.secondary}>{t('description')}</p>
-    <p className={css.secondary}>{t('prerequisites')}</p>
     {settings.status === 'loading' || connections.items === null && connections.error === null ? <div className={css.loading}><StateDot state="ongoing" /></div> : <>
       {connections.error !== null && <div role="alert" className={css.error}>{t('observationFailed', { message: connections.error })}
         <Button size="sm" onClick={retryHosts}>{t('retry')}</Button></div>}
@@ -79,7 +78,7 @@ export function RemoteSettingsPage({
           <div className={css.identity}><strong>{name}</strong>
             <span className={css.secondary}>{host.host} · {host.profile} · {t(phase)}</span>
             {status?.error && <span className={css.error}>{status.error}</span>}</div>
-          {phase === 'connected' && url && <Button size="sm" onClick={() => { openHost(url) }}>{t('open')}</Button>}
+          {phase === 'connected' && url && <Button size="sm" onClick={() => { openHost(name) }}>{t('open')}</Button>}
           {phase === 'connected' || phase === 'connecting'
             ? <Button size="sm" disabled={!connections.connected} onClick={() => { connect(() => disconnectHost(name)) }}>{t(phase === 'connecting' ? 'cancelConnection' : 'disconnect')}</Button>
             : <Button size="sm" variant="outline" disabled={!connections.connected} onClick={() => { connect(() => connectHost(name)) }}>{t('connect')}</Button>}
@@ -91,13 +90,15 @@ export function RemoteSettingsPage({
           {removing === name && <Button size="sm" disabled={busy} onClick={() => { setRemoving(undefined) }}>{t('cancel')}</Button>}
         </div>
       })}
-      <p className={css.secondary}>{t('disconnectHint')}</p>
       {draft === undefined ? <Button variant="outline" disabled={!editable || busy} onClick={() => { setDraft(draftOf(revision)); setError(''); setRemoving(undefined) }}>{t('add')}</Button>
         : <form className={css.editor} onSubmit={(event) => {
           event.preventDefault(); void write(() => saveHost(draft), () => { setDraft(undefined) })
         }}>
           <label className={css.field}>{t('name')}<Input required value={draft.name} disabled={busy || draft.originalName !== undefined} onChange={(event) => { setDraft({ ...draft, name: event.target.value }) }} /></label>
-          {(['host', 'profile', 'directory', 'node', 'dsh'] as const).map(field => <label key={field} className={css.field}>{t(field)}
+          <label className={css.field}>{t('deployment')}<select disabled={busy} value={draft.deployment ?? 'auto'} onChange={event => { setDraft({ ...draft, deployment: event.target.value as 'auto' | 'existing' }) }}>
+            <option value="auto">{t('deploymentAuto')}</option><option value="existing">{t('deploymentExisting')}</option>
+          </select></label>
+          {(['host', 'profile', 'directory', ...(draft.deployment === 'existing' ? ['node', 'dsh'] as const : [])] as const).map(field => <label key={field} className={css.field}>{t(field)}
             <Input required={field !== 'directory'} value={draft[field]} disabled={busy} onChange={(event) => { setDraft({ ...draft, [field]: event.target.value }) }} /></label>)}
           {error && <p className={css.error} role="alert">{error}</p>}
           <div className={css.actions}><Button type="submit" variant="primary" disabled={busy || !editable}>{busy && <StateDot state="ongoing" />}{t('save')}</Button>

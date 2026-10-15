@@ -13,7 +13,7 @@ export const CODEXY_ARTIFACT_VERSION = 1
 export const PRODUCT_EVENT_TYPES: ReadonlySet<string> = new Set([
   'assistant/output-item', 'llm/request-timing', 'request/feature', 'request/header',
   'tool/notification', 'approval/review', 'approval/reviewer', 'code-mode/completed',
-  'code-mode/dispatch', 'codexful/multi-agent-version', 'memory/context', 'memory/edited',
+  'code-mode/dispatch', 'codexful/multi-agent-version', 'codexful/workspace-enrichment', 'memory/context', 'memory/edited',
   'memory/request', 'memory/result', 'memory/updated', 'memory/used', 'recap/request',
   'recap/result', 'subagent/codex-v1-identity', 'subagent/fork-window', 'runtime/import',
   'runtime/feature', 'schedule/change', 'codexy/goal-state', 'codexy/goal-request',

@@ -15,8 +15,8 @@
     "test:artifacts": "node scripts/configure.mjs && vitest run --config vitest.artifact.config.ts",
     "test:compat": "node scripts/compatibility.mjs",
     "test:parity": "cd ../dsh-parity && node --test tests/*.test.mjs",
-    "pack": "tsx scripts/pack.ts",
-    "install:profile": "node scripts/install.mjs",
+    "bundle": "tsx scripts/pack.ts",
+    "apply": "node scripts/install.mjs",
     "start": "dsh --profile codexy"
   },
   "dependencies": {

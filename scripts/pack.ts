@@ -72,12 +72,15 @@ await mkdir(join(output, 'patches'), { recursive: true })
 await cp(join(root, providerPatchFile), join(output, providerPatchFile))
 const providerPatches = [{ name: '@earendil-works/pi-ai@0.85.1', file: providerPatchFile,
   sha256: createHash('sha256').update(await readFile(join(root, providerPatchFile))).digest('hex') }]
-await writeFile(join(output, 'release.json'), JSON.stringify({ format: 1, platform, packages, providerPatches }, null, 2) + '\n')
 await build({ cwd: root, entry: { install: join(root, 'scripts/install.mjs') },
   outDir: output, format: 'esm', clean: false, dts: false, sourcemap: false, platform: 'node',
   deps: { alwaysBundle: ['yaml'], onlyBundle: false }, outputOptions: { entryFileNames: 'install.mjs' },
 })
 await cp(join(root, 'profiles'), join(output, 'profiles'), { recursive: true })
+const deploymentFiles = await Promise.all(['install.mjs', 'profiles/codexy/package.json', 'profiles/codexy-headless/package.json'].map(async file => ({
+  file, sha256: createHash('sha256').update(await readFile(join(output, file))).digest('hex'),
+})))
+await writeFile(join(output, 'release.json'), JSON.stringify({ format: 1, platform, packages, providerPatches, deploymentFiles }, null, 2) + '\n')
 await cp(join(root, 'install.sh'), join(output, 'install.sh'))
 for (const file of ['README.md', 'LICENSE']) {
   await cp(join(root, file), join(output, file))

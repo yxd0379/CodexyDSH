@@ -152,7 +152,7 @@ describe('Codexful exec review with the real command tool and a fake subprocess'
     try {
       const result = await call(ctx, agent, 'rm -f /tmp/example')
       expect(result.isError).toBe(true)
-      expect(result.content).toEqual([{ type: 'text', text: 'Error: rm -f style commands are not permitted. Use a safer approach' }])
+      expect(result.content).toEqual([{ type: 'text', text: String.raw`exec_command failed: CreateProcess { message: "Rejected(\"\u0060/bin/bash -lc 'rm -f /tmp/example'\u0060 rejected: rm -f style commands are not permitted. Use a safer approach\")" }`.replaceAll('\\u0060', '`') }])
       expect(spawned).toHaveLength(0)
     } finally {
       await ctx.fiber.dispose()

@@ -1,0 +1,12 @@
+{
+  "source": {
+    "codexVersion": "0.162.1",
+    "task": "expr-try-catch-errors",
+    "attempt": 1,
+    "summaryTransaction": 49,
+    "rolloutSha256": "f6dd98859c57b8a6e4ba36b462fd11bf95763ce48e551d2f9ecefeb7dc559e8e"
+  },
+  "expectedCheckpointMessage": "Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:\n\n\nShell quoting mangled that. Let me use `git apply` with a patch file instead:\n\n",
+  "expectedCheckpointBytes": 481,
+  "expectedCheckpointSha256": "51f205818ce03983709dac1f5a232e4624e99328e3cfae0af33f8279bde9a310"
+}

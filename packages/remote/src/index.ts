@@ -1,11 +1,14 @@
 /** Saved SSH deployments and locally owned launch/tunnel lifetimes. */
 import { Context, type Volatile } from '@deepseek-ai/cordis'
+import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteHostConfig, RemoteHostStatus } from './types.ts'
 import { launchRemote, openTunnel, redactTokens, type TransportOptions, type Tunnel } from './transport.ts'
+import { EmbeddedRemoteProxy, embeddedRemotePath } from './proxy.ts'
+import { createSshAuthentication } from './askpass.ts'
 
 export type { RemoteHostConfig, RemoteHostStatus } from './types.ts'
 
@@ -21,6 +24,7 @@ const Host: z<RemoteHostConfig> = z.object({
   profile: z.string().pattern(/^[A-Za-z0-9][A-Za-z0-9_-]*(?![\s\S])/u).default('codexy'),
   directory: z.string().pattern(/^(?:|\/[^\0\r\n]*)(?![\s\S])/u).default(''),
   node: executable.default('node'),
+  deployment: z.union([z.const('auto'), z.const('existing')]).default('auto'),
   dsh: executable.default('dsh'),
 })
 const Hosts = z.dict(z.union([Host, z.const(null)]), z.string().pattern(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?![\s\S])/u)).default({})
@@ -33,6 +37,7 @@ interface Attempt {
   tunnel?: Tunnel
   ready: Promise<RemoteHostStatus>
   closing?: Promise<void>
+  authentication?: { challenge: { id: string; prompt: string }; respond(response: string): void }
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -50,6 +55,7 @@ export class RemoteLauncher extends TypertRemoteService {
     ssh: executable.default('ssh'),
     connectTimeoutMs: z.natural().min(1).max(2_147_000_000).default(20_000),
     startupTimeoutMs: z.natural().min(1).max(2_147_000_000).default(60_000),
+    deployTimeoutMs: z.natural().min(1).max(2_147_000_000).default(600_000),
     stopTimeoutMs: z.natural().min(1).max(2_147_483_647).default(5_000),
     maxOutputBytes: z.natural().min(1024).default(65_536),
     serverAliveSeconds: z.natural().min(1).default(10),
@@ -60,6 +66,7 @@ export class RemoteLauncher extends TypertRemoteService {
   private readonly followers = new Set<() => void>()
   private revision = 0
   private disposed = false
+  private proxy?: EmbeddedRemoteProxy
 
   /** @param ctx - Local Host services and lifetime owner.
    * @param config - Validated catalog and transport limits.
@@ -67,12 +74,24 @@ export class RemoteLauncher extends TypertRemoteService {
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'remoteLauncher', { namespace: 'remoteHosts' })
     ctx.inject(['settings'], (scope) => { scope.effect(() => scope.settings.configure({ auto: false }, ctx.fiber)) })
+    ctx.inject(['webServer', 'connection'], (scope) => {
+      const proxy = new EmbeddedRemoteProxy(scope, (name) => {
+        const attempt = this.attempts.get(name)
+        return attempt?.phase === 'connected' && attempt.closing === undefined
+          && JSON.stringify(this.config.hosts.get()[name]) === JSON.stringify(attempt.target) ? attempt.tunnel?.url : undefined
+      })
+      this.proxy = proxy
+      proxy.update(Object.keys(this.config.hosts.get()).filter(name => this.config.hosts.get()[name] !== null))
+      scope.effect(() => () => { if (this.proxy === proxy) this.proxy = undefined })
+      this.publish()
+    })
     ctx.on('loader/volatile-update', () => {
       for (const [name, attempt] of this.attempts) {
         if (JSON.stringify(this.config.hosts.get()[name]) !== JSON.stringify(attempt.target)) {
           void this.disconnect(name).catch((error: unknown) => { ctx.logger.warn('Remote tunnel cleanup failed: %s', String(error)) })
         }
       }
+      this.proxy?.update(Object.keys(this.config.hosts.get()).filter(name => this.config.hosts.get()[name] !== null))
       this.publish()
     })
     ctx.effect(() => async () => {
@@ -115,7 +134,7 @@ export class RemoteLauncher extends TypertRemoteService {
   /** Start or rediscover a remote dsh and establish its local loopback tunnel.
    * @param name - saved host name.
    * @param signal - connection cancellation; already launched remote work continues.
-   * @returns the connected host and its authenticated local URL.
+   * @returns the connected host and its local browser runtime path.
    */
   @Remote
   async connect(name: string, signal: AbortSignal): Promise<RemoteHostStatus> {
@@ -141,10 +160,14 @@ export class RemoteLauncher extends TypertRemoteService {
       target, controller, phase: 'connecting', error: null,
       ready: Promise.resolve().then(async () => {
         const lifetime = AbortSignal.any([signal, controller.signal])
+        let authentication: Awaited<ReturnType<typeof createSshAuthentication>> | undefined
         try {
-          const remote = await launchRemote(target, this.config, lifetime)
-          const tunnel = await openTunnel(target, remote, this.config, lifetime)
+          authentication = await createSshAuthentication((prompt, questionSignal) => this.authenticate(name, attempt, prompt, AbortSignal.any([lifetime, questionSignal])), lifetime)
+          const options = { ...this.config, auth: authentication.env }
+          const remote = await launchRemote(target, options, lifetime)
+          const tunnel = await openTunnel(target, remote, options, lifetime)
           attempt.tunnel = tunnel
+          this.proxy?.invalidate(name)
           lifetime.throwIfAborted()
           attempt.phase = 'connected'
           this.publish()
@@ -162,6 +185,8 @@ export class RemoteLauncher extends TypertRemoteService {
             this.publish()
           }
           throw new Error(redactTokens(error instanceof Error ? error.message : String(error)))
+        } finally {
+          await authentication?.close()
         }
       }),
     }
@@ -180,7 +205,49 @@ export class RemoteLauncher extends TypertRemoteService {
     if (!attempt) return
     await this.close(attempt)
     if (this.attempts.get(name) === attempt) this.attempts.delete(name)
+    this.proxy?.invalidate(name)
     this.publish()
+  }
+
+  /** Answer only the active question from this exact connection attempt.
+   * @param name - Saved host name.
+   * @param challengeId - Current ephemeral question identifier.
+   * @param response - Secret answer, or null to cancel connecting.
+   */
+  @Remote
+  async respondAuthentication(name: string, challengeId: string, response: string | null): Promise<void> {
+    const attempt = this.attempts.get(name)
+    const question = attempt?.authentication
+    if (!attempt || attempt.phase !== 'connecting' || attempt.closing !== undefined || attempt.controller.signal.aborted
+      || !question || question.challenge.id !== challengeId
+      || JSON.stringify(this.config.hosts.get()[name]) !== JSON.stringify(attempt.target)) throw new Error('SSH authentication request is no longer active')
+    if (response === null) {
+      attempt.controller.abort(new Error('SSH authentication cancelled'))
+      await this.disconnect(name)
+      return
+    }
+    if (typeof response !== 'string' || Buffer.byteLength(response) > 4096 || /[\0\r\n]/u.test(response)) throw new Error('Invalid SSH authentication response')
+    question.respond(response)
+  }
+
+  private authenticate(name: string, attempt: Attempt, prompt: string, signal: AbortSignal): Promise<string> {
+    signal.throwIfAborted()
+    if (this.attempts.get(name) !== attempt || attempt.phase !== 'connecting' || attempt.closing !== undefined) throw new Error('SSH authentication request is no longer active')
+    if (attempt.authentication) throw new Error('Another SSH authentication question is already pending')
+    return new Promise<string>((resolve, reject) => {
+      const finish = (): void => {
+        signal.removeEventListener('abort', cancelled)
+        if (attempt.authentication === question) {
+          delete attempt.authentication
+          this.publish()
+        }
+      }
+      const cancelled = (): void => { finish(); reject(new Error('SSH authentication cancelled')) }
+      const question = { challenge: { id: randomUUID(), prompt }, respond(response: string): void { finish(); resolve(response) } }
+      attempt.authentication = question
+      signal.addEventListener('abort', cancelled, { once: true })
+      this.publish()
+    })
   }
 
   private close(attempt: Attempt): Promise<void> {
@@ -195,7 +262,9 @@ export class RemoteLauncher extends TypertRemoteService {
     const attempt = this.attempts.get(name)
     const current = attempt && JSON.stringify(attempt.target) === JSON.stringify(target) ? attempt : undefined
     return { name, host: target.host, profile: target.profile, phase: current?.phase ?? 'disconnected',
-      url: current?.phase === 'connected' ? current.tunnel?.url ?? null : null, error: current?.error ?? null }
+      url: current?.phase === 'connected' ? this.proxy ? embeddedRemotePath(name) : current.tunnel?.url ?? null : null,
+      error: current?.error ?? null,
+      ...(current?.authentication ? { authChallenge: { ...current.authentication.challenge } } : {}) }
   }
 
   private publish(): void {

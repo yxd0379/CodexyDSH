@@ -1,6 +1,6 @@
 # @codexydsh/remote
 
-在本地通过 OpenSSH 启动或重新找到远端 `dsh --profile codexy`，建立仅监听本地回环地址的 HTTP/WebSocket 转发。远端需要预装 Node、DSH 和 CodexyDSH 产品 bundle，并完成 SSH 密钥及 known_hosts 配置。
+在本地通过 OpenSSH 启动或重新找到远端 `dsh --profile codexy`，建立仅监听本地回环地址的 HTTP/WebSocket 转发。默认自动同步当前安装的产品发布包并安装独立 Node/DSH，仅支持 Linux ARM64、glibc ≥ 2.28；其他平台在写入前报错。远端需具备 curl、tar、sha256sum 和 Node/npm 下载网络。本机沿用 SSH 配置与 known_hosts；支持密钥/agent，也支持弹窗输入密码、私钥口令或验证码，不要求免密、不保存认证输入。`deployment: existing` 保留使用预装服务端的方式。
 
 Host 服务保存可实时编辑的 `hosts` 目录并提供 `remoteHosts` Remote namespace；Client 提供共享连接状态模型。断开连接关闭本地 SSH、转发和监听器，远端进程、项目和会话继续存在；再次连接复用远端部署。
 

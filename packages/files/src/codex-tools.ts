@@ -4,7 +4,7 @@ import { defineTool } from '@codexydsh/tool-schema'
 import type { ToolExecution } from '@codexydsh/runtime/tools'
 import { snapshotProductEvents } from '@codexydsh/runtime/session'
 import type {} from '@deepseek-ai/dsh-user-questions'
-import { IMAGE_READ_SCHEMA, imageRefFromValue, readImageFile } from './read-image.ts'
+import { IMAGE_READ_SCHEMA, imageRefFromValue, nativeImageFactsFromValue, readImageFile } from './read-image.ts'
 
 // Pinned public tool descriptions and arguments: openai/codex rust-v0.162.1,
 // core/src/tools/handlers/{view_image,request_user_input}_spec.rs, Apache-2.0.
@@ -23,11 +23,12 @@ export function applyViewImageTool(ctx: Context): void {
     output: {
       schema: IMAGE_READ_SCHEMA,
       // The native Codex result carries an image, not read_image's text envelope.
-      render: (_args, value) => [{ type: 'image', attachment: imageRefFromValue(value.image) }],
+      render: (_args, value) => [{ type: 'image', attachment: imageRefFromValue(value.image),
+        ...value.nativeImage === undefined ? {} : { codexNativeImage: nativeImageFactsFromValue(value.nativeImage) } }],
       presentationMeta: (_args, value) => ({ path: value.path }),
     },
     isConcurrencySafe: () => true,
-    execute: (args, exec) => readImageFile(ctx, args.path, exec),
+    execute: (args, exec) => readImageFile(ctx, args.path, exec, true),
   }))
 }
 

@@ -220,6 +220,9 @@ export async function summarizeWithLlm(
     ...input.compactionMetadata === undefined ? {} : { compactionMetadata: input.compactionMetadata },
     ...input.source,
   }, 'compaction source')
+  // Capture from the original history before awaits or overflow trimming. The
+  // auxiliary request may omit old input without removing it from the session.
+  const assistantHistoryText = latestAssistantText(input.messages)
   let attempt = 0
   const identity = () => ({ version: 1 as const, invocationId, requestId: randomUUID(),
     attempt: attempt + 1, omittedInputMessages, source })
@@ -244,6 +247,7 @@ export async function summarizeWithLlm(
   let retries = 0
   let metadataCaptured = false
   let assembler: BlockAssembler
+  let completedFinish: FinishReason | undefined
   for (;;) {
     assembler = new BlockAssembler()
     let preparedCall: ReturnType<PreparedLlmModel['prepareCall']>
@@ -298,7 +302,10 @@ export async function summarizeWithLlm(
           terminalReplayState = observed.replayState
         }
       }
-      const error = finishError(assembler.finish)
+      const nativeHistorySummary = usesCodexHistorySummary(source, options)
+      const acceptsCappedSummary = nativeHistorySummary && assembler.finish.kind === 'max-tokens'
+        && (hasVisibleText(assembler.blocks()) || assistantHistoryText !== undefined)
+      const error = acceptsCappedSummary ? undefined : finishError(assembler.finish)
       if (error !== undefined) throw error
     } catch (error: unknown) {
       streamFailure = error
@@ -336,7 +343,7 @@ export async function summarizeWithLlm(
     appendProductEvent(agent.session, 'compaction/request-result', result)
     await checkpoint()
     if (!failed && projectionFailed) throw projectionError
-    if (!failed) break
+    if (!failed) { completedFinish = finish; break }
     {
       const error = streamFailure
       if (config.checkpointFormat === 'codex' && signal?.aborted !== true
@@ -363,7 +370,10 @@ export async function summarizeWithLlm(
   }
 
   const rawOutput = assembler.blocks()
-  const summary = summaryText(rawOutput)
+  const currentSummary = summaryText(rawOutput)
+  const fallback = completedFinish !== undefined && !hasVisibleText(currentSummary) && usesCodexHistorySummary(source, options)
+    ? assistantHistoryText : undefined
+  const summary = fallback === undefined ? currentSummary : [{ type: 'text' as const, text: fallback }]
   if (!summary.some(block => block.text.trim().length > 0)) {
     throw new Error('summarization produced no text summary content')
   }
@@ -379,6 +389,35 @@ export async function summarizeWithLlm(
     ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
     ...(assembler.usage === undefined ? {} : { usage: assembler.usage }),
   }
+}
+
+/** Codex's local non-post-turn compaction reads the latest assistant from its history snapshot. */
+function usesCodexHistorySummary(
+  source: CompactionRequestSource,
+  options: GenerateOptions,
+): boolean {
+  const metadata = source.compactionMetadata
+  return source.checkpointFormat === 'codex'
+    && options.codexfulResponses?.wireProfile === 'codex-0.162.1'
+    && metadata?.implementation === 'responses' && metadata.strategy === 'memento'
+    && (metadata.phase === 'pre_turn' || metadata.phase === 'mid_turn' || metadata.phase === 'standalone_turn')
+}
+
+function hasVisibleText(blocks: readonly ContentBlock[]): boolean {
+  return blocks.some(block => block.type === 'text' && block.text.trim().length > 0)
+}
+
+/** Keep visible text bytes, including line breaks; reasoning and tool-only messages are not summaries. */
+function latestAssistantText(messages: readonly Message[]): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!
+    if (message.role !== 'assistant') continue
+    const parts = message.content.flatMap(block => block.type === 'text' && block.text.length > 0 ? [block.text] : [])
+    if (parts.length === 0) continue
+    const text = parts.join('\n')
+    return text.trim().length === 0 ? undefined : text
+  }
+  return undefined
 }
 
 /** Lossless JSON snapshot of native input, excluding only live invocation controls. */

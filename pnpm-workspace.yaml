@@ -3,6 +3,17 @@ packages:
 
 nodeLinker: hoisted
 autoInstallPeers: false
+# Report stale dependencies instead of unexpectedly reinstalling them during build.
+verifyDepsBeforeRun: error
 
 patchedDependencies:
   '@earendil-works/pi-ai@0.85.1': patches/pi-ai-0.85.1.patch
+
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true # Restore the PTY helper executable bit.
+  '@google/genai': false # Published SDK is built; preinstall only prints a no-op.
+  esbuild: true # Prepare and validate the platform binary.
+  koffi: true # Prepare the native FFI binding.
+  node-pty: true # Select the prebuilt PTY binding or compile it.
+  protobufjs: false # Postinstall only checks a dependency version convention.
+  tree-sitter-bash: true # Select the prebuilt grammar binding or compile it.

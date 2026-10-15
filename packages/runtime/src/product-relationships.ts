@@ -11,6 +11,7 @@ const RELATIONSHIP_TYPES = new Set([
   'assistant/output-item', 'tool/call', 'request/header', 'request/context', 'tool/ptc-dispatch-start', 'tool/ptc-dispatch',
   'llm/retry', 'llm/retry-started', 'session/title', 'session/title-llm-request', 'command/run',
   'command/done', 'compaction/start', 'compaction/summary', 'compaction/end', 'compaction/prune', 'session/end-seed',
+  'codexful/workspace-enrichment',
 ])
 
 function record(value: SessionFormatJsonValue | undefined, subject: string): SessionFormatJsonObject {
@@ -65,6 +66,7 @@ class Relationships {
   readonly startedRetries = new Set<string>()
   readonly commands = new Set<string>()
   readonly orphanCompactions = new Set<number>()
+  readonly workspaceEnrichments = new Map<number, { cwd: string; phase: 'pending' | 'ready' }>()
 
   constructor(readonly artifact: SessionFormatArtifact, readonly knownEventTypes: ReadonlySet<string>) {
     let start: number | undefined
@@ -321,6 +323,25 @@ class Relationships {
         this.provider = record(record(data['header'], 'request header')['config'], 'request config')['provider']
         break
       case 'request/context': this.requireTurn(event.type); break
+      case 'codexful/workspace-enrichment': {
+        this.requireTurn(event.type)
+        const startSeq = sessionFormatCount(data['turnStartSeq'], 'workspace enrichment turnStartSeq')
+        const start = this.artifact.events[startSeq]
+        if (startSeq >= event.seq || start?.type !== 'turn/start'
+          || record(start.data, 'workspace enrichment turn')['turn'] !== this.turn) {
+          throw new SessionFormatError('workspace enrichment must reference its active turn/start')
+        }
+        const phase = data['phase']
+        const cwd = text(data['cwd'], 'workspace enrichment cwd')
+        const previous = this.workspaceEnrichments.get(startSeq)
+        if (phase !== 'pending' && phase !== 'ready'
+          || phase === 'pending' && previous !== undefined
+          || phase === 'ready' && (previous?.phase !== 'pending' || previous.cwd !== cwd)) {
+          throw new SessionFormatError('workspace enrichment requires one pending then one ready fact for the same cwd')
+        }
+        this.workspaceEnrichments.set(startSeq, { cwd, phase })
+        break
+      }
       case 'tool/ptc-dispatch-start': case 'tool/ptc-dispatch': this.dispatch(event, data); break
       case 'llm/retry': case 'llm/retry-started': this.retry(event, data); break
       case 'session/title': case 'session/title-llm-request': titleSources(this.artifact.events, event, data, this.knownEventTypes); break

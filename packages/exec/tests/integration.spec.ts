@@ -1,11 +1,13 @@
 import { createUserMessage } from '@codexydsh/runtime/llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@codexydsh/runtime/persistence'
+import { decodeCodexyArtifact } from '../../runtime/src/persistence-codec.ts'
+import { deriveProductMessages } from '@codexydsh/runtime/session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@codexydsh/runtime'
 import { mountAgentLoopTestDependencies } from '@codexydsh/runtime-testkit'
@@ -23,7 +25,7 @@ import { MockAdapter, textResponse, toolCallResponse } from '@codexydsh/runtime-
  * (tool/call + tool/result session events, the generic `ctx.jobs` runtime,
  * agent.inject completion notices).
  */
-async function harness(adapter: MockAdapter, sessionRoot?: string, dshHome?: string) {
+async function harness(adapter: MockAdapter, sessionRoot?: string, dshHome?: string, toolFormat: 'dsh' | 'codex' = 'dsh') {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   if (sessionRoot !== undefined) {
@@ -35,7 +37,7 @@ async function harness(adapter: MockAdapter, sessionRoot?: string, dshHome?: str
   await ctx.plugin(LocalSubprocessRuntime)
   await ctx.plugin(BashEnvPlugin, dshHome === undefined ? {} : { dshHome })
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000 })
-  await ctx.plugin(ToolBash)
+  await ctx.plugin(ToolBash, { toolFormat })
   ctx.codexyRequests.registerAdapter(['mock'], adapter)
   return ctx
 }
@@ -93,6 +95,42 @@ async function pollUntil(predicate: () => boolean, timeoutMs = 5_000): Promise<v
 }
 
 describe('bash tool through the agent loop', () => {
+  it.skipIf(process.platform === 'win32')('retains the self-signaled shell exit143 in model input and the original durable session', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'codex-exec-signaled-session-'))
+    dirs.push(root)
+    const adapter = new MockAdapter([
+      toolCallResponse('owned-self-sigterm', 'exec_command', { cmd: 'kill -TERM $$', shell: '/bin/sh', login: false }),
+      textResponse('The owned shell finished.'),
+    ])
+    const ctx = await harness(adapter, root, undefined, 'codex')
+    const handle = await ctx.agents.create({ sessionId: SessionId('codex-exec-signaled-session'),
+      agentOptions: { provider: 'mock', model: 'mock' } })
+    try {
+      const idle = waitForIdle(ctx, handle.agent)
+      handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'terminate only the shell this tool starts' }], source: { kind: 'user' } }))
+      await idle
+      const toolResult = findEvent(events(handle.agent), 'tool/result')
+      expect(toolResult.data.message.isError).toBe(false)
+      expect(resultText(toolResult)).toContain('Process exited with code 143\n')
+      expect(adapter.requests).toHaveLength(2)
+      expect(adapter.requests[1]!.messages.find(message => message.role === 'tool')?.content)
+        .toEqual(toolResult.data.message.content)
+      expect(await ctx.sessions.flush(handle.agent.session)).toBe(true)
+      const persistence = ctx.sessionPersistence as JsonlSessionPersistence
+      const path = persistence.pathFor(handle.agent.session.id)
+      const original = readFileSync(path)
+      const decoded = decodeCodexyArtifact(original)
+      const restored = Session.fromRestore(handle.agent.session.id, decoded.events, decoded.metadata.session,
+        decoded.metadata.inheritedEventCount, 'detached')
+      expect(findEvent(restored.snapshotEvents(), 'tool/result').data.message).toEqual(toolResult.data.message)
+      expect(deriveProductMessages(restored)).toEqual(deriveProductMessages(handle.agent.session))
+      expect(readFileSync(path)).toEqual(original)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('first-turn bash receives session identity in a scrubbed DSH_* namespace', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-bash-session-env-'))
     dirs.push(root)

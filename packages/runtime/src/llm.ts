@@ -3,7 +3,7 @@ export * from '@deepseek-ai/dsh-llm'
 export { default } from '@deepseek-ai/dsh-llm'
 import type { LlmCallConfig, LlmResolvedModelInfo, LlmModelInfo, PreparedLlmCall as PlatformPreparedLlmCall } from '@deepseek-ai/dsh-llm'
 
-export type { ToolSchema, FunctionToolSchema, FreeformToolSchema, FreeformToolFormat, CodexyResponsesConfig, LlmRequestTiming, ProviderOutputBlock, GenerateOptions, FinishReason, StreamChunk } from './types.ts'
+export type { ToolSchema, FunctionToolSchema, FreeformToolSchema, FreeformToolFormat, CodexyResponsesConfig, LlmRequestTiming, ProviderOutputBlock, GenerateOptions, FinishReason, StreamChunk, CodexNativeImageFacts } from './types.ts'
 export { encodeCodexClientMetadata, compactionClientMetadata } from './response-metadata.ts'
 export type { CodexResponseMetadataFacts, CodexCompactionMetadataFacts, CodexClientMetadata,
   CodexWorkspaceMetadata, CodexWorkspacesMetadata } from './response-metadata.ts'

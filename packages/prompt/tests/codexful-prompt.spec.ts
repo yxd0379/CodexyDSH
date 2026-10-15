@@ -258,6 +258,43 @@ function workingDirectoryAgent(ctx: Context, id = SessionId('working-directory-p
 }
 
 describe('Codexful public working-directory capture', () => {
+  it.each(['plugin', 'agent'] as const)('dispatches while Git is pending and cancels it through the %s effect', async effectOwner => {
+    const ctx = new Context()
+    const git = Promise.withResolvers<string>()
+    let probeSignal: AbortSignal | undefined
+    const spawn = vi.fn(() => { throw new Error('pending Git must not run after disposal') })
+    try {
+      await mountStrictWorkingDirectoryPrompt(ctx, { wireProfile: 'codex-0.162.1' })
+      Object.assign(ctx.subprocess, {
+        resolveExecutable: (_name: string, _env: unknown, signal: AbortSignal) => {
+          probeSignal = signal
+          return git.promise
+        }, spawn,
+      })
+      const agent = workingDirectoryAgent(ctx)
+      const scope = effectOwner === 'agent' ? createScope(ctx, agent) : undefined
+      if (scope !== undefined) {
+        Object.assign(agent, { ctx: scope.ctx })
+        await agentEvents(ctx, agent).serial('agent/created', { source: 'startup' })
+      }
+      agent.session.append('turn/start', { turn: 1 })
+      await ctx.workingDirectory.set(agent, '/work/current')
+      const promptPreparation = await ctx.codexyPrompt.prepare({ agent })
+      await ctx.codexyPrompt.assemble({ agent }, promptPreparation)
+      const request = await agentEvents(ctx, agent).waterfall('codexy-agent/request', {
+        turn: 1, step: 1, signal: new AbortController().signal, promptPreparation,
+      }, async () => ({ provider: 'test', model: 'gpt-5.5', reasoningEffort: ReasoningEffortId('medium') }))
+      expect(JSON.parse(request.codexfulResponses!.clientMetadata!['x-codex-turn-metadata']!))
+        .not.toHaveProperty('workspaces')
+      expect(probeSignal?.aborted).toBe(false)
+      await (scope?.ctx ?? ctx).fiber.dispose()
+      expect(probeSignal?.aborted).toBe(true)
+      git.resolve('/execution-world/git')
+      await Promise.resolve()
+      expect(spawn).not.toHaveBeenCalled()
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('captures Git metadata from the prepared public cwd, not the header or a later cwd', async () => {
     const ctx = new Context()
     try {

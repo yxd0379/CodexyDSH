@@ -61,6 +61,7 @@ import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attac
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
+import { nativeViewImagePayload } from './native-image.ts'
 import { prepareDeveloperHistory, restoreDeveloperInput } from './developer-history.ts'
 import { createModels, getSupportedThinkingLevels } from './models.ts'
 import { responseItemIdBase } from './response-item-id.ts'
@@ -71,6 +72,7 @@ import { codexfulAgentMessageInput } from './agent-message-input.ts'
 import { toStreamChunks } from './stream.ts'
 import { HostedResponsesCapture, hostedResponsesPayload, restoreHostedOriginals } from './hosted-responses.ts'
 import { timedFetch } from './request-timing.ts'
+import { nativeResponseFetch } from './native-response-stream.ts'
 
 /** One resolution's frozen view: the profiles and the collection built from them. */
 interface PiAiSnapshot {
@@ -718,14 +720,17 @@ export class PiAiAdapter extends LlmAdapter {
         // Restoration owns provider facts; projection owns this explicit wire
         // representation. Project after restoration too, so valid provider IDs
         // cannot accidentally reintroduce nullable or non-Message fields.
-        return codexfulResponses.wireProfile === 'codex-0.162.1' && Array.isArray(restored['input'])
+        const wire = codexfulResponses.wireProfile === 'codex-0.162.1' && Array.isArray(restored['input'])
           ? { ...restored, input: restored['input'].map(item => codexfulResponseInputItem(item, true)) }
           : restored
+        return nativeViewImagePayload(wire, options)
       }
       const timed = options.onRequestTiming !== undefined
         && ['openai-completions', 'openai-responses', 'anthropic-messages'].includes(model.api)
         ? timedFetch(options.onRequestTiming) : undefined
-      const fetch = hosted === undefined ? timed : hosted.fetch(timed ?? globalThis.fetch)
+      const nativeFetch = codexfulResponses?.wireProfile === 'codex-0.162.1' && model.api === 'openai-responses'
+        ? nativeResponseFetch(timed ?? globalThis.fetch) : timed
+      const fetch = hosted === undefined ? nativeFetch : hosted.fetch(nativeFetch ?? globalThis.fetch)
       const events = snapshot.models.streamSimple(model, requestContext, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },

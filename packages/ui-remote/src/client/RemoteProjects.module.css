@@ -1,0 +1,26 @@
+.tree { width: 100%; min-width: 0; border-top: .5px solid var(--dsw-alias-border-l4); color: var(--dsw-alias-label-primary); font-size: 12px; padding-top: 8px; }
+.heading { border: 0; background: none; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 11px; font-weight: 600; text-transform: uppercase; cursor: pointer; padding: 4px 8px; width: 100%; text-align: left; }
+.scroll { max-height: min(40vh, 400px); overflow: auto; padding: 4px 2px; }
+.host { margin-bottom: 8px; }
+.hostHeader, .projectHeader { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.hostName, .projectName, .session, .addProject { min-width: 0; border: 0; background: none; color: inherit; cursor: pointer; padding: 6px 8px; border-radius: 6px; font: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hostName, .projectName { flex: 1; }
+.hostName { font-weight: 600; }
+.phase { margin-left: 6px; font-size: 10px; font-weight: 400; color: var(--dsw-alias-label-secondary); }
+.icon, .compact { border: 0; background: none; color: var(--dsw-alias-label-secondary); cursor: pointer; border-radius: 5px; padding: 4px 6px; font-size: 16px; }
+.icon:disabled, .addProject:disabled { opacity: .4; cursor: default; }
+.session { display: flex; align-items: center; width: 100%; padding-left: 24px; gap: 6px; }
+.running { font-size: 8px; color: var(--dsw-alias-label-secondary); }
+.hostName:hover, .projectName:hover, .session:hover, .icon:hover, .addProject:hover { background: var(--dsw-alias-bg-hover, #8882); }
+.session[aria-current] { background: var(--dsw-alias-bg-hover, #8882); color: var(--dsw-alias-label-primary); }
+.hint, .error { margin: 5px 8px; font-size: 11px; line-height: 1.5; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.error { color: var(--dsw-alias-state-error-primary); }
+.addProject { font-size: 11px; color: var(--dsw-alias-label-secondary); }
+.addForm { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+.formActions { display: flex; gap: 6px; }
+.panel { width: 100%; height: 100%; min-height: 0; }
+.viewport { position: fixed; overflow: hidden; z-index: 1; background: var(--dsw-alias-bg-base); }
+.frame { display: block; height: 100%; border: 0; }
+.frameHeader { display: flex; height: 36px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border-bottom: .5px solid var(--dsw-alias-border-l4); color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.frameHeader button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.waiting { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-base); font-size: 13px; }

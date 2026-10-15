@@ -19,7 +19,7 @@ export interface IRemoteHosts extends ObservableSnapshot<RemoteHostsSnapshot> {
   /** Connect a saved host.
    * @param name - human-selected catalog name.
    * @param signal - pending connection cancellation.
-   * @returns the Host's connected state and authenticated loopback URL.
+   * @returns the Host's connected state and embedded runtime path.
    */
   connect(name: string, signal: AbortSignal): Promise<RemoteHostStatus>
   /** Close a local tunnel, leaving the remote runtime alive.
@@ -27,6 +27,8 @@ export interface IRemoteHosts extends ObservableSnapshot<RemoteHostsSnapshot> {
    * @returns after Host cleanup is complete.
    */
   disconnect(name: string): Promise<void>
+  /** Answer the current OpenSSH question; null cancels this connection attempt. */
+  respondAuthentication(name: string, challengeId: string, response: string | null): Promise<void>
   /** Restart Host observation immediately. */
   retry(): void
 }
@@ -93,6 +95,11 @@ class RemoteHostsClient extends Service implements IRemoteHosts {
 
   async disconnect(name: string): Promise<void> {
     const result = await this.remote.disconnect(name)
+    if (!result.ok) throw result.error
+  }
+
+  async respondAuthentication(name: string, challengeId: string, response: string | null): Promise<void> {
+    const result = await this.remote.respondAuthentication(name, challengeId, response)
     if (!result.ok) throw result.error
   }
 

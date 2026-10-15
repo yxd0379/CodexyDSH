@@ -1,4 +1,4 @@
-import { snapshotProductEvents, projectProductEvent, appendProductEvent } from '@codexydsh/runtime/session'
+import { snapshotProductEvents, projectProductEvent, appendProductEvent, deriveProductMessages } from '@codexydsh/runtime/session'
 import { describe, expect, it, vi } from 'vitest'
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -6,7 +6,11 @@ import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { ToolCallId } from '@codexydsh/runtime/llm'
+import { ToolCallId, createUserMessage } from '@codexydsh/runtime/llm'
+import AgentLoop from '@codexydsh/runtime'
+import Persistence, { decodeCodexyArtifact } from '@codexydsh/runtime/persistence'
+import { mountAgentLoopTestDependencies } from '@codexydsh/runtime-testkit'
+import { MockAdapter, textResponse, toolCallResponse } from '@codexydsh/runtime-testkit/mock-adapter'
 import { Session, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import { SystemPrompt } from '@codexydsh/test-support/host-tools'
 import { ToolRuntime } from '@codexydsh/test-support/host-tools'
@@ -87,6 +91,15 @@ async function call(ctx: Context, name: string, args: object, agent?: Agent): Pr
     ...agent === undefined ? {} : { agent },
   })
   return result.content.filter(block => block.type === 'text').map(block => block.text).join('')
+}
+
+function commandAgent(wireProfile?: 'codex-0.162.1' | 'generic'): Agent {
+  const session = Session.create(SessionId(`command-profile-${nextCall++}`))
+  if (wireProfile !== undefined) appendProductEvent(session, 'request/header', { reason: 'initial', header: { config: {
+    provider: 'fixture', model: 'fixture', codexfulResponses: { omitDefaultMaxTokens: true,
+      reasoningSummary: 'none', ...wireProfile === 'generic' ? {} : { wireProfile } },
+  } } })
+  return { session } as Agent
 }
 
 async function readyPty(ctx: Context, agent: Agent, args: object): Promise<number> {
@@ -261,14 +274,144 @@ describe('Codex command tool format', () => {
     await fiber.dispose()
   })
 
-  it.skipIf(process.platform === 'win32')('omits an exit-status line when a command ends by signal', async () => {
+  it('ignores only Rust-unknown execution fields in the explicit Native profile while keeping raw call facts and closed schemas', async () => {
+    const { ctx, fiber } = await setup()
+    const agent = commandAgent('codex-0.162.1')
+    const args = { cmd: 'printf native-unknown-ok', login: false, timeout: '120000', unknown: { nested: [true, null] } }
+    const schemas = JSON.stringify(ctx.codexyTools.schemas())
+    const observed: unknown[] = []
+    ctx.on('tools/pre-execute', (exec, next) => { observed.push(exec.arguments); return next() })
+    try {
+      const result = await call(ctx, 'exec_command', args, agent)
+      expect(result).toContain('Process exited with code 0')
+      expect(result).toContain('Output:\nnative-unknown-ok')
+      expect(observed).toEqual([args])
+      expect(args.timeout).toBe('120000')
+      expect(JSON.stringify(ctx.codexyTools.schemas())).toBe(schemas)
+      const definition = ctx.codexyTools.schemas().find(tool => tool.name === 'exec_command')
+      expect(definition?.kind).not.toBe('freeform')
+      if (definition === undefined || definition.kind === 'freeform') throw new Error('expected exec function schema')
+      expect(definition.parameters.additionalProperties).toBe(false)
+      expect(definition.parameters.properties).not.toHaveProperty('timeout')
+    } finally { await fiber.dispose(); await ctx.fiber.dispose() }
+  })
+
+  it.each(['missing-header', 'generic-controls', 'no-agent'] as const)('keeps unknown execution fields strict for %s', async variant => {
+    const { ctx, fiber } = await setup()
+    try {
+      const agent = variant === 'no-agent' ? undefined : commandAgent(variant === 'generic-controls' ? 'generic' : undefined)
+      expect(await call(ctx, 'exec_command', { cmd: 'printf unreachable', timeout: '120000' }, agent))
+        .toContain('"timeout" is not a declared property (additionalProperties: false)')
+    } finally { await fiber.dispose(); await ctx.fiber.dispose() }
+  })
+
+  it.each([
+    { args: { cmd: 7, timeout: '120000' }, error: '"cmd" must be a string' },
+    { args: { cmd: 'printf unreachable', login: 'false', timeout: '120000' }, error: '"login" must be a boolean' },
+    { args: { cmd: 'printf unreachable', yield_time_ms: '250', timeout: '120000' }, error: '"yield_time_ms" must be a number' },
+  ])('still rejects declared parameter type errors in Native projection %#', async ({ args, error }) => {
+    const { ctx, fiber } = await setup()
+    try { expect(await call(ctx, 'exec_command', args, commandAgent('codex-0.162.1'))).toContain(error) }
+    finally { await fiber.dispose(); await ctx.fiber.dispose() }
+  })
+
+  it.each(['timeout_ms', 'additional_permissions', 'environment_id'] as const)(
+    'does not silently discard the recognized unsupported Native field %s', async key => {
+      const { ctx, fiber } = await setup()
+      try {
+        expect(await call(ctx, 'exec_command', { cmd: 'printf unreachable', [key]: null, timeout: '120000' },
+          commandAgent('codex-0.162.1'))).toContain(`"${key}" is not a declared property (additionalProperties: false)`)
+      } finally { await fiber.dispose(); await ctx.fiber.dispose() }
+    },
+  )
+
+  it('ignores Rust-unknown write_stdin fields only for the same Native owner of a real running terminal', async () => {
+    const { ctx, fiber } = await setup()
+    const agent = commandAgent('codex-0.162.1')
+    try {
+      const id = await readyPty(ctx, agent, { cmd: 'node -e "process.stdin.once(\'data\',b=>{process.stdout.write(\'received:\'+String(b));process.exit(0)});process.stdout.write(\'READY\\n\')"',
+        login: false, timeout: '120000' })
+      expect(await call(ctx, 'write_stdin', { session_id: id, chars: 'owned-input\n', yield_time_ms: 1_000,
+        timeout: '300000', unknown: [null] }, agent)).toContain('received:owned-input')
+      expect(await call(ctx, 'write_stdin', { session_id: id, chars: '', timeout: '300000' }))
+        .toContain('"timeout" is not a declared property (additionalProperties: false)')
+      expect(await call(ctx, 'write_stdin', { session_id: 'bad', timeout: '300000' }, agent))
+        .toContain('"session_id" must be a number')
+    } finally { await fiber.dispose(); await ctx.fiber.dispose() }
+  })
+
+  it('executes an owned Native command with unknown fields while retaining raw approval and tool facts in a real cold-restored writer', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codex-native-unknown-durable-'))
+    console.info(`retained Native argument writer fixture: ${root}`)
+    const ctx = new Context()
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(Persistence, { root })
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(LocalSubprocessRuntime)
+    await ctx.plugin(BashEnvPlugin)
+    await ctx.plugin(LocalBashExecutor, {})
+    await ctx.plugin(ApprovalService, { policy: 'ask' })
+    await ctx.plugin(ToolBash, { toolFormat: 'codex' })
+    const args = { cmd: 'printf native-durable-ok > owned-output.txt; cat owned-output.txt',
+      workdir: root, login: false, timeout: '120000', unknown: { original: true } }
+    const adapter = new MockAdapter([toolCallResponse('native-unknown-durable', 'exec_command', args), textResponse('done')])
+    ctx.codexyRequests.registerAdapter(['mock'], adapter)
+    ctx.on('codexy-agent/request', async (_payload, next) => ({ ...await next(), codexfulResponses: {
+      omitDefaultMaxTokens: true, reasoningSummary: 'none', wireProfile: 'codex-0.162.1',
+    } }))
+    const raw: unknown[] = [], reviewed: unknown[] = []
+    ctx.on('tools/pre-execute', (exec, next) => { raw.push(exec.arguments); return next() })
+    ctx.on('tool-bash/codex-exec-review', async () => ({ kind: 'ask', reason: 'Approve only this owned fixture command' }))
+    ctx.on('codexy-approval/request', (req) => {
+      reviewed.push(req.agent.session.snapshotEvents().find(event => event.type === 'tool/call')?.data)
+      return Promise.resolve('allowed-once' as const)
+    })
+    const handle = await ctx.agents.create({ sessionId: SessionId('native-unknown-durable'),
+      agentOptions: { provider: 'mock', model: 'mock' } })
+    let original: Buffer, path: string
+    try {
+      handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'run only the owned fixture' }], source: { kind: 'user' } }))
+      await handle.agent.whenIdle()
+      expect(adapter.requests).toHaveLength(2)
+      expect(raw).toEqual([args])
+      expect(reviewed).toHaveLength(1)
+      expect(reviewed[0]).toMatchObject({ arguments: JSON.stringify(args) })
+      expect(await readFile(join(root, 'owned-output.txt'), 'utf8')).toBe('native-durable-ok')
+      expect(snapshotProductEvents(handle.agent.session).filter(event => event.type === 'approval/asked')).toHaveLength(1)
+      expect(snapshotProductEvents(handle.agent.session).filter(event => event.type === 'approval/decided')).toHaveLength(1)
+      expect(await ctx.sessions.flush(handle.agent.session)).toBe(true)
+      path = (ctx.sessionPersistence as Persistence).pathFor(handle.agent.session.id)
+      original = await readFile(path)
+    } finally { await handle.dispose(); await ctx.fiber.dispose() }
+    const decoded = decodeCodexyArtifact(original!)
+    const before = Session.fromRestore(decoded.metadata.session.id, decoded.events, decoded.metadata.session,
+      decoded.metadata.inheritedEventCount, 'detached')
+    const cold = new Context()
+    await cold.plugin(Persistence, { root })
+    try {
+      const reader = await cold.sessionPersistence.open(before.id, 'read')
+      try {
+        const read = await reader.read()
+        const restored = Session.fromRestore(before.id, read.events, reader.header, reader.inheritedEventCount, 'detached')
+        expect(read.events).toEqual(decoded.events)
+        expect(restored.snapshotEvents().find(event => event.type === 'tool/call')?.data).toMatchObject({ arguments: JSON.stringify(args) })
+        expect(deriveProductMessages(restored)).toEqual(deriveProductMessages(before))
+        const assistant = deriveProductMessages(restored).find(message => message.role === 'assistant'
+          && message.content.some(block => block.type === 'tool-call'))
+        expect(assistant?.content.find(block => block.type === 'tool-call')?.arguments).toBe(JSON.stringify(args))
+        expect(await readFile(path!)).toEqual(original!)
+      } finally { await reader.close() }
+    } finally { await cold.fiber.dispose() }
+  })
+
+  it.skipIf(process.platform === 'win32')('reports the pinned Codex exit code when its own shell ends by SIGTERM', async () => {
     const { ctx, fiber } = await setup()
     try {
       const result = await call(ctx, 'exec_command', {
         cmd: 'kill -TERM $$', shell: '/bin/sh', login: false,
       })
       expect(result).toContain('Original token count: 0\nOutput:')
-      expect(result).not.toContain('Process exited with')
+      expect(result).toContain('Process exited with code 143')
       expect(result).not.toContain('Process running with session ID')
     } finally {
       await fiber.dispose()

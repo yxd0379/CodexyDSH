@@ -1,0 +1,102 @@
+[
+  {
+    "word": "",
+    "quoted": "''"
+  },
+  {
+    "word": "foobar",
+    "quoted": "foobar"
+  },
+  {
+    "word": "foo bar",
+    "quoted": "'foo bar'"
+  },
+  {
+    "word": "\"foo bar'\"",
+    "quoted": "\"\\\"foo bar'\\\"\""
+  },
+  {
+    "word": "'foo bar'",
+    "quoted": "\"'foo bar'\""
+  },
+  {
+    "word": "\"",
+    "quoted": "'\"'"
+  },
+  {
+    "word": "\"'",
+    "quoted": "\"\\\"'\""
+  },
+  {
+    "word": "hello!world",
+    "quoted": "'hello!world'"
+  },
+  {
+    "word": "'hello!world",
+    "quoted": "\"'hello\"'!world'"
+  },
+  {
+    "word": "'hello!",
+    "quoted": "\"'hello\"'!'"
+  },
+  {
+    "word": "hello ^ world",
+    "quoted": "'hello ''^ world'"
+  },
+  {
+    "word": "hello^",
+    "quoted": "hello'^'"
+  },
+  {
+    "word": "!world'",
+    "quoted": "'!world'\"'\""
+  },
+  {
+    "word": "{a, b}",
+    "quoted": "'{a, b}'"
+  },
+  {
+    "word": "\n",
+    "quoted": "'\n'"
+  },
+  {
+    "word": "^",
+    "quoted": "'^'"
+  },
+  {
+    "word": "foo^bar",
+    "quoted": "foo'^bar'"
+  },
+  {
+    "word": "\nx^",
+    "quoted": "'\nx''^'"
+  },
+  {
+    "word": "\n^x",
+    "quoted": "'\n''^x'"
+  },
+  {
+    "word": "\n ^x",
+    "quoted": "'\n ''^x'"
+  },
+  {
+    "word": "{a,b}",
+    "quoted": "'{a,b}'"
+  },
+  {
+    "word": "a,b",
+    "quoted": "'a,b'"
+  },
+  {
+    "word": "a..b",
+    "quoted": "a..b"
+  },
+  {
+    "word": "'$",
+    "quoted": "\"'\"'$'"
+  },
+  {
+    "word": "\"^",
+    "quoted": "'\"''^'"
+  }
+]

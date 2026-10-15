@@ -2,7 +2,19 @@
 export type * from '@deepseek-ai/dsh-session/types'
 import type { SessionSeq, SessionEvent as PlatformSessionEvent, SessionEventType as PlatformSessionEventType, EpochHeader as PlatformEpochHeader, SessionEventMap as PlatformSessionEventMap } from '@deepseek-ai/dsh-session/types'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import type { FileAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { GenerateOptions as PlatformGenerateOptions, FinishReason as PlatformFinishReason, StreamChunk as PlatformStreamChunk, ReplayEnvelope } from '@deepseek-ai/dsh-llm/types'
+
+/** Verbatim source owned by the product's native view_image path, beside its canonical UI image. */
+export interface CodexNativeImageFacts {
+  /** 1 retains the released Sharp policy; 2 uses the pinned native Rust codec. */
+  readonly version: 1 | 2
+  readonly tool: 'view_image'
+  readonly file: FileAttachmentRef
+  readonly mediaType: ImageMediaType
+  readonly width: number
+  readonly height: number
+}
 
 /** Backend-executed Responses output, never a client-dispatched function call. */
 export interface ProviderOutputBlock {
@@ -128,6 +140,13 @@ interface CompactionRequestIdentity {
 }
 /** Product event vocabulary; owners add their own events through declaration merging. */
 export interface SessionEventMap extends Omit<PlatformSessionEventMap, 'request/header' | 'assistant/attempt' | 'assistant/message' | 'tool/call' | 'schedule/change' | 'compaction/summary'> {
+  /** Optional turn-owned Git enrichment; absence on a request does not imply completion. */
+  'codexful/workspace-enrichment': {
+    turnStartSeq: SessionSeq
+    cwd: string
+    phase: 'pending' | 'ready'
+    workspaces?: import('./response-metadata.ts').CodexWorkspacesMetadata
+  }
   'compaction/summary': PlatformSessionEventMap['compaction/summary'] & { clientMetadata?: Readonly<Record<string, string>> }
   /** Flushed before invoking the prepared port; absence of a result is pending/unknown, never replay permission. */
   'compaction/request': CompactionRequestIdentity & { preparedInput: PreparedCompactionModelInput }
@@ -187,6 +206,7 @@ declare module '@deepseek-ai/dsh-llm' {
 }
 declare module '@deepseek-ai/dsh-llm' {
   interface ContentBlockMap { 'provider-output': ProviderOutputBlock }
+  interface ImageBlock { codexNativeImage?: CodexNativeImageFacts }
   interface LlmModelInfo { showInPicker?: boolean; multiAgentVersion?: 'disabled' | 'v1' | 'v2'; serviceTiers?: readonly string[] }
   interface ToolCallBlock { namespace?: string; kind?: 'function' | 'freeform' }
   interface LlmResolvedModelInfo { codexResponsesLite?: true; toolNamespaces?: 'native' }

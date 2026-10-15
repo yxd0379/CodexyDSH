@@ -1,23 +1,33 @@
 /** OpenSSH startup and a private Unix-socket forward exposed on an allocated loopback port. */
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { mkdtemp, stat, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer, createConnection, type Socket } from 'node:net'
 import { get } from 'node:http'
 import { setTimeout as delay } from 'node:timers/promises'
+import { pipeline } from 'node:stream/promises'
+import type { Readable } from 'node:stream'
 import z from 'zod'
 import type { RemoteHostConfig } from './types.ts'
 import { remoteBootstrap } from './bootstrap.ts'
+import { discoverDeploymentRelease } from './deployment-release.ts'
+import { buildProvisionProbe, buildProvisionInstall, parseProvisionProbe } from './provision.ts'
 
 /** Deployment-selected SSH timing and retention limits. */
 export interface TransportOptions {
   /** Local OpenSSH command or absolute executable path. */
   ssh: string
+  /** Per-connection askpass environment; authentication responses stay in memory. */
+  auth?: Record<string, string>
   /** Deadline for establishing SSH forwarding and authentication. */
   connectTimeoutMs: number
   /** Deadline for starting or rediscovering the remote Web profile. */
   startupTimeoutMs: number
+  /** Deadline for probing and provisioning the managed remote runtime. */
+  deployTimeoutMs?: number
   /** Grace period before forcefully terminating a local SSH child. */
   stopTimeoutMs: number
   /** Maximum retained bytes per diagnostic stream and remote log tail. */
@@ -53,15 +63,17 @@ export function redactTokens(text: string): string {
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'` }
 
 function sshArgs(options: TransportOptions): string[] {
-  return ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ForwardAgent=no',
+  return ['-T', '-o', `BatchMode=${options.auth === undefined ? 'yes' : 'no'}`, '-o', 'StrictHostKeyChecking=yes', '-o', 'ForwardAgent=no',
     '-o', 'ControlMaster=no', '-o', 'ControlPath=none',
     '-o', `ConnectTimeout=${Math.ceil(options.connectTimeoutMs / 1000)}`,
     '-o', `ServerAliveInterval=${options.serverAliveSeconds}`, '-o', `ServerAliveCountMax=${options.serverAliveCount}`]
 }
 
-function ownedChild(args: string[], options: TransportOptions) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/KEY|SECRET|TOKEN|PASSWORD/iu.test(key) && key !== 'NODE_OPTIONS' && key !== 'NODE_PATH'))
-  const child = spawn(options.ssh, args, { stdio: ['ignore', 'pipe', 'pipe'], env })
+function ownedChild(args: string[], options: TransportOptions, input = false, executable?: string) {
+  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/KEY|SECRET|TOKEN|PASSWORD/iu.test(key) && key !== 'NODE_OPTIONS' && key !== 'NODE_PATH')),
+    ...(executable === undefined ? options.auth : {}) }
+  const child = spawn(executable ?? options.ssh, args, { stdio: ['pipe', 'pipe', 'pipe'], env })
+  if (!input) child.stdin.end()
   let stdout: Buffer = Buffer.alloc(0)
   let stderr: Buffer = Buffer.alloc(0)
   let error: Error | undefined
@@ -81,6 +93,57 @@ function ownedChild(args: string[], options: TransportOptions) {
   return { child, done, stop, output: () => stdout.toString('utf8') }
 }
 
+async function sshCommand(target: RemoteHostConfig, command: string, options: TransportOptions, signal: AbortSignal, input?: Readable): Promise<string> {
+  if (signal.aborted) input?.destroy()
+  signal.throwIfAborted()
+  const child = ownedChild([...sshArgs(options), '-o', 'ClearAllForwardings=yes', '--', target.host, command], options, input !== undefined)
+  const abort = (): void => { void child.stop() }
+  signal.addEventListener('abort', abort, { once: true })
+  if (signal.aborted) abort()
+  const uploaded = input === undefined ? Promise.resolve(undefined)
+    : pipeline(input, child.child.stdin, { signal }).then(() => undefined, (error: unknown) => error)
+  try {
+    const result = await child.done
+    const uploadError = await uploaded
+    signal.throwIfAborted()
+    if (result.code !== 0) throw new Error(result.error ?? `SSH command exited with code ${String(result.code)}`)
+    if (uploadError !== undefined) throw uploadError
+    return child.output()
+  } finally {
+    signal.removeEventListener('abort', abort)
+    await child.stop()
+    input?.destroy()
+  }
+}
+
+async function provisionRemote(target: RemoteHostConfig, options: TransportOptions, signal: AbortSignal): Promise<RemoteHostConfig> {
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(options.deployTimeoutMs ?? 600_000)])
+  const release = await discoverDeploymentRelease()
+  deadline.throwIfAborted()
+  const found = parseProvisionProbe(await sshCommand(target, buildProvisionProbe(release.key, target.profile), options, deadline))
+  if (found.profile !== target.profile) throw new Error('Remote deployment reported an unexpected profile')
+  if (found.installed) return { ...target, node: found.node, dsh: found.dsh, profile: found.profile }
+  const root = await mkdtemp(join(tmpdir(), 'codexy-remote-upload-'))
+  try {
+    const archive = join(root, 'release.tar.gz')
+    const tar = ownedChild(['-czf', archive, '-C', release.directory, ...release.files.map(file => file.file)], options, false, 'tar')
+    const abort = (): void => { void tar.stop() }
+    deadline.addEventListener('abort', abort, { once: true })
+    if (deadline.aborted) abort()
+    try {
+      const result = await tar.done
+      deadline.throwIfAborted()
+      if (result.code !== 0) throw new Error(result.error ?? `Remote deployment archive creation exited with code ${String(result.code)}`)
+    } finally { deadline.removeEventListener('abort', abort); await tar.stop() }
+    const hash = createHash('sha256')
+    await pipeline(createReadStream(archive), hash, { signal: deadline })
+    const command = buildProvisionInstall({ releaseId: release.key, sha256: hash.digest('hex'), dshVersion: release.platformVersion, profile: target.profile })
+    const installed = parseProvisionProbe(await sshCommand(target, command, options, deadline, createReadStream(archive)))
+    if (!installed.installed || installed.profile !== target.profile) throw new Error('Remote deployment did not report the installed profile')
+    return { ...target, node: installed.node, dsh: installed.dsh, profile: installed.profile }
+  } finally { await rm(root, { recursive: true, force: true }) }
+}
+
 const ready = z.object({ url: z.url() }).strict()
 
 /** Start or rediscover the configured remote Web profile.
@@ -91,28 +154,19 @@ const ready = z.object({ url: z.url() }).strict()
  */
 export async function launchRemote(target: RemoteHostConfig, options: TransportOptions, signal: AbortSignal): Promise<URL> {
   signal.throwIfAborted()
+  if (target.deployment !== 'existing') target = await provisionRemote(target, options, signal)
   const request = JSON.stringify({ target, timeoutMs: options.startupTimeoutMs, maxOutputBytes: options.maxOutputBytes,
     readinessPollMs: options.readinessPollMs, probeTimeoutMs: options.connectTimeoutMs })
   const command = [target.node, '--input-type=module', '-e', remoteBootstrap, request].map(quote).join(' ')
-  const child = ownedChild([...sshArgs(options), '-o', 'ClearAllForwardings=yes', '--', target.host, command], options)
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(options.startupTimeoutMs)])
-  const abort = (): void => { void child.stop() }
-  deadline.addEventListener('abort', abort, { once: true })
-  try {
-    const result = await child.done
-    deadline.throwIfAborted()
-    if (result.code !== 0) throw new Error(result.error ?? `SSH startup exited with code ${String(result.code)}`)
-    const line = child.output().split('\n').find(row => row.startsWith('DSH_REMOTE_READY '))
-    if (line === undefined) throw new Error('Remote dsh did not report readiness')
-    const value = ready.parse(JSON.parse(line.slice('DSH_REMOTE_READY '.length)))
-    const url = new URL(value.url)
-    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port || url.pathname !== '/'
-      || !url.searchParams.get('token') || url.username || url.password) throw new Error('Remote dsh readiness URL must be authenticated loopback HTTP')
-    return url
-  } finally {
-    deadline.removeEventListener('abort', abort)
-    await child.stop()
-  }
+  const output = await sshCommand(target, command, options, deadline)
+  const line = output.split('\n').find(row => row.startsWith('DSH_REMOTE_READY '))
+  if (line === undefined) throw new Error('Remote dsh did not report readiness')
+  const value = ready.parse(JSON.parse(line.slice('DSH_REMOTE_READY '.length)))
+  const url = new URL(value.url)
+  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port || url.pathname !== '/'
+    || !url.searchParams.get('token') || url.username || url.password) throw new Error('Remote dsh readiness URL must be authenticated loopback HTTP')
+  return url
 }
 
 function probe(url: URL, signal: AbortSignal): Promise<void> {

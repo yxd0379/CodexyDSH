@@ -12,10 +12,12 @@
  */
 
 import { basename, extname } from 'node:path'
+import sharp from 'sharp'
 import type { Context } from '@deepseek-ai/cordis'
 import { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
-import type { ContentBlock } from '@codexydsh/runtime/llm'
+import type { ContentBlock, CodexNativeImageFacts } from '@codexydsh/runtime/llm'
+import { requestHeaderOf } from '@codexydsh/runtime/session'
 import { defineTool } from '@codexydsh/tool-schema'
 import type { GenericCallView, ToolExecution } from '@codexydsh/tool-schema'
 import type {} from '@codexydsh/filesystem'
@@ -88,12 +90,24 @@ export const IMAGE_READ_SCHEMA = {
   properties: {
     path: { type: 'string', required: true },
     image: IMAGE_VALUE_SCHEMA,
+    nativeImage: {
+      type: 'object', additionalProperties: false, properties: {
+        version: { type: 'integer', enum: [1, 2], required: true },
+        tool: { type: 'string', enum: ['view_image'], required: true },
+        file: { type: 'object', additionalProperties: false, required: true, properties: {
+          attachmentId: { type: 'string', required: true }, name: { type: 'string', required: true }, bytes: { type: 'integer', required: true },
+        } },
+        mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
+        width: { type: 'integer', required: true }, height: { type: 'integer', required: true },
+      },
+    },
   },
 } as const
 
 /** The structured outcome declared by the `read_image` output schema. */
 export interface ImageReadValue {
   path: string
+  nativeImage?: Omit<CodexNativeImageFacts, 'file'> & { file: { attachmentId: string; name: string; bytes: number } }
   image: {
     attachmentId: string
     mediaType: ImageMediaType
@@ -167,6 +181,11 @@ export function imageRefFromValue(image: ImageReadValue['image']): ImageAttachme
   }
 }
 
+/** Restore the public branded file reference from the durable JSON tool value. */
+export function nativeImageFactsFromValue(facts: NonNullable<ImageReadValue['nativeImage']>): CodexNativeImageFacts {
+  return { ...facts, file: { ...facts.file, attachmentId: AttachmentId(facts.file.attachmentId) } }
+}
+
 /**
  * Format an image read as the model-facing envelope beside its image block.
  * A downscaled read names the on-disk dimensions and the multiplier that maps
@@ -207,7 +226,7 @@ function imageReadContent(value: ImageReadValue): ContentBlock[] {
 }
 
 /** Read and durably commit an image through the same backend as read_image. */
-export async function readImageFile(ctx: Context, requestedPath: string, exec: ToolExecution): Promise<ImageReadValue> {
+export async function readImageFile(ctx: Context, requestedPath: string, exec: ToolExecution, nativeViewImage = false): Promise<ImageReadValue> {
   const args = { file_path: requestedPath }
   if (args.file_path.trim().length === 0) throw new Error('file_path must be a non-empty string')
 
@@ -290,9 +309,20 @@ export async function readImageFile(ctx: Context, requestedPath: string, exec: T
       { cause: error },
     )
   }
+  let nativeImage: CodexNativeImageFacts | undefined
+  if (nativeViewImage && exec.agent !== undefined
+    && requestHeaderOf(exec.agent.session)?.config.codexfulResponses?.wireProfile === 'codex-0.162.1') {
+    // The same permission-checked read supplies both independent assets. The
+    // public file service commits these bytes verbatim before the tool result.
+    const metadata = await sharp(data).metadata()
+    if (metadata.width === undefined || metadata.height === undefined) throw new Error('native view_image source has no image dimensions')
+    const file = await attachments.saveFile({ data, name: basename(target.displayPath) })
+    nativeImage = { version: 2, tool: 'view_image', file, mediaType, width: metadata.width, height: metadata.pageHeight ?? metadata.height }
+  }
   ctx.emit('fs/observed', target, { kind: 'present', version: info.version }, exec)
   const value: ImageReadValue = {
     path: target.displayPath,
+    ...nativeImage === undefined ? {} : { nativeImage },
     image: {
       attachmentId: ref.attachmentId,
       mediaType: ref.mediaType,

@@ -6,6 +6,7 @@ import type {} from '@codexydsh/processes'
  */
 
 import { createHash, randomBytes } from 'node:crypto'
+import { constants as osConstants } from 'node:os'
 import { basename, isAbsolute, resolve } from 'node:path'
 import type { Readable } from 'node:stream'
 import type { Context } from '@deepseek-ai/cordis'
@@ -23,8 +24,9 @@ import type { SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
 import type { ApprovalOutcome, ApprovalPolicy } from '@codexydsh/approval'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import { defineTool } from '@codexydsh/tool-schema'
-import type { ToolExecution, ToolExecutionResult, ToolExecutionToken, ToolRunContext } from '@codexydsh/tool-schema'
+import type { ToolDefinition, ToolExecution, ToolExecutionResult, ToolExecutionToken, ToolRunContext } from '@codexydsh/tool-schema'
 import type { Config } from './index.ts'
+import { formatCodexExecReviewDenied } from './codex-rejection.ts'
 
 /** Facts the Codex command tool has resolved before reviewing one call. */
 export interface CodexExecReviewRequest {
@@ -59,6 +61,7 @@ declare module '@deepseek-ai/cordis' {
 
 /** Bound the complete model-origin input question before an approval answerer receives it. */
 const MAX_STDIN_APPROVAL_BYTES = 8_000
+const CODEX_REVIEW_REJECTED = 'codex-exec-review-rejected'
 
 interface CommandArgs {
   cmd: string
@@ -78,6 +81,26 @@ interface PollArgs {
   chars?: string
   yield_time_ms?: number
   max_output_tokens?: number
+}
+
+/** Both pinned Rust deserializers ignore unknown fields, including unadvertised ones. */
+const NATIVE_COMMAND_PARAMETERS = new Set([
+  'cmd', 'shell', 'login', 'tty', 'yield_time_ms', 'timeout_ms', 'max_output_tokens',
+  'sandbox_permissions', 'additional_permissions', 'justification', 'prefix_rule', 'environment_id', 'workdir',
+])
+const NATIVE_POLL_PARAMETERS = new Set(['session_id', 'chars', 'yield_time_ms', 'max_output_tokens'])
+
+/** Project only execution-local Rust-unknown fields; the registry's raw call and policy facts remain intact. */
+function withNativeArgumentProjection<T extends ToolDefinition>(definition: T, recognized: ReadonlySet<string>): T {
+  return { ...definition, execute: (args, exec) => {
+    if (exec.agent === undefined
+      || requestHeaderOf(exec.agent.session)?.config.codexfulResponses?.wireProfile !== 'codex-0.162.1'
+      || args === null || typeof args !== 'object' || Array.isArray(args)) return definition.execute(args, exec)
+    const entries = Object.entries(args)
+    const retained = entries.filter(([key]) => recognized.has(key))
+    // Recognized but unsupported hidden fields still reach strict validation.
+    return definition.execute(retained.length === entries.length ? args : Object.fromEntries(retained), exec)
+  } }
 }
 
 type OutputPolicy = { readonly mode: 'bytes' | 'tokens'; readonly limit: number }
@@ -125,11 +148,11 @@ function normalizeCommandCancellation<A>(
   }
 }
 
-/** Preserve the pinned abort body while the registry retains structured interruption metadata. */
-function finalizeCommandCancellation(
+/** Preserve pinned abort/denial text while the registry retains structured error facts. */
+function finalizeCommandError(
   _exec: Readonly<ToolExecution>, result: Readonly<ToolExecutionResult>,
 ) {
-  return result.isError && result.error.info?.code === 'interrupted'
+  return result.isError && (result.error.info?.code === 'interrupted' || result.error.info?.code === CODEX_REVIEW_REJECTED)
     ? [{ type: 'text' as const, text: result.error.message }] : undefined
 }
 
@@ -151,6 +174,7 @@ interface LiveCommand {
   id: number
   owner: Agent | undefined
   tty: boolean
+  platform: 'posix' | 'windows'
   launchCmd: string
   launchCwd: string
   launchCallId: ToolCallId
@@ -297,6 +321,16 @@ export function truncateOutput(
   return `Warning: truncated output (original token count: ${warningCount})\nTotal output lines: ${raw.split('\n').length - (raw.endsWith('\n') ? 1 : 0)}\n\n${truncated}`
 }
 
+/** Codex reports Unix signal termination as 128 + the actual platform signal number. */
+function commandExitCode(outcome: SubprocessOutcome | undefined, platform: LiveCommand['platform']): number | undefined {
+  if (outcome === undefined) return undefined
+  if (outcome.exitCode !== null) return outcome.exitCode
+  if (platform !== 'posix' || process.platform === 'win32' || outcome.signal === null) return undefined
+  const signalNumber = osConstants.signals[outcome.signal]
+  return typeof signalNumber === 'number' && Number.isInteger(signalNumber) && signalNumber > 0
+    ? 128 + signalNumber : undefined
+}
+
 function takeResult(command: LiveCommand, policies: ResultPolicies, startedAt: number, remove: () => void): CodexCommandResult {
   const omittedBytes = command.outputOmittedBytes
   const marker = omittedBytes > 0 ? `\n... ${omittedBytes} bytes omitted ...\n` : ''
@@ -308,12 +342,12 @@ function takeResult(command: LiveCommand, policies: ResultPolicies, startedAt: n
   command.outputBytesSinceRead = 0
   const chunkId = randomBytes(3).toString('hex')
   const wallTimeSeconds = (performance.now() - startedAt) / 1000
+  const exitCode = command.finished ? commandExitCode(command.outcome, command.platform) : undefined
   const header = [
     `Chunk ID: ${chunkId}`,
     `Wall time: ${wallTimeSeconds.toFixed(4)} seconds`,
     ...command.finished
-      ? command.outcome?.exitCode === null || command.outcome?.exitCode === undefined
-        ? [] : [`Process exited with code ${command.outcome.exitCode}`]
+      ? exitCode === undefined ? [] : [`Process exited with code ${exitCode}`]
       : [`Process running with session ID ${command.id}`],
     `Original token count: ${Math.ceil(originalBytes / 4)}`,
     'Output:',
@@ -334,8 +368,7 @@ function takeResult(command: LiveCommand, policies: ResultPolicies, startedAt: n
     program: {
       chunk_id: chunkId,
       wall_time_seconds: wallTimeSeconds,
-      ...command.outcome?.exitCode === null || command.outcome?.exitCode === undefined
-        ? {} : { exit_code: command.outcome.exitCode },
+      ...exitCode === undefined ? {} : { exit_code: exitCode },
       ...command.finished ? {} : { session_id: command.id },
       original_token_count: Math.ceil(originalBytes / 4),
       output: policies.programOutputTokens === undefined ? raw
@@ -666,7 +699,7 @@ export function applyCodexExec(ctx: Context, config: Config): void {
     }))
   }, 'codexExec.sessions')
 
-  ctx.codexyTools.register(defineTool({
+  ctx.codexyTools.register(withNativeArgumentProjection(defineTool({
     name: 'exec_command',
     description: 'Runs a command in a PTY, returning output or a session ID for ongoing interaction.',
     isConcurrencySafe: () => true,
@@ -705,7 +738,7 @@ export function applyCodexExec(ctx: Context, config: Config): void {
       const block = result.content.length === 1 ? result.content[0] : undefined
       return block?.type === 'text' ? { card: 'terminal', output: block.text } : undefined
     },
-    finalizeContent: finalizeCommandCancellation,
+    finalizeContent: finalizeCommandError,
     execute: normalizeCommandCancellation(async (args: CommandArgs, exec) => {
       assertAllowedParameters(args, new Set([
         'cmd', 'workdir', 'tty', 'yield_time_ms', 'max_output_tokens', 'shell', 'login',
@@ -751,7 +784,9 @@ export function applyCodexExec(ctx: Context, config: Config): void {
       const review = await ctx.waterfall('tool-bash/codex-exec-review', {
         argv, command: args.cmd, platform: environment.platform, approvalPolicy,
       }, () => Promise.resolve<CodexExecReviewDecision>({ kind: 'allow' }))
-      if (review.kind === 'deny') throw new Error(review.reason)
+      if (review.kind === 'deny') {
+        throw new HarnessError(formatCodexExecReviewDenied(argv, review.reason), CODEX_REVIEW_REJECTED, { cause: new Error(review.reason) })
+      }
       if (args.sandbox_permissions === 'require_escalated' && approvalPolicy === 'never') {
         throw new Error('approval policy is Never; reject command — you cannot ask for escalated permissions if the approval policy is Never')
       }
@@ -877,6 +912,7 @@ export function applyCodexExec(ctx: Context, config: Config): void {
         id,
         owner: exec.agent,
         tty: args.tty === true,
+        platform: environment.platform,
         launchCmd: args.cmd,
         launchCwd: cwd,
         launchCallId: exec.callId,
@@ -956,9 +992,9 @@ export function applyCodexExec(ctx: Context, config: Config): void {
       exec.signal.throwIfAborted()
       return takeResult(command, policies, startedAt, () => commands.delete(id))
     }),
-  }))
+  }), NATIVE_COMMAND_PARAMETERS))
 
-  ctx.codexyTools.register(defineTool({
+  ctx.codexyTools.register(withNativeArgumentProjection(defineTool({
     name: 'write_stdin',
     description: 'Writes characters to an existing unified exec session and returns recent output.',
     isConcurrencySafe: () => true,
@@ -975,7 +1011,7 @@ export function applyCodexExec(ctx: Context, config: Config): void {
       codeModeResult: (_args, value) => value.program,
     },
     presentCall: args => ({ card: 'generic', title: `Session ${args.session_id}`, kind: 'execute', rawInput: args.chars ?? '' }),
-    finalizeContent: finalizeCommandCancellation,
+    finalizeContent: finalizeCommandError,
     execute: normalizeCommandCancellation(async (args: PollArgs, exec) => {
       assertAllowedParameters(args, new Set(['session_id', 'chars', 'yield_time_ms', 'max_output_tokens']), 'write_stdin')
       if (!Number.isSafeInteger(args.session_id) || args.session_id < 1) throw new Error('session_id must be a positive integer')
@@ -1003,5 +1039,5 @@ export function applyCodexExec(ctx: Context, config: Config): void {
         return takeResult(command, policies, startedAt, () => commands.delete(args.session_id))
       })
     }),
-  }))
+  }), NATIVE_POLL_PARAMETERS))
 }

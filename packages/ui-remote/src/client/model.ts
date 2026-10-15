@@ -30,7 +30,7 @@ export class DraftError extends Error {
 export function draftOf(revision: number, name?: string, host?: RemoteHostConfig): HostDraft {
   return { name: name ?? '', ...(name === undefined ? {} : { originalName: name }), revision,
     host: host?.host ?? '', profile: host?.profile ?? 'codexy', directory: host?.directory ?? '',
-    node: host?.node ?? 'node', dsh: host?.dsh ?? 'dsh' }
+    node: host?.node ?? 'node', dsh: host?.dsh ?? 'dsh', deployment: host?.deployment ?? 'auto' }
 }
 
 /** Validate and replace one non-secret host definition.
@@ -46,5 +46,6 @@ export function draftOperations(draft: HostDraft): SettingsPathOpView[] {
   if (![draft.node, draft.dsh].every(value => value.trim() !== '' && !/[\0\r\n]/u.test(value))) throw new DraftError('invalidExecutable')
   return [{ op: 'set', path: ['hosts', draft.name], value: {
     host: draft.host, profile: draft.profile, directory: draft.directory, node: draft.node, dsh: draft.dsh,
+    deployment: draft.deployment ?? 'auto',
   } }]
 }

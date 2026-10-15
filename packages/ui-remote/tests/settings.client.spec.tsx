@@ -33,7 +33,7 @@ function fixture() {
 
 it('validates host drafts and writes one revision-fenced definition', () => {
   const draft = { ...draftOf(4), name: 'dev', host: 'developer@host', directory: '/work/a b' }
-  expect(draftOperations(draft)).toEqual([{ op: 'set', path: ['hosts', 'dev'], value: { host: 'developer@host', directory: '/work/a b', profile: 'codexy', node: 'node', dsh: 'dsh' } }])
+  expect(draftOperations(draft)).toEqual([{ op: 'set', path: ['hosts', 'dev'], value: { host: 'developer@host', directory: '/work/a b', profile: 'codexy', node: 'node', dsh: 'dsh', deployment: 'auto' } }])
   for (const changes of [{ name: '-option' }, { host: 'host name' }, { host: '-oOption' }, { profile: 'a b' }, { directory: '~/' }, { node: '\n' }, { dsh: '' }]) {
     expect(() => draftOperations({ ...draft, ...changes })).toThrow(DraftError)
   }
@@ -66,7 +66,7 @@ it('connects, cancels startup, opens a live tunnel, and preserves rows after obs
   expect(f.disconnectHost).toHaveBeenCalledWith('dev')
   act(() => { f.connections.set({ ...f.connections.getSnapshot(), items: [{ name: 'dev', host: 'developer@host', profile: 'codexy', phase: 'connected', url: 'http://127.0.0.1:3080/', error: null }] }) })
   fireEvent.click(f.ui.getByRole('button', { name: zh.open }))
-  expect(f.openHost).toHaveBeenCalledWith('http://127.0.0.1:3080/')
+  expect(f.openHost).toHaveBeenCalledWith('dev')
   await act(async () => { fireEvent.click(f.ui.getByRole('button', { name: zh.disconnect })) })
   act(() => { f.connections.set({ ...f.connections.getSnapshot(), connected: false, error: 'Connection lost' }) })
   expect(f.ui.getByText('dev')).toBeTruthy()

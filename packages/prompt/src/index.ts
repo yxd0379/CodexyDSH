@@ -37,8 +37,7 @@ import { buildCodexfulInitialContext, captureCodexfulInitialContextAssembly } fr
 import type { CodexfulInitialContextAssembly } from './initial-context.ts'
 import { captureCodexfulDeployment, codexfulPreparationOf, prepareCodexfulVariables } from './preparation.ts'
 import type { CodexfulPreparationSnapshot } from './preparation.ts'
-import { captureResponseMetadata, captureResponseWorkspaces } from './response-metadata.ts'
-import type { CodexWorkspacesMetadata } from '@codexydsh/runtime/llm'
+import { captureResponseMetadata, ResponseWorkspaceEnrichment } from './response-metadata.ts'
 import type { ResponseMetadataConfig, ResponseMetadataPolicy } from './response-metadata.ts'
 
 export { codexfulModelProfile, codexfulToolProfile } from './prompts.ts'
@@ -405,7 +404,6 @@ interface CapturedCodexfulAssembly {
   readonly restoredReasoningEffort: string | undefined
   readonly delegates: boolean
   readonly metadataPolicy: ResponseMetadataPolicy
-  readonly workspaces: CodexWorkspacesMetadata | undefined
 }
 
 /**
@@ -417,6 +415,8 @@ interface CapturedCodexfulAssembly {
  */
 export function apply(ctx: Context, config: Config): void {
   captureCodexfulDeployment(config)
+  const workspaceEnrichment = new ResponseWorkspaceEnrichment(ctx.subprocess)
+  ctx.effect(() => () => workspaceEnrichment.dispose())
   ctx.sessionProjections.register(codexfulMultiAgentVersionProjection)
   const hiddenToolsByAgent = new WeakMap<Agent, ReadonlySet<string>>()
   const assembledWorldState = new WeakMap<PromptAssembly, CodexWorldStateInput>()
@@ -467,6 +467,12 @@ export function apply(ctx: Context, config: Config): void {
       prepareCodexfulVariables(finalVariables, deployment, selectedVersion, fallback))
   })
   ctx.on('codexy-prompt/assemble', async (_assembly, context, next) => {
+    if (context.agent !== undefined && context.promptPreparation !== undefined
+      && codexfulPreparationOf(context.promptPreparation).deployment.wireProfile === 'codex-0.162.1') {
+      const cwd = ctx.codexyPrompt.preparedWorkingDirectory(context.promptPreparation)
+        ?? context.agent.session.header.cwd ?? process.cwd()
+      workspaceEnrichment.start(context.agent.session, cwd, context.signal)
+    }
     const assembled = await next()
     const agent = context.agent
     if (agent === undefined) return assembled
@@ -537,9 +543,6 @@ export function apply(ctx: Context, config: Config): void {
     }
     const metadataPolicy = Object.freeze({ sandboxMode: policy.mode,
       autoReviewEnabled: approval === 'ask' && approvalReviewer === 'auto_review' })
-    const workspaces = deployment.wireProfile === 'codex-0.162.1'
-      ? await captureResponseWorkspaces(agent.session, ctx.subprocess, facts.cwd, context.signal)
-      : undefined
     const strict = deployment.strictModelInput
     const pinnedPermissions = strict && hasPinnedPermissions(facts)
     const permissions = pinnedPermissions
@@ -619,7 +622,6 @@ export function apply(ctx: Context, config: Config): void {
       preparation,
       worldState,
       metadataPolicy,
-      workspaces,
       preparedModel: context.preparedModel,
       restoredReasoningEffort: header !== undefined && header.config.provider === provider && header.config.model === model
         && header.adapterDefaults?.reasoningEffort !== true ? header.config.reasoningEffort : undefined,
@@ -689,10 +691,11 @@ export function apply(ctx: Context, config: Config): void {
     const reasoningEffort = defaultEffort ?? request.reasoningEffort
     const effectiveEffort = reasoningEffort ?? preparedModel?.model.reasoning?.defaultEffort
       ?? captured.preparedModel?.model.reasoning?.defaultEffort
+    const workspaces = workspaceEnrichment.read(agent.session)
     const clientMetadata = preparation.deployment.wireProfile === 'codex-0.162.1'
       ? captureResponseMetadata(agent.session, preparation.deployment.responseMetadata, captured.metadataPolicy,
         { model: request.model, ...effectiveEffort === undefined ? {} : { reasoningEffort: effectiveEffort },
-          ...captured.workspaces === undefined ? {} : { workspaces: captured.workspaces } })
+          ...workspaces === undefined ? {} : { workspaces } })
       : undefined
     const proposedRequest: LlmCallConfig = {
       ...request,
@@ -708,6 +711,7 @@ export function apply(ctx: Context, config: Config): void {
     return proposedRequest
   }, { prepend: true })
   ctx.on('agent/created', ({ agent, source }) => {
+    agent.ctx.effect(() => () => workspaceEnrichment.cancel(agent.session), 'codexful.workspaceEnrichment')
     const deployment = captureCodexfulDeployment(config)
     if (deployment.toolProfile !== 'codex-pinned') {
       recordCodexfulMultiAgentVersion(ctx.sessionProjections, agent.session, 'v2')

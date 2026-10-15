@@ -66,6 +66,28 @@ async function desktopFixture(options: Awaited<ReturnType<typeof fixture>>, vers
 }
 
 describe('product profile installer', () => {
+  it('installs only the requested remote Web profile', async () => {
+    const fixtureOptions = await fixture()
+    const options = installerOptions(['--web', '--managed-profile', 'remote-test', '--release', fixtureOptions.release, '--home', fixtureOptions.home, '--dsh', fixtureOptions.dsh], { platform: 'linux', desktopApps: [] })
+    await installProduct(options)
+    expect(await readdir(join(options.home, 'profiles'))).toEqual(['remote-test'])
+    const manifest = JSON.parse(await readFile(join(options.home, 'profiles/remote-test/package.json'), 'utf8'))
+    expect(manifest.dsh.profile.bundles).toContain('@codexydsh/web')
+    expect(() => installerOptions(['--web', '--managed-profile', '../outside'])).toThrow('Web profile name')
+    expect(() => installerOptions(['--managed-profile', 'desktop'])).toThrow('Web profile name')
+  })
+  it('retains the verified deployment payload in the installed release cache', async () => {
+    const options = await fixture()
+    await writeFile(join(options.release, 'install.mjs'), '// bundled installer fixture\n')
+    const manifest = JSON.parse(await readFile(join(options.release, 'release.json'), 'utf8'))
+    manifest.deploymentFiles = await Promise.all(['install.mjs', 'profiles/codexy/package.json', 'profiles/codexy-headless/package.json'].map(async file => ({ file, sha256: createHash('sha256').update(await readFile(join(options.release, file))).digest('hex') })))
+    await writeFile(join(options.release, 'release.json'), JSON.stringify(manifest))
+    await installProduct(options)
+    const key = createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
+    for (const item of manifest.deploymentFiles) expect(await readFile(join(options.home, 'products/codexy/releases', key, item.file))).toEqual(await readFile(join(options.release, item.file)))
+    await writeFile(join(options.release, 'install.mjs'), '// corrupted\n')
+    await expect(installProduct(options)).rejects.toThrow('deployment checksum mismatch')
+  })
   it('runs the source installer through a symbolic or macOS canonicalized entry path', async () => {
     const options = await fixture(), entry = join(dirname(options.release), 'linked-installer.mjs')
     await symlink(resolve('scripts/install.mjs'), entry)

@@ -4,6 +4,8 @@
 export interface RemoteHostConfig {
   /** OpenSSH alias or user@host. */
   host: string
+  /** Automatically provision the pinned server, or use explicit existing executables. */
+  deployment?: 'auto' | 'existing'
   /** Remote Web profile selected through the dsh launcher. */
   profile: string
   /** Initial absolute remote directory, or empty for the remote home. */
@@ -24,8 +26,10 @@ export interface RemoteHostStatus {
   profile: string
   /** Local connection lifecycle. */
   phase: 'disconnected' | 'connecting' | 'connected' | 'failed'
-  /** Authenticated loopback URL while connected; never persist or log this value. */
+  /** Same-origin embedded runtime path, or an authenticated loopback launch URL when no Web carrier is mounted. */
   url: string | null
   /** Last connection failure, with launch tokens removed. */
   error: string | null
+  /** Ephemeral OpenSSH password, passphrase, or keyboard-interactive question. */
+  authChallenge?: { id: string; prompt: string }
 }

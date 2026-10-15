@@ -7,10 +7,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { compactionClientMetadata, createUserMessage } from '@codexydsh/runtime/llm'
 import type { CodexClientMetadata } from '@codexydsh/runtime/llm'
-import { Session, SessionId, SessionLogOffset, appendProductEvent } from '@codexydsh/runtime/session'
+import { Session, SessionId, SessionLogOffset, appendProductEvent, snapshotProductEvents } from '@codexydsh/runtime/session'
 import LocalSubprocessRuntime from '../../processes/src/index.ts'
 import { decodeCodexyArtifact, encodeArtifactEvents, encodeArtifactHeader } from '../../runtime/src/persistence-codec.ts'
-import { captureResponseMetadata, captureResponseWorkspaces } from '../src/response-metadata.ts'
+import { captureResponseMetadata, captureResponseWorkspaces, ResponseWorkspaceEnrichment } from '../src/response-metadata.ts'
 
 const application = { installationId: 'workspace-fixture-installation' }
 const policy = { sandboxMode: 'danger-full-access', autoReviewEnabled: false }
@@ -64,6 +64,192 @@ function canonical(metadata: CodexClientMetadata | undefined) {
 }
 
 describe('real execution-world workspace metadata', () => {
+  it('does not wait for optional Git, then durably enriches the same turn without recapturing later changes', async () => {
+    const git = Promise.withResolvers<string>()
+    let hash = 'a'.repeat(40)
+    const subprocess = {
+      resolveExecutable: vi.fn(() => git.promise),
+      spawn: vi.fn((spec: SubprocessSpawnSpec) => {
+        const text = spec.argv.includes('--show-toplevel') ? '/work\n' : `# branch.oid ${hash}\n# branch.head main\n`
+        return { done: Promise.resolve({ exitCode: 0, signal: null }), collected: {
+          stdout: { readFrom: () => ({ text, nextOffset: text.length, lossy: false }) },
+        } }
+      }),
+    } as unknown as SubprocessRuntime
+    const enrichment = new ResponseWorkspaceEnrichment(subprocess)
+    const session = opened()
+    try {
+      enrichment.start(session, '/work')
+      expect(enrichment.read(session)).toBeUndefined()
+      const initial = captureResponseMetadata(session, application, policy, controls, () => 'window')!
+      commit(session, initial)
+      const originalBytes = encodeArtifactEvents(session.snapshotEvents())
+      expect(canonical(initial)).not.toHaveProperty('workspaces')
+      git.resolve('/execution-world/git')
+      const expected = { '/work': { latest_git_commit_hash: hash, has_changes: false } }
+      await vi.waitFor(() => expect(enrichment.read(session)).toEqual(expected))
+      const next = captureResponseMetadata(session, application, policy,
+        { ...controls, workspaces: enrichment.read(session) })!
+      expect(canonical(next).workspaces).toEqual(expected)
+      expect(canonical(initial)).not.toHaveProperty('workspaces')
+      expect(encodeArtifactEvents(session.snapshotEvents()).startsWith(originalBytes)).toBe(true)
+      commit(session, next)
+      hash = 'b'.repeat(40)
+      enrichment.start(session, '/another-directory')
+      expect(subprocess.resolveExecutable).toHaveBeenCalledTimes(1)
+      expect(enrichment.read(session)).toEqual(expected)
+      const restored = Session.fromRestore(session.id, session.snapshotEvents(), session.header, SessionLogOffset(0), 'detached')
+      expect(await captureResponseWorkspaces(restored, subprocess, '/work')).toEqual(expected)
+      expect(canonical(captureResponseMetadata(restored, application, policy,
+        { ...controls, workspaces: { '/work': { latest_git_commit_hash: hash, has_changes: true } } })).workspaces)
+        .toEqual(expected)
+    } finally { enrichment.dispose() }
+  })
+
+  it('cancels pending enrichment on disposal and prevents late facts from appearing', async () => {
+    const git = Promise.withResolvers<string>()
+    let signal: AbortSignal | undefined
+    const spawn = vi.fn(() => { throw new Error('disposed enrichment must not spawn Git') })
+    const subprocess = { resolveExecutable: (_name: string, _env: unknown, incoming: AbortSignal) => {
+      signal = incoming
+      return git.promise
+    }, spawn } as unknown as SubprocessRuntime
+    const enrichment = new ResponseWorkspaceEnrichment(subprocess)
+    const session = opened()
+    enrichment.start(session, '/work')
+    expect(signal?.aborted).toBe(false)
+    enrichment.dispose()
+    expect(signal?.aborted).toBe(true)
+    git.resolve('/execution-world/git')
+    await Promise.resolve()
+    expect(enrichment.read(session)).toBeUndefined()
+    enrichment.start(session, '/work')
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
+  it('cancels a previous turn and does not attach its late result to the new turn', async () => {
+    const gates = [Promise.withResolvers<string>(), Promise.withResolvers<string>()]
+    const signals: AbortSignal[] = []
+    const subprocess = {
+      resolveExecutable: (_name: string, _env: unknown, signal: AbortSignal) => {
+        const index = signals.length
+        signals.push(signal)
+        return gates[index]!.promise
+      },
+      spawn: (spec: SubprocessSpawnSpec) => {
+        const text = spec.argv.includes('--show-toplevel') ? `${spec.cwd}\n` : `# branch.oid ${'b'.repeat(40)}\n`
+        return { done: Promise.resolve({ exitCode: 0, signal: null }), collected: {
+          stdout: { readFrom: () => ({ text, nextOffset: text.length, lossy: false }) },
+        } }
+      },
+    } as unknown as SubprocessRuntime
+    const session = opened()
+    const enrichment = new ResponseWorkspaceEnrichment(subprocess)
+    try {
+      enrichment.start(session, '/old')
+      session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+      const next = session.append('turn/start', { turn: 2 })
+      enrichment.start(session, '/new')
+      expect(signals[0]!.aborted).toBe(true)
+      expect(enrichment.read(session)).toBeUndefined()
+      gates[1]!.resolve('/execution-world/git')
+      await vi.waitFor(() => expect(enrichment.read(session))
+        .toEqual({ '/new': { latest_git_commit_hash: 'b'.repeat(40), has_changes: false } }))
+      gates[0]!.resolve('/execution-world/git')
+      await Promise.resolve()
+      const ready = snapshotProductEvents(session).filter(event => event.type === 'codexful/workspace-enrichment'
+        && event.data.phase === 'ready')
+      expect(ready).toHaveLength(1)
+      expect(ready[0]!.data).toMatchObject({ turnStartSeq: next.seq, cwd: '/new' })
+    } finally { enrichment.dispose() }
+  })
+
+  it.each([true, false])('restores unresolved absence without rewriting the original header (pending fact: %s)', async pendingFact => {
+    const original = opened()
+    const pending = new ResponseWorkspaceEnrichment({ resolveExecutable: () => new Promise(() => {}) } as unknown as SubprocessRuntime)
+    if (pendingFact) pending.start(original, '/work/pending')
+    const first = captureResponseMetadata(original, application, policy, controls, () => 'window')!
+    commit(original, first)
+    const originalEvents = encodeArtifactEvents(original.snapshotEvents())
+    const bytes = encodeArtifactHeader({ kind: 'codexy-session', version: 1, session: original.header,
+      inheritedEventCount: SessionLogOffset(0) }) + originalEvents
+    pending.dispose()
+    const decoded = decodeCodexyArtifact(Buffer.from(bytes))
+    const restored = Session.fromRestore(original.id, decoded.events, decoded.metadata.session, SessionLogOffset(0), 'detached')
+    const probes: SubprocessSpawnSpec[] = []
+    const subprocess = {
+      resolveExecutable: async () => '/execution-world/git',
+      spawn: (spec: SubprocessSpawnSpec) => {
+        probes.push(spec)
+        const text = spec.argv.includes('--show-toplevel') ? `${spec.cwd}\n` : `# branch.oid ${'c'.repeat(40)}\n`
+        return { done: Promise.resolve({ exitCode: 0, signal: null }), collected: {
+          stdout: { readFrom: () => ({ text, nextOffset: text.length, lossy: false }) },
+        } }
+      },
+    } as unknown as SubprocessRuntime
+    const enrichment = new ResponseWorkspaceEnrichment(subprocess)
+    const directory = pendingFact ? '/work/pending' : '/work/recovered'
+    try {
+      enrichment.start(restored, '/work/recovered')
+      expect(enrichment.read(restored)).toBeUndefined()
+      const expected = { [directory]: { latest_git_commit_hash: 'c'.repeat(40), has_changes: false } }
+      await vi.waitFor(() => expect(enrichment.read(restored)).toEqual(expected))
+      expect(probes.every(probe => probe.cwd === directory)).toBe(true)
+      expect(canonical(first)).not.toHaveProperty('workspaces')
+      expect(encodeArtifactEvents(restored.snapshotEvents()).startsWith(originalEvents)).toBe(true)
+      const next = captureResponseMetadata(restored, application, policy, { ...controls, workspaces: enrichment.read(restored) })!
+      expect(canonical(next).workspaces).toEqual(expected)
+      commit(restored, next)
+      expect(() => decodeCodexyArtifact(Buffer.from(encodeArtifactHeader(decoded.metadata)
+        + encodeArtifactEvents(restored.snapshotEvents())))).not.toThrow()
+    } finally { enrichment.dispose() }
+  })
+
+  it('restores a completed absence without running Git again after the directory changes', async () => {
+    const session = opened()
+    const unavailable = { resolveExecutable: async () => { throw new Error('Git unavailable') } } as unknown as SubprocessRuntime
+    const enrichment = new ResponseWorkspaceEnrichment(unavailable)
+    enrichment.start(session, '/work')
+    await vi.waitFor(() => expect(snapshotProductEvents(session).findLast(event => event.type === 'codexful/workspace-enrichment')?.data)
+      .toMatchObject({ phase: 'ready' }))
+    commit(session, captureResponseMetadata(session, application, policy, controls, () => 'window')!)
+    const bytes = encodeArtifactHeader({ kind: 'codexy-session', version: 1, session: session.header,
+      inheritedEventCount: SessionLogOffset(0) }) + encodeArtifactEvents(session.snapshotEvents())
+    enrichment.dispose()
+    const decoded = decodeCodexyArtifact(Buffer.from(bytes))
+    const restored = Session.fromRestore(session.id, decoded.events, decoded.metadata.session, SessionLogOffset(0), 'detached')
+    const restoredBefore = encodeArtifactEvents(restored.snapshotEvents())
+    const probe = vi.fn(async () => { throw new Error('terminal absence must not be recaptured') })
+    const restarted = new ResponseWorkspaceEnrichment({ resolveExecutable: probe } as unknown as SubprocessRuntime)
+    try {
+      restarted.start(restored, '/changed')
+      expect(restarted.read(restored)).toBeUndefined()
+      expect(probe).not.toHaveBeenCalled()
+      expect(encodeArtifactEvents(restored.snapshotEvents())).toBe(restoredBefore)
+      expect(encodeArtifactHeader(decoded.metadata) + encodeArtifactEvents(decoded.events)).toBe(bytes)
+    } finally { restarted.dispose() }
+  })
+
+  it.each(['pending-with-facts', 'ready-without-pending', 'wrong-turn-reference', 'changed-cwd', 'duplicate-pending'] as const)
+    ('rejects an invalid durable workspace transition: %s', scenario => {
+      const session = opened()
+      const start = snapshotProductEvents(session).findLast(event => event.type === 'turn/start')!
+      if (scenario === 'changed-cwd' || scenario === 'duplicate-pending') {
+        appendProductEvent(session, 'codexful/workspace-enrichment', { turnStartSeq: start.seq, cwd: '/work', phase: 'pending' })
+      }
+      appendProductEvent(session, 'codexful/workspace-enrichment', {
+        turnStartSeq: scenario === 'wrong-turn-reference' ? session.snapshotEvents()[0]!.seq : start.seq,
+        cwd: scenario === 'changed-cwd' ? '/changed' : '/work',
+        phase: scenario === 'ready-without-pending' || scenario === 'changed-cwd' ? 'ready' : 'pending',
+        ...scenario === 'pending-with-facts' ? {
+          workspaces: { '/work': { latest_git_commit_hash: 'a'.repeat(40), has_changes: false } },
+        } : {},
+      })
+      expect(() => decodeCodexyArtifact(Buffer.from(encodeArtifactHeader({ kind: 'codexy-session', version: 1,
+        session: session.header, inheritedEventCount: SessionLogOffset(0) }) + encodeArtifactEvents(session.snapshotEvents()))))
+        .toThrow(/workspace enrichment/)
+    })
+
   it.each([' ', '\t'])('preserves a repository name ending with %j beside a different unpadded repository', async suffix => {
     const parent = await realpath(await mkdtemp(join(tmpdir(), 'codexy-workspace-path-')))
     const plainDirectory = join(parent, 'repository')

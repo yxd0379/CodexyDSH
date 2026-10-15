@@ -1,0 +1,26 @@
+[package]
+name = "codexydsh-native-image-codec"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+license = "Apache-2.0"
+[lib]
+crate-type = ["cdylib", "rlib"]
+[dependencies]
+image = { version = "=0.25.9", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+png = { version = "=0.18.0", features = ["zlib-rs"] }
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+panic = "abort"
+
+[package.metadata.codexydsh]
+compiler = "1.98.1"
+target = "wasm32-unknown-unknown"
+abi = 1
+wire-profile = "codex-0.162.1"
+upstream-tag = "rust-v0.162.1"
+upstream-source = "https://raw.githubusercontent.com/openai/codex/rust-v0.162.1/codex-rs/utils/image/src/lib.rs"
+upstream-source-sha256 = "e0b791b2c834ec8407e9ce59bffdf047e0b1310a29b2339ff4e037cad4bd280a"
+upstream-lock-sha256 = "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117"

@@ -4,7 +4,7 @@ import { isAbsolute } from 'node:path'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { encodeCodexClientMetadata, isCodexWorkspacesMetadata } from '@codexydsh/runtime/llm'
 import type { CodexClientMetadata, CodexWorkspacesMetadata } from '@codexydsh/runtime/llm'
-import { snapshotProductEvents } from '@codexydsh/runtime/session'
+import { appendProductEvent, snapshotProductEvents } from '@codexydsh/runtime/session'
 import type { Session } from '@codexydsh/runtime/session'
 
 /** Model restrictions chosen by the operator, not assertions that a Node tool is mounted. */
@@ -62,9 +62,17 @@ export async function captureResponseWorkspaces(
   if (canonical?.['turn_id'] === `${session.id}:turn:${start.seq}`) {
     return isCodexWorkspacesMetadata(canonical['workspaces']) ? canonical['workspaces'] : undefined
   }
+  return probeResponseWorkspaces(subprocess, cwd, signal)
+}
+
+async function probeResponseWorkspaces(
+  subprocess: SubprocessRuntime, cwd: string, signal?: AbortSignal,
+): Promise<CodexWorkspacesMetadata | undefined> {
   try {
     const git = await subprocess.resolveExecutable('git', undefined, signal)
+    signal?.throwIfAborted()
     const run = async (directory: string, args: readonly string[]) => {
+      signal?.throwIfAborted()
       const handle = subprocess.spawn({ argv: [git, '-C', directory, ...args], cwd: directory,
         env: { GIT_OPTIONAL_LOCKS: '0' }, signal, graceMs: 200,
         stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 * 1024 }, stderr: { maxBytes: 4096 } } })
@@ -90,6 +98,95 @@ export async function captureResponseWorkspaces(
     if (signal?.aborted) throw signal.reason
     // Git is optional workspace metadata; missing or failed probes do not invent facts.
     return undefined
+  }
+}
+
+interface WorkspaceEnrichment {
+  readonly turnId: string
+  readonly controller: AbortController
+  workspaces: CodexWorkspacesMetadata | undefined
+  failure?: { readonly error: unknown }
+}
+
+/** Optional Git enrichment never delays a model request; its first result is turn-owned. */
+export class ResponseWorkspaceEnrichment {
+  private readonly turns = new WeakMap<Session, WorkspaceEnrichment>()
+  private readonly pending = new Set<AbortController>()
+  private disposed = false
+
+  constructor(private readonly subprocess: SubprocessRuntime) {}
+
+  start(session: Session, cwd: string, signal?: AbortSignal): void {
+    signal?.throwIfAborted()
+    if (this.disposed) return
+    const events = snapshotProductEvents(session)
+    const start = events.findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
+    if (start?.type !== 'turn/start') return
+    const turnId = `${session.id}:turn:${start.seq}`
+    const previous = this.turns.get(session)
+    if (previous?.turnId === turnId) return
+    previous?.controller.abort()
+    const controller = new AbortController()
+    const state: WorkspaceEnrichment = { turnId, controller, workspaces: undefined }
+    this.turns.set(session, state)
+    const fact = events.findLast(event => event.type === 'codexful/workspace-enrichment'
+      && event.data.turnStartSeq === start.seq)
+    const header = events.findLast(event => event.type === 'request/header')
+    const canonical = canonicalMetadata(header?.type === 'request/header'
+      ? header.data.header.config.codexfulResponses?.clientMetadata : undefined)
+    const retained = canonical?.['turn_id'] === turnId && isCodexWorkspacesMetadata(canonical['workspaces'])
+      ? canonical['workspaces'] : undefined
+    const ready = fact?.type === 'codexful/workspace-enrichment' && fact.data.phase === 'ready'
+    if (retained !== undefined || ready) {
+      const workspaces = retained ?? (fact?.type === 'codexful/workspace-enrichment' ? fact.data.workspaces : undefined)
+      state.workspaces = workspaces === undefined ? undefined : Object.freeze(Object.fromEntries(
+        Object.entries(workspaces).map(([directory, facts]) => [directory, Object.freeze({ ...facts })])))
+      return
+    }
+    const directory = fact?.type === 'codexful/workspace-enrichment' ? fact.data.cwd : cwd
+    if (fact === undefined) appendProductEvent(session, 'codexful/workspace-enrichment', {
+      turnStartSeq: start.seq, cwd: directory, phase: 'pending',
+    })
+    this.pending.add(controller)
+    const combinedSignal = signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal])
+    void probeResponseWorkspaces(this.subprocess, directory, combinedSignal).then(workspaces => {
+      const active = snapshotProductEvents(session).findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
+      if (!combinedSignal.aborted && !this.disposed && active?.type === 'turn/start' && active.seq === start.seq) {
+        appendProductEvent(session, 'codexful/workspace-enrichment', {
+          turnStartSeq: start.seq, cwd: directory, phase: 'ready',
+          ...workspaces === undefined ? {} : { workspaces },
+        })
+        state.workspaces = workspaces
+      }
+    }, () => {
+      // Failed or cancelled optional enrichment adds no invented Git facts.
+    }).catch(error => {
+      // A failed required fact commit must surface before these facts enter a request.
+      state.failure = { error }
+    }).finally(() => { this.pending.delete(controller) })
+  }
+
+  read(session: Session): CodexWorkspacesMetadata | undefined {
+    if (this.disposed) return
+    const state = this.turns.get(session)
+    const start = snapshotProductEvents(session).findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
+    if (start?.type === 'turn/start' && state?.turnId === `${session.id}:turn:${start.seq}`
+      && !state.controller.signal.aborted) {
+      if (state.failure !== undefined) throw state.failure.error
+      return state.workspaces
+    }
+    return undefined
+  }
+
+  cancel(session: Session): void {
+    this.turns.get(session)?.controller.abort()
+    this.turns.delete(session)
+  }
+
+  dispose(): void {
+    this.disposed = true
+    for (const controller of this.pending) controller.abort()
+    this.pending.clear()
   }
 }
 
@@ -120,7 +217,7 @@ export function captureResponseMetadata(
   const installationId = application?.installationId ?? metadata?.['x-codex-installation-id'] ?? mintId()
   const turnId = `${session.id}:turn:${start.seq}`
   const workspaces = canonical?.['turn_id'] === turnId
-    ? isCodexWorkspacesMetadata(canonical['workspaces']) ? canonical['workspaces'] : undefined
+    ? isCodexWorkspacesMetadata(canonical['workspaces']) ? canonical['workspaces'] : controls.workspaces
     : controls.workspaces
   const root = session.header.parentSession === undefined
   return encodeCodexClientMetadata({

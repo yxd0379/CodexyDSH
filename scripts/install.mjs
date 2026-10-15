@@ -25,13 +25,14 @@ export function installerOptions(args, environment = { platform: process.platfor
       target = argument; options.desktop = argument === '--all' ? undefined : argument === '--desktop'
     }
     else if (argument === '--plan') options.plan = true
-    else if (['--release', '--home', '--dsh', '--desktop-app'].includes(argument)) {
+    else if (['--release', '--home', '--dsh', '--desktop-app', '--managed-profile'].includes(argument)) {
       const value = args[++index]
       if (value === undefined || value.startsWith('--')) throw new Error(`${argument} requires a value`)
       options[argument === '--desktop-app' ? 'desktopApp' : argument.slice(2)] = value
     } else throw new Error(`unknown installer option ${argument}`)
   }
   options.release = resolve(options.release)
+  if (options['managed-profile'] !== undefined && (target !== '--web' || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(options['managed-profile']) || ['desktop', 'headless', 'codexy-headless'].includes(options['managed-profile']))) throw new Error('--managed-profile requires --web and a Web profile name')
   options.home = resolve(options.home)
   const installedApp = options.desktopApp ?? environment.desktopApps.find(path => existsSync(path))
   const explicitDesktopApp = options.desktopApp !== undefined
@@ -262,6 +263,14 @@ async function releaseAt(options) {
     const digest = createHash('sha256').update(await readFile(resolve(options.release, patch.file))).digest('hex')
     if (digest !== patch.sha256) throw new Error(`release provider patch checksum mismatch: ${patch.name}`)
   }
+  if (manifest.deploymentFiles !== undefined) {
+    const allowed = ['install.mjs', 'profiles/codexy/package.json', 'profiles/codexy-headless/package.json']
+    if (!Array.isArray(manifest.deploymentFiles) || manifest.deploymentFiles.length !== allowed.length || new Set(manifest.deploymentFiles.map(item => item.file)).size !== allowed.length) throw new Error('invalid deployment files')
+    for (const item of manifest.deploymentFiles) {
+      if (!allowed.includes(item.file) || !/^[a-f0-9]{64}$/u.test(item.sha256)) throw new Error('invalid deployment file')
+      if (createHash('sha256').update(await readFile(join(options.release, item.file))).digest('hex') !== item.sha256) throw new Error(`deployment checksum mismatch: ${item.file}`)
+    }
+  }
   return { manifest, overrides, providerPatches }
 }
 /** Refuse a different user patch for the exact provider version before editing profiles.
@@ -307,7 +316,7 @@ export async function installProduct(options) {
     || typeof processes.installScript.sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(processes.installScript.sha256))) {
     throw new Error('invalid release-owned processes repair')
   }
-  const targets = options.standardProfiles ? ['web', 'headless', 'codexy', 'codexy-headless', ...(options.desktop ? ['desktop'] : [])] : options.desktop ? ['desktop'] : ['codexy', 'codexy-headless']
+  const targets = options['managed-profile'] ? [options['managed-profile']] : options.standardProfiles ? ['web', 'headless', 'codexy', 'codexy-headless', ...(options.desktop ? ['desktop'] : [])] : options.desktop ? ['desktop'] : ['codexy', 'codexy-headless']
   const plans = []
   for (const profile of targets) {
     const dir = join(options.home, 'profiles', profile)
@@ -369,6 +378,13 @@ export async function installProduct(options) {
     catch (error) { if (error.code !== 'EEXIST') throw error }
     if (createHash('sha256').update(await readFile(destination)).digest('hex') !== patch.sha256) throw new Error(`cached provider patch checksum mismatch: ${patch.name}`)
     cachedPatches.push({ name: patch.name, path: destination })
+  }
+  for (const item of release.deploymentFiles ?? []) {
+    const destination = join(cache, item.file)
+    await mkdir(dirname(destination), { recursive: true })
+    try { await copyFile(join(options.release, item.file), destination, constants.COPYFILE_EXCL) }
+    catch (error) { if (error.code !== 'EEXIST') throw error }
+    if (createHash('sha256').update(await readFile(destination)).digest('hex') !== item.sha256) throw new Error(`cached deployment checksum mismatch: ${item.file}`)
   }
   await writeFile(join(cache, 'release.json'), JSON.stringify(release, null, 2) + '\n')
   for (const plan of plans) {

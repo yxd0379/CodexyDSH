@@ -2,6 +2,7 @@
 
 import { SessionFormatError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
+import { isCodexWorkspacesMetadata } from './response-metadata.ts'
 
 /**
  * Require an object at a decoded JSON field.
@@ -90,7 +91,9 @@ function assertCompactionRequestFact(type: string, value: unknown): void {
     if (data['projectionFailure'] !== undefined && typeof record(data['projectionFailure'], 'compaction projection failure')['message'] !== 'string') throw new SessionFormatError('compaction projection failure message must be a string')
     if (data['finish'] !== undefined) {
       const finish = record(data['finish'], 'compaction observed finish')
-      if (!['stop', 'error', 'aborted', 'max-tokens'].includes(String(finish['kind']))) throw new SessionFormatError('invalid compaction observed finish')
+      if (typeof finish['kind'] !== 'string' || !['stop', 'tool-calls', 'error', 'aborted', 'max-tokens'].includes(finish['kind'])) {
+        throw new SessionFormatError('invalid compaction observed finish')
+      }
     }
     if (data['outcome'] === 'completed' && data['failure'] !== undefined) throw new SessionFormatError('completed compaction stream cannot have failure')
     if (data['outcome'] === 'completed') return
@@ -215,6 +218,7 @@ function streamCalls(row: Record<string, unknown>): readonly Record<string, unkn
  */
 export function assertV5RowContent(row: unknown): void {
   if (!isSessionFormatJsonObject(row)) return
+  assertNativeImageRow(row)
   const data = row['data']
   if (row['type'] === 'compaction/request' || row['type'] === 'compaction/request-result' || row['type'] === 'compaction/preparation-error') {
     if (row['surfaceOp'] !== undefined) throw new SessionFormatError('compaction request facts cannot enter the model surface')
@@ -238,7 +242,15 @@ export function assertV5RowContent(row: unknown): void {
     return
   }
   if (!isSessionFormatJsonObject(data)) return
-  if (row['type'] === 'compaction/summary' && data['clientMetadata'] !== undefined) {
+  if (row['type'] === 'codexful/workspace-enrichment') {
+    sessionFormatCount(data['turnStartSeq'], 'workspace enrichment turnStartSeq')
+    if (typeof data['cwd'] !== 'string' || data['cwd'].length === 0
+      || data['phase'] !== 'pending' && data['phase'] !== 'ready'
+      || data['phase'] === 'pending' && data['workspaces'] !== undefined
+      || data['workspaces'] !== undefined && !isCodexWorkspacesMetadata(data['workspaces'])) {
+      throw new SessionFormatError('invalid workspace enrichment fact')
+    }
+  } else if (row['type'] === 'compaction/summary' && data['clientMetadata'] !== undefined) {
     const metadata = record(data['clientMetadata'], 'compaction client metadata')
     if (Object.values(metadata).some(value => typeof value !== 'string')) throw new SessionFormatError('invalid compaction client metadata')
   }
@@ -294,5 +306,39 @@ export function assertV5RowContent(row: unknown): void {
   }
   for (const call of advertisedCalls(row)) toolKind(call['kind'])
   for (const call of streamCalls(row)) toolKind(call['kind'])
+}
+
+/** Optional product-owned original-image facts must remain trustworthy after restoration. */
+function assertNativeImageContent(content: unknown): void {
+  if (!Array.isArray(content)) return
+  for (const value of content) {
+    if (!isSessionFormatJsonObject(value) || value['type'] !== 'image' || value['codexNativeImage'] === undefined) continue
+    const facts = record(value['codexNativeImage'], 'native image facts')
+    const file = record(facts['file'], 'native image source file')
+    if (facts['version'] !== 1 && facts['version'] !== 2 || facts['tool'] !== 'view_image'
+      || typeof facts['mediaType'] !== 'string' || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(facts['mediaType'])
+      || typeof file['attachmentId'] !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(file['attachmentId'])
+      || typeof file['name'] !== 'string' || file['name'].length === 0 || /[/\\\u0000]/u.test(file['name'])
+      || sessionFormatCount(file['bytes'], 'native image source bytes') === 0
+      || sessionFormatCount(facts['width'], 'native image source width') === 0
+      || sessionFormatCount(facts['height'], 'native image source height') === 0) {
+      throw new SessionFormatError('invalid native image source facts')
+    }
+  }
+}
+
+/** Inspect typed message locations, never ordinary arbitrary tool JSON or provider items. */
+function assertNativeImageRow(row: Record<string, unknown>): void {
+  if (!isSessionFormatJsonObject(row['data'])) return
+  const data = row['data']
+  if (row['type'] === 'user/message') assertNativeImageContent(data['content'])
+  else if (['system/message', 'developer/message', 'assistant/message', 'assistant/attempt', 'tool/result', 'tool/notification'].includes(String(row['type']))) {
+    if (isSessionFormatJsonObject(data['message'])) assertNativeImageContent(data['message']['content'])
+  } else if (row['type'] === 'compaction/request' || row['type'] === 'compaction/preparation-error') {
+    const input = data[row['type'] === 'compaction/request' ? 'preparedInput' : 'proposedInput']
+    if (isSessionFormatJsonObject(input) && Array.isArray(input['messages'])) {
+      for (const message of input['messages']) if (isSessionFormatJsonObject(message)) assertNativeImageContent(message['content'])
+    }
+  }
 }
 

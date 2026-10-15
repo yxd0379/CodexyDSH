@@ -36,6 +36,7 @@
     "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
   },
   "dependencies": {
+    "sharp": "0.35.5",
     "@earendil-works/pi-ai": "0.85.1"
   },
   "devDependencies": {

@@ -1,11 +1,13 @@
 import { assemblePrompt } from '@codexydsh/test-support/host-tools'
 import { currentToolRequestBinding } from '@codexydsh/bridges/tools'
 /** Real nested command execution keeps program output independent of model rendering. */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Readable } from 'node:stream'
+import type { SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
 import { ToolCallId } from '@codexydsh/runtime/llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
@@ -86,6 +88,68 @@ function rendered(result: ToolExecutionResult): string {
 }
 
 describe('Codex command program output', () => {
+  it.skipIf(process.platform === 'win32').each([{ tty: false }, { tty: true }])(
+    'keeps model and program exit143 aligned when an owned shell self-signals (tty=$tty)', async ({ tty }) => {
+      const { ctx, run } = await harness()
+      const observed: SubprocessOutcome[] = []
+      const spawn = ctx.subprocess.spawn.bind(ctx.subprocess)
+      const spawnTerminal = ctx.subprocess.spawnTerminal.bind(ctx.subprocess)
+      vi.spyOn(ctx.subprocess, 'spawn').mockImplementation(spec => {
+        const handle = spawn(spec)
+        void handle.done.then(outcome => { observed.push(outcome) })
+        return handle
+      })
+      vi.spyOn(ctx.subprocess, 'spawnTerminal').mockImplementation(async spec => {
+        const handle = await spawnTerminal(spec)
+        void handle.done.then(outcome => { observed.push(outcome) })
+        return handle
+      })
+      try {
+        const result = await run('exec_command', { cmd: 'kill -TERM $$', shell: '/bin/sh', login: false, tty })
+        expect(observed).toEqual([{ exitCode: null, signal: 'SIGTERM' }])
+        expect(programOf(result)['exit_code']).toBe(143)
+        expect(programOf(result)).not.toHaveProperty('session_id')
+        expect(rendered(result)).toContain('Process exited with code 143\n')
+        expect(rendered(result)).not.toContain('Process running with session ID')
+      } finally {
+        await ctx.fiber.dispose()
+        vi.restoreAllMocks()
+      }
+    },
+  )
+
+  it.each([
+    { exitCode: 0, signal: 'SIGTERM', expected: 0, platform: 'posix' },
+    { exitCode: 7, signal: 'SIGTERM', expected: 7, platform: 'posix' },
+    { exitCode: null, signal: 'SIGTERM', expected: 143, platform: 'posix' },
+    { exitCode: null, signal: 'SIGINT', expected: 130, platform: 'posix' },
+    { exitCode: null, signal: null, expected: undefined, platform: 'posix' },
+    { exitCode: null, signal: 'SIG_NOT_REAL', expected: undefined, platform: 'posix' },
+    { exitCode: null, signal: 'SIGTERM', expected: undefined, platform: 'windows' },
+  ] as const)('preserves authoritative exit facts without inventing unknown outcomes %#', async observation => {
+    const { ctx, run } = await harness()
+    const done = Promise.resolve({ exitCode: observation.exitCode, signal: observation.signal as NodeJS.Signals | null })
+    vi.spyOn(ctx.subprocess, 'terminalEnvironment').mockResolvedValue({ platform: observation.platform })
+    vi.spyOn(ctx.subprocess, 'spawn').mockReturnValue({
+      stdin: undefined, stdout: Readable.from([]), stderr: Readable.from([]), control: undefined,
+      collected: {}, done, terminate() {}, async waitForExit() { await done; return true },
+    })
+    try {
+      const result = await run('exec_command', { cmd: 'synthetic settled process', login: false })
+      if (observation.expected === undefined) {
+        expect(programOf(result)).not.toHaveProperty('exit_code')
+        expect(rendered(result)).not.toContain('Process exited with code')
+      } else {
+        expect(programOf(result)['exit_code']).toBe(observation.expected)
+        expect(rendered(result)).toContain(`Process exited with code ${observation.expected}\n`)
+      }
+      expect(programOf(result)).not.toHaveProperty('session_id')
+    } finally {
+      await ctx.fiber.dispose()
+      vi.restoreAllMocks()
+    }
+  })
+
   it('returns an intercepted patch with zero wall time and no process metadata', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-code-mode-patch-'))
     let ctx: Context | undefined
