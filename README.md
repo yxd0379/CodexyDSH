@@ -6,7 +6,7 @@
 
 ## 为什么用 CodexyDSH
 
-DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区、Remote、插件加载都已具备。CodexyDSH 不重做这些，它把 **agent 的行为换成 Codex 的语义**——模型看到什么工具、工具怎么被调度、提示词与审批怎么组织——并把 Codex 的记忆与子 Agent 机制一起带过来。
+DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区、设置、插件加载都已具备。CodexyDSH 不重做这些，它把 **agent 的行为换成 Codex 的语义**——模型看到什么工具、工具怎么被调度、提示词与审批怎么组织——并把 Codex 的记忆与子 Agent 机制带过来；此外新增了上游没有的 SSH 远端主机。
 
 | 维度 | 原生 DSH | CodexyDSH |
 | --- | --- | --- |
@@ -16,9 +16,10 @@ DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区
 | 审批与执行 | 通用 approval 与 permission | Codex 风格策略：`ask` / `never`，沙箱预设 `read-only` / `workspace-write` / `danger-full-access`，可配 Auto review 自动审查 |
 | 子 Agent | 上游 subagent | Codex V1 与 codexful V2 两套子 Agent，含结构化输出与续跑 |
 | 模型接入 | 上游 provider | `deepseek-account`（账号服务 token）与 `deepseek-official`（独立 API key）互不回退，另有 Pi provider |
-| 界面 | 上游 Web 界面 | Codex 风格的对话、轨迹、工具、审批、记忆与用量视图，含 MCP 与 Remote |
+| 界面 | 上游 Web 界面 | Codex 风格的对话、轨迹、工具、审批、记忆与用量视图，含 MCP |
+| 远端 | 只有客户端到 Host 的 Remote 协议层（`api-remotes`），没有 SSH 远端主机 | SSH 远端主机：自动部署独立的 Node 与 DSH、本地隧道、同一窗口内的远端工作区与会话 |
 
-界面的形态、工具的名字与调用顺序、模型收到的提示词都会改变，但平台能力不变：你的登录、账号、已选模型、工作区与 Remote 配置继续有效。移除 profile 里的产品 patch 行即可回到原版组合。
+界面的形态、工具的名字与调用顺序、模型收到的提示词都会改变，但平台能力不变：你的登录、账号、已选模型与工作区继续有效。移除 profile 里的产品 patch 行即可回到原版组合。
 
 ## 使用
 
@@ -71,13 +72,14 @@ dsh --profile codexy-headless "task"
 
 ## 实现
 
-**总的来说**，CodexyDSH 不是另一个客户端，也不是把旧 Web 应用塞进窗口：它是纯插件与 profile 组合。Electron Host、Web shell、登录与账号、工作区、设置、插件加载全部沿用 DSH 平台；产品替换的只有**本地执行运行时**与**界面**，两者都通过 Cordis 的公开服务接口接入，不 patch 平台内部。
+**总的来说**，CodexyDSH 不是另一个客户端，也不是把旧 Web 应用塞进窗口：它是纯插件与 profile 组合。Electron Host、Web shell、登录与账号、工作区、设置、插件加载全部沿用 DSH 平台；产品替换**本地执行运行时**与**界面**，并新增上游没有的 **SSH 远端接入**，三者都通过 Cordis 的公开服务接口接入，不 patch 平台内部。
 
 | 层 | 沿用的 DSH 能力 | 产品替换或新增 |
 | --- | --- | --- |
 | Desktop Host | 窗口、生命周期、更新、桌面集成 | 不修改安装包 |
 | Web shell 与平台服务 | 登录/账号、基础布局、工作区、设置、插件加载、凭据与授权 | 产品 API 与对话、工具、审批、轨迹、记忆等界面 |
 | 本地执行运行时 | 公开的 Cordis/Session/模型目录与平台服务接口 | Agent loop、模型请求适配、执行工具、记忆 |
+| 远端接入 | 上游只有客户端到 Host 的 Remote 协议层（`api-remotes`） | SSH 启动与隧道、远端部署、远端 Cordis/Loader Client 树 |
 
 三个设计取舍值得说明：产品会话使用上游原生 Session 存储，插件状态走设置、凭据或 `storageDomain`，请求诊断只进日志，因此不扩展会话格式；平台包声明为 peer 且 profile 关闭自动 peer 安装，让产品与启动器复用同一份平台模块；日志上传、会话遥测与插件清单上传默认关闭。
 
@@ -90,8 +92,9 @@ dsh --profile codexy-headless "task"
 | 工具与执行 | `exec`、`exec-policy`、`files`、`filesystem`、`filesystem-local`、`filesystem-sandbox`、`processes`、`sandbox`、`plans`、`goals` |
 | 权限与审批 | `permissions`、`approval`、`auto-review` |
 | 子 Agent | `delegation`、`delegation-driver`、`fork`、`spawn`、`subagents` |
-| 会话与产品 API | `api-session`、`api-session-controller`、`api-prompt`、`api-memory`、`api-usage`、`api-remotes`、`mcp`、`browser-session` |
-| 界面 | `ui-*`（对话、工具、审批、记忆、用量、MCP、工作区、Remote 等） |
+| 会话与产品 API | `api-session`、`api-session-controller`、`api-prompt`、`api-memory`、`api-usage`、`mcp`、`browser-session` |
+| 界面 | `ui-*`（对话、工具、审批、记忆、用量、MCP、工作区等） |
+| 远端 | `remote`、`ui-remote`、`api-remotes` |
 | 组合与分发 | `bundle`、`web`、`headless`、`profiles/`、`scripts/` |
 | 开发支持 | `runtime-testkit`、`test-support`、`tool-schema`、`tool-history` |
 
