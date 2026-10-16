@@ -6,18 +6,15 @@
 
 ## 为什么用 CodexyDSH
 
-DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区、设置、插件加载都已具备。CodexyDSH 不重做这些，它把 **agent 的行为换成 Codex 的语义**——模型看到什么工具、工具怎么被调度、提示词与审批怎么组织——并把 Codex 的记忆与子 Agent 机制带过来；此外新增了上游没有的 SSH 远端主机。
+DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区、设置、插件加载都已具备。CodexyDSH 不重做这些，它把 **agent 的行为换成 Codex 的语义**——模型看到什么工具、工具怎么被调度、提示词与审批怎么组织。两边能力大部分重合（AGENTS.md、skills、三档权限、子 Agent、DeepSeek 账号与 API key 都各有一套），差别在这几处：
 
 | 维度 | 原生 DSH | CodexyDSH |
 | --- | --- | --- |
-| Agent 行为 | 通用 agent 循环 | 按 Codex 的顺序与派发方式运行 |
-| 工具 | 通用工具集 | `exec_command`、`apply_patch`、`update_plan` 等 Codex 工具 |
-| 提示词与记忆 | 通用 AGENTS/skills | Codex 指令格式与记忆机制 |
-| 审批与沙箱 | 通用审批与权限 | Codex 的 `ask` / `never` 与三个沙箱预设 |
-| 子 Agent | 上游子 Agent | Codex V1 与 V2，含续跑 |
-| 模型 | 上游模型入口 | DeepSeek 账号与 API key 两个入口 |
-| 界面 | 上游界面 | Codex 风格的对话、轨迹、审批与用量 |
-| 远端主机 | 无 | SSH 远端主机，同一窗口内的远端工作区 |
+| 模型看到的工具 | `bash`、`read`、`write`、`todo_write` | `exec_command`、`apply_patch`、`update_plan`、`view_image`，子 Agent 用 `multi_agent_v1`；声明顺序按 Codex 固定 |
+| 跨会话记忆 | 缺失 | 会记住值得留下的内容，下次自动带进上下文 |
+| 自动审查 | 有实验实现但默认关闭，默认一切问人 | 默认开启：先由模型审一遍，放行或转人工 |
+| 远端主机 | 缺失 | SSH 到远端机器跑同一个 codexy，同窗口使用 |
+| 界面 | 上游 Web 界面 | Codex 风格的对话、轨迹、审批与用量 |
 
 界面的形态、工具的名字与调用顺序、模型收到的提示词都会改变，但平台能力不变：你的登录、账号、已选模型与工作区继续有效。移除 profile 里的产品 patch 行即可回到原版组合。
 
@@ -83,11 +80,11 @@ dsh --profile codexy-headless "task"
 
 具体换掉的行为如下：
 
-- **Agent loop**：Codexy 输入顺序、原生 freeform 工具、冻结的 provider 与工具世代、提前派发已完成的工具调用、完成输出恢复、mailbox 续跑。
+- **Agent loop**：沿用上游 driver，按 Codexy 的规则放置输入——运行中收到的新消息在步骤边界插入、并区分属于本轮还是下一轮；请求一经构造就冻结（工具、provider、提示词都是快照）；重启后已完成的结果直接复用。
 - **工具契约**：`exec_command` / `write_stdin` 的 PTY 会话、`apply_patch`（只用 patch 改文件）、`update_plan`、`request_user_input`、`view_image`；工具声明顺序按 Codex 0.162.1 的 wire profile 固定。
-- **提示词与上下文**：Codex 指令格式与全局指令、按会话刷新；两阶段记忆抽取、本地检索与稳定注入；compaction 使用 Codex checkpoint 格式。
-- **审批与执行**：`ask` / `never` 策略、`read-only` / `workspace-write` / `danger-full-access` 沙箱预设、Auto review 自动审查。
-- **模型路由**：`deepseek-account`（账号服务 token）与 `deepseek-official`（独立 API key）互不回退，另有 Pi provider。
+- **提示词与上下文**：指令文件仍是 AGENTS.md（另支持 CLAUDE.md），注入格式按 Codex，并按会话刷新；记忆分两步——先抽取该记的内容，再按相关性检索并稳定注入；compaction 使用 Codex checkpoint 格式。
+- **审批与执行**：产品自带的 approval / permission / sandbox 取代上游对应插件，沿用上游的 `ask` / `never` 策略与三档权限模式；区别在 Auto review——上游那层是实验包且默认关闭，产品默认打开，并以 `codexful` 模式保留既有沙箱、只审查需要更大权限的请求。
+- **模型请求**：provider 与上游同源（DeepSeek 账号 token、API key、Pi），账号入口与 API key 入口互不回退；差异在请求与流式契约——Codex 原生工具、不可变的请求世代、可重放的协议记录。
 
 三个设计取舍值得说明：产品会话使用上游原生 Session 存储，插件状态走设置、凭据或 `storageDomain`，请求诊断只进日志，因此不扩展会话格式；平台包声明为 peer 且 profile 关闭自动 peer 安装，让产品与启动器复用同一份平台模块；日志上传、会话遥测与插件清单上传默认关闭。
 
