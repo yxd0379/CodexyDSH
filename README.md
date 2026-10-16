@@ -8,15 +8,16 @@
 
 原生 DSH 是通用 agent 平台：账号、桌面窗口、Web shell、工作区、设置、插件加载都已具备。CodexyDSH 不重做这些，它换掉的是模型看到的东西，并补上平台缺的两块。下面每行先给事实，再说这个事实带来什么。
 
-| 维度 | 原生 DSH | CodexyDSH | 所以 |
+| 维度 | 原生 DSH | CodexyDSH | 价值 |
 | --- | --- | --- | --- |
-| 工具名 | `bash`、`read`、`todo_write` 等 | `exec_command`、`apply_patch`、`update_plan` 等 | 提示词与 skills 直接复用 |
-| 跨会话记忆 | 无 memory 包 | `@codexydsh/memory` | 换会话不用重述背景 |
-| 自动审查 | `dsh-experimental-auto-review`，默认关闭 | `@codexydsh/auto-review`，默认挂载 | 少被打断，权限不必整体放开 |
-| 远端主机 | 无 SSH 包 | `@codexydsh/remote`，OpenSSH 起远端 codexy | 重活放远端，本机不用装环境 |
-| 界面 | `dsh-client-ui-*` | `@codexydsh/ui-*` | 与 Codex 用法一致 |
-
-完整清单：上游命令工具是 `bash` / `shell`，文件工具是 `read` / `write` / `edit` / `read_image`，计划工具是 `todo_write`，子 Agent 是 `subagent_fork`；产品对应 `exec_command` / `write_stdin`、`apply_patch`（只走 patch）、`update_plan`、`view_image`、`request_user_input`，子 Agent 用 `multi_agent_v1`，声明顺序按 Codex 0.162.1 的 wire profile 固定。
+| 工具名 | `bash`、`shell`、`read`、`write`<br>`todo_write`、`subagent_fork` | `exec_command`、`write_stdin`、`apply_patch`<br>`view_image`，子 Agent 用 `multi_agent_v1` | 提示词、skills 与 AGENTS.md<br>不用逐条改名 |
+| 工具顺序 | 按 `ctx.tools.register()` 顺序 | 按 Codex 0.162.1 的<br>wire profile 固定 | 请求前缀与 Codex 一致，<br>可逐字节对拍 |
+| 计划工具 | `todo_write`：一份待办列表 | 另有 `update_plan`：每步带<br>`pending` / `in_progress` / `completed` | 计划视图与 Codex 同形，<br>进度一眼可读 |
+| 跨会话记忆 | 无 memory 包 | `@codexydsh/memory`：先抽取该记的内容，<br>再按相关性检索注入 | 换会话接着干，<br>不用重新交代上下文 |
+| 自动审查 | `dsh-experimental-auto-review`，<br>官方说明「安装包默认关闭」 | `@codexydsh/auto-review`，默认挂载，<br>`codexful` 模式 | 常规操作不打断你，<br>只有越权请求转人工 |
+| 模型请求 | 上游 provider：<br>DeepSeek 账号、API key、Pi | provider 同源，请求与流式换成<br>Codex 契约：构造即冻结，记录可重放 | 重试与压缩不会换掉<br>模型看到的工具 |
+| 远端主机 | 只有 `dsh-api-remotes` 与<br>`dsh-remote-mock`，无 SSH 包 | `@codexydsh/remote`：OpenSSH 起<br>远端 `dsh --profile codexy`，回环转发 | 重活放远端，<br>本机不用装环境 |
+| 界面 | `dsh-client-ui-*` | `@codexydsh/ui-*` | 对话、轨迹、审批的<br>读法跟 Codex 一致 |
 
 平台能力不变：登录、账号、已选模型与工作区继续有效；移除 profile 里的产品 patch 行即可回到原版组合。
 
