@@ -27,9 +27,9 @@ MCP 服务器配置保存在设置里；`/mcp` 的连接和关闭仅影响当前
 
 Remote SSH 使用本机 SSH 配置和凭据。默认自动部署：首次连接向远端同步当前安装版本的产品包，并安装独立的固定版本 Node 和 DSH，无需提前安装 DSH，也不替换远端全局 Node。首版仅支持 Linux ARM64、glibc ≥ 2.28；其他平台直接报错，不进行安装。远端需要 curl、tar、sha256sum 以及访问 Node/npm 下载站的网络。SSH 支持现有密钥/agent，也可在连接时输入密码、私钥口令或验证码，不要求免密；输入只用于当前认证，不保存到配置或日志。主机密钥仍需预先确认并加入本机 known_hosts，不自动接受未知或变化的主机密钥。设置中也可选择“使用已有安装”并指定 Node/DSH 命令。
 
-左侧保留本地工作区，并显示远程主机下的项目和会话；选择远程会话后，在同一窗口内展示其内容，可返回本地而不中断远端任务。支持按远端绝对路径添加项目和在项目中新建会话。代码、工具和会话在远端执行与保存；部署保留原有 DSH 数据及所选 profile 的用户配置，不复制本机账号、密钥或会话。首次安装比后续连接慢，默认允许十分钟；下载或安装失败会明确报错，可重试。
+本地和远端工作区共用上游工作区列表，远端行附带主机名。点击工作区只展开或收起，旁边的加号创建会话；选择远程会话后，在同一窗口内展示其内容，可返回本地而不中断远端任务。添加工作区时选择位置，既可输入路径，也可浏览对应机器的目录；添加本身不创建会话。断开后保留已知工作区，展开时重新连接。代码、工具和会话在远端执行与保存；部署保留原有 DSH 数据及所选 profile 的用户配置，不复制本机账号、密钥或会话。首次安装比后续连接慢，默认允许十分钟；下载或安装失败会明确报错，可重试。
 
-内嵌页面通过本机已认证的代理访问 SSH 隧道，远端登录 token 和 Cookie 留在服务端。每个已连接主机保留独立页面运行实例和浏览器存储命名空间，避免本地、远端同名会话互相覆盖；切换项目不重新加载远端页面。远端页面运行用户选择的远端插件，与本地页面共享浏览器来源，应只连接信任的远端部署。
+本机 Host 通过已认证的 HTTP/WebSocket 代理访问 SSH 隧道，远端登录 token 和 Cookie 留在服务端。每个已连接主机在当前页面中拥有独立的 Cordis/Loader Client 树；父窗口统一显示本地与远端工作区，远端 Client 负责自己的会话、对话和工具状态。实现不使用 iframe、第二套侧栏或跨窗口消息桥；切换工作区不会重建远端 Client。
 
 ## 组件清单与验证范围
 
@@ -53,12 +53,12 @@ Remote SSH 使用本机 SSH 配置和凭据。默认自动部署：首次连接�
 | 会话控制、原生模型选择、标题、提示词优化与用量 | `api-session-controller`、`api-session`、`api-prompt`、`api-memory`、`api-usage`、`api-remotes`、`headless` | 真实选择辅助、公开 wire codec、辅助模型调用与产品 headless 入口 |
 | 对话、历史、折叠、轨迹、工具/审批视图与诊断 | `ui-chat`、`ui-conversation`、`ui-trajectory`、`ui-tool`、`ui-approval`、其余 `ui-*` | 渲染/交互套件、公开 profile 设置与命令归属、构建后 ModuleLoader 冒烟 |
 | MCP 配置与按会话连接选择 | `mcp`、`ui-mcp`、`ui-settings` | 真实公开 Settings/Gateway、冻结浏览器字典、真实传输、隔离与恢复 |
-| Remote SSH 启动、同窗项目/会话、取消与重连 | `remote`、`ui-remote`、`ui-settings` | SSH fixture 与真实打包 DSH 启动；认证 HTTP/WS 代理、组合资源地址、慢上传、桥接身份和存储隔离；独立浏览器集成 fixture 检查同窗切换与草稿保留 |
+| Remote SSH 启动、同窗项目/会话、取消与重连 | `remote`、`ui-remote`、`ui-settings` | SSH fixture 与真实打包 DSH 启动；认证 HTTP/WS 代理、Cordis/Loader 子树、工作区身份和运行时隔离；浏览器交互检查同窗切换与远端会话打开 |
 | 产品 profiles、本地档案分发与 Desktop 安装 | `bundle`、`web`、`headless`、`profiles`、安装器 | 校验和、保留用户配置、公开 CLI 组合、独立可移动安装器与打包启动 |
 
 独立命名的产品行会禁用被替换的上游 provider；补丁名称从不重命名上游包。平台包声明为 peer 而非产品依赖，profile 关闭自动 peer 安装，让公开 profile 解析复用安装方持有的同一份平台模块（含作用域标签与事件载体）。不修改任何已安装的 DSH 文件。固定的外部 Pi SDK `0.85.1` 有一处产品自有补丁，用于原生工具流式行为；安装器校验并以包管理器补丁的形式安装它。
 
-产品会话使用独立的 `*.codexy.jsonl` 容器，内部基于已发布的 v4 持久化格式。恢复输入与原生输出保持为必需的 `codexy/fact` 记录；不认识这些必需记录的原版读取器必须拒绝。旧的分叉 v5 导入保留源文件，遇到冲突或不支持的必要事实时拒绝。遥测、日志上传与插件清单上传由产品 bundle 关闭。
+产品会话使用上游 `session-persistence-jsonl`，不再单独挂载产品会话存储。记忆基线、审批审查状态等插件数据使用上游 `storageDomain`，不塞进对话历史。遥测、日志上传与插件清单上传由产品 bundle 关闭。
 
 ## 开发与安装
 
@@ -80,9 +80,7 @@ pnpm test:artifacts  # 构建和打包后检查原版浏览器加载器、协议
 pnpm test:compat -- --dsh /path/to/dsh  # 在临时 home 安装打包产物并验证 Web、真实 CLI 和会话恢复
 ```
 
-macOS 桌面运行时验证可追加 `--desktop-app "/Applications/DeepSeek Harness.app"`；须先正常退出客户端以释放其固定端口。验证通过原版 Desktop Host 检查产品模块、页面资源、退出检查和完整关闭。`--keep` 可保留隔离的验证 home。测试候选的临时兼容许可仅写到该 home 的发行清单副本；发布安装仍以 `platform.json` 中已验证的入口为准。
-
-真实浏览器验证可设置 `CODEXY_PLAYWRIGHT_PACKAGE=/path/to/test-tools/package.json`，指向独立安装 `playwright@1.55.0` 的测试工具目录；默认使用本机 Google Chrome，也可通过 `CODEXY_CHROMIUM_EXECUTABLE` 指定 Chromium。此验证通过实际 UI 新建会话并发送“你好”，检查默认 `deepseek-account/deepseek-flash high` 路由、工具回合、会话持久化与刷新后的继续发送，同时检查插件启动和页面异常。账号服务使用临时测试替身，产品账号适配器保持真实；只有官方 Messages 地址被转发到本地模型 fixture，其他外网请求拒绝，不读取真实账号或消耗额度，也不增加产品运行依赖。
+`test:compat` 只验证打包后的 Web 和 headless 用户路径。它在临时 home 中安装候选包，以本地模型替身完成一次工具回合和会话恢复；不读取真实账号、不消耗模型额度，也不修改已有 DSH 安装。`--keep` 可保留该隔离 home 以便排查。
 
 构建通过后，`.artifacts/` 包含产品 tarballs、校验清单、profiles 和 Node 安装器。在源码目录中，安装前可先查看目标组合：
 
@@ -138,11 +136,15 @@ dsh --profile codexy
 
 ## 数据与升级
 
-新会话使用产品自己的 `*.codexy.jsonl` 容器，内部复用上游 v4 Session 机制并保留产品必需事实。原版 DSH 不认识这些必需事实时必须拒绝读取。
+新会话使用 DSH 上游原生 Session 格式，保存在 `$DSH_HOME/sessions` 的标准路径分组目录中。模型消息和工具结果由上游会话存储负责；插件配置和状态由各自的设置、凭据或 `storageDomain` 服务负责。
 
-请求耗时等可丢弃诊断在支持的运行时使用 ignorable plugin records；`0.2.0-rc.2` 缺少公开 record API 时，改用产品已有的持久 `codexy/fact` 保存，恢复后诊断不会丢失，也不会进入模型消息。模型输入与恢复事实始终是必需记录，不因旧版适配而降级。
+额外请求诊断走日志，不扩展持久化会话格式。历史私有诊断在一次性迁移时另存审计文件，不注入正常的会话读取流程。
 
-从旧分叉导入 v5 会话需要显式调用产品导入器。原始文件保留在导入备份目录，已有文件与 Session ID 冲突时拒绝覆盖。MCP 配置、Remote 主机和个人模型凭据仍由各自的设置或凭据服务管理；安装包不包含个人配置和密钥。
+旧 `*.codexy.jsonl` 或分叉 v5 数据通过 `scripts/migrate-sessions.mjs` 一次性转换到独立目标目录；先停止相关写入进程并备份，再转换、读回核对，最后切换目录。工具保留源文件，不覆盖同 ID 会话；同时将记忆基线和审批状态转入插件存储。安装与连接不会自动洗数据。安装包不包含个人配置和密钥。
+
+Remote 连接读取远端同一个 `$DSH_HOME/sessions`，不再使用 `sessions/codexy` 独立目录。旧数据完成转换后，原生会话查询按远端工作目录展示已有会话。
+
+迁移后还需补齐工作区关联：在拥有这些数据的 DSH 实例停止时，执行 `node scripts/reindex-workspaces.mjs "$DSH_HOME/storages/workspace.json"`，然后启动 DSH。脚本先备份工作区文件，只重置上游初始化标记；由上游重新关联会话，保留工作区身份、名称和会话归档/置顶设置。此步骤应在各自机器执行，确保会话目录能正确解析。
 
 ## 许可与归属
 

@@ -356,7 +356,20 @@ export async function installProduct(options) {
   const productDir = join(options.home, 'products/codexy')
   await mkdir(productDir, { recursive: true })
   const lockDir = join(productDir, 'install.lock')
-  try { await mkdir(lockDir) } catch (error) { if (error.code === 'EEXIST') throw new Error(`Codexy installation lock exists at ${lockDir}; wait for the current installer to finish`); throw error }
+  try { await mkdir(lockDir) } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+    const owner = JSON.parse(await readFile(join(lockDir, 'owner.json'), 'utf8'))
+    if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0) throw new Error(`Invalid installer lock owner: ${lockDir}`)
+    try {
+      process.kill(owner.pid, 0)
+      throw new Error(`Codexy installer ${owner.pid} is still running; wait for it to finish`)
+    } catch (failure) {
+      if (failure.code !== 'ESRCH') throw failure
+    }
+    // Preserve an interrupted install's lock for diagnosis, rather than blocking forever.
+    await rename(lockDir, `${lockDir}.interrupted-${randomUUID()}`)
+    await mkdir(lockDir)
+  }
   try {
   await writeFile(join(lockDir, 'owner.json'), JSON.stringify({ pid: process.pid, started: Date.now() }) + '\n')
   const releaseKey = createHash('sha256').update(JSON.stringify(release)).digest('hex')
