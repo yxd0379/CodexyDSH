@@ -17,7 +17,7 @@ DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区
 | 子 Agent | 上游 subagent | Codex V1 与 codexful V2 两套子 Agent，含结构化输出与续跑 |
 | 模型接入 | 上游 provider | `deepseek-account`（账号服务 token）与 `deepseek-official`（独立 API key）互不回退，另有 Pi provider |
 | 界面 | 上游 Web 界面 | Codex 风格的对话、轨迹、工具、审批、记忆与用量视图，含 MCP |
-| 远端 | 只有客户端到 Host 的 Remote 协议层（`api-remotes`），没有 SSH 远端主机 | SSH 远端主机：自动部署独立的 Node 与 DSH、本地隧道、同一窗口内的远端工作区与会话 |
+| 远端 | 只有浏览器到 Host 的连接与能力转发（`dsh-client-connection`、Gateway 的 Typert Remote 流、`api-remotes` 装配面），没有远端主机概念 | SSH 远端主机：自动部署独立的 Node 与 DSH、本地隧道、同一窗口内的远端工作区与会话 |
 
 界面的形态、工具的名字与调用顺序、模型收到的提示词都会改变，但平台能力不变：你的登录、账号、已选模型与工作区继续有效。移除 profile 里的产品 patch 行即可回到原版组合。
 
@@ -79,7 +79,7 @@ dsh --profile codexy-headless "task"
 | Desktop Host | 窗口、生命周期、更新、桌面集成 | 不修改安装包 |
 | Web shell 与平台服务 | 登录/账号、基础布局、工作区、设置、插件加载、凭据与授权 | 产品 API 与对话、工具、审批、轨迹、记忆等界面 |
 | 本地执行运行时 | 公开的 Cordis/Session/模型目录与平台服务接口 | Agent loop、模型请求适配、执行工具、记忆 |
-| 远端接入 | 上游只有客户端到 Host 的 Remote 协议层（`api-remotes`） | SSH 启动与隧道、远端部署、远端 Cordis/Loader Client 树 |
+| 远端接入 | 上游只有浏览器到 Host 的 Remote 通道：连接代次、能力与事件转发 | 复用该通道，另加 SSH 启动与隧道、远端部署、远端 Cordis/Loader Client 树 |
 
 三个设计取舍值得说明：产品会话使用上游原生 Session 存储，插件状态走设置、凭据或 `storageDomain`，请求诊断只进日志，因此不扩展会话格式；平台包声明为 peer 且 profile 关闭自动 peer 安装，让产品与启动器复用同一份平台模块；日志上传、会话遥测与插件清单上传默认关闭。
 
