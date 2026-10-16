@@ -87,27 +87,11 @@ dsh --profile codexy-headless "task"
 | 本地执行运行时 | 公开的 Cordis/Session/模型目录与平台服务接口 | Agent loop、模型请求适配、执行工具、记忆 |
 | 远端接入 | 上游只有浏览器到 Host 的 Remote 通道：连接代次、能力与事件转发 | 复用该通道，另加 SSH 启动与隧道、远端部署、远端 Cordis/Loader Client 树 |
 
-具体换掉的行为：
+上表之外的实现细节：
 
-- **Agent loop**：仍是上游 driver，但按 Codexy 的规则放置输入——运行中收到的新消息在步骤边界插入，并区分属于本轮还是下一轮；请求一经构造就冻结（工具、provider、提示词都是快照）。
-  → 你插话不会打断正在跑的工具调用；重试与压缩用的还是同一份请求快照，模型不会突然看到另一套工具。
-- **工具契约**：`exec_command` / `write_stdin` 的 PTY 会话、`apply_patch`（只用 patch 改文件）、`update_plan`、`request_user_input`、`view_image`，声明顺序按 Codex 0.162.1 的 wire profile 固定。
-  → 与 Codex 的工具名、参数与顺序逐项对齐，提示词与 skills 可以直接复用。
-- **提示词与上下文**：指令文件仍是 AGENTS.md（另支持 CLAUDE.md），注入格式按 Codex，并按会话刷新；记忆分两步——先抽取该记的内容，再按相关性检索并稳定注入；compaction 用 Codex checkpoint 格式。
-  → 记忆的注入位置固定，同一会话的请求前缀不会来回变动。
-- **审批与执行**：产品自带的 approval / permission / sandbox 取代上游对应插件，沿用上游的 `ask` / `never` 策略与三档权限模式；区别在 Auto review——上游那层是实验包且默认关闭，产品默认打开，并以 `codexful` 模式保留既有沙箱、只审查需要更大权限的请求。
-  → 权限语义与上游一致，你不用重学一遍；只是默认多了一道自动审查。
-- **模型请求**：provider 与上游同源（DeepSeek 账号 token、API key、Pi），账号入口与 API key 入口互不回退；差异在请求与流式契约——Codex 原生工具、不可变的请求世代、可重放的协议记录。
-  → 同一次请求里的工具与 provider 是快照，重试不会变；协议记录能离线重放，出问题可以逐字节对拍。
-
-三个设计取舍：
-
-- 会话用上游原生 Session 格式，插件状态走设置、凭据或 `storageDomain`，请求诊断只进日志。
-  → 上游工具与其他 DSH 客户端照常读得到你的会话，产品卸载后数据也还在标准位置。
-- 平台包声明为 peer，profile 关闭自动 peer 安装。
-  → 产品与启动器复用同一份平台模块，不会因为模块重复把会话作用域拆开。
-- 日志上传、会话遥测与插件清单上传默认关闭。
-  → 默认不往外发东西，需要时自己开。
+- **工具**：`exec_command` / `write_stdin` 是 PTY 会话，`apply_patch` 只走 patch 改文件，`update_plan`、`view_image`、`request_user_input` 与 Codex 同名同序。
+- **Agent loop**：仍是上游 driver，但输入按 Codexy 的规则放置——新消息在步骤边界插入，并区分属于本轮还是下一轮；请求一经构造就冻结。
+- **上下文**：指令文件仍是 AGENTS.md（另支持 CLAUDE.md），注入格式按 Codex；记忆分抽取与检索注入两步；compaction 用 Codex checkpoint 格式。
 
 **具体来说**，产品由 65 个包组成，按域划分如下。
 
