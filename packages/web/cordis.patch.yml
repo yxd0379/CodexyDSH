@@ -41,7 +41,17 @@
   disabled: true
 - id: ui-trajectory
   disabled: true
+- id: ui-workspace
+  disabled: true
+- id: directory-picker
+  disabled: true
 - insert:
+    - id: codexy-directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: codexy-directory-picker-ui
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
+    - id: codexy-ui-workspace
+      name: '@codexydsh/ui-workspace'
     - id: codexy-browser-session
       name: '@codexydsh/browser-session'
     - id: codexy-ui-settings

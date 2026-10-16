@@ -4,7 +4,6 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { IRemoteHosts } from '@codexydsh/remote/client'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { ConnectionStateSource } from '@deepseek-ai/dsh-client-connection/client'
 import { Button, Input, StateDot, Toast } from '@codexydsh/ui-primitives'
 import { draftOf, type HostDraft, type RemoteSettings } from './model.ts'
 import css from './RemoteSettings.module.css'
@@ -27,12 +26,6 @@ export interface RemoteNotice { sequence: number; text: string; success: boolean
 export interface RemoteToastInjected {
   hooks: { remoteNotice: SnapshotStore<RemoteNotice | null> }
   dismissRemoteNotice(): void
-}
-
-/** Remote page identity and its existing Connection observation. */
-export interface RemoteIdentityInjected {
-  host: string
-  hooks: { remoteConnection: ConnectionStateSource }
 }
 
 type SettingsProps = PropsRuntime<'settings.section'> & PropsLocale<'remote'> & InjectFace<RemoteSettingsInjected>
@@ -77,6 +70,7 @@ export function RemoteSettingsPage({
         return <div key={name} className={css.row}>
           <div className={css.identity}><strong>{name}</strong>
             <span className={css.secondary}>{host.host} · {host.profile} · {t(phase)}</span>
+            {phase === 'connecting' && status?.progress && <span className={css.secondary} role="status">{status.progress}</span>}
             {status?.error && <span className={css.error}>{status.error}</span>}</div>
           {phase === 'connected' && url && <Button size="sm" onClick={() => { openHost(name) }}>{t('open')}</Button>}
           {phase === 'connected' || phase === 'connecting'
@@ -88,6 +82,7 @@ export function RemoteSettingsPage({
             void write(() => removeHost(name, revision), () => { setRemoving(undefined) })
           }}>{t(removing === name ? 'confirmRemove' : 'remove')}</Button>
           {removing === name && <Button size="sm" disabled={busy} onClick={() => { setRemoving(undefined) }}>{t('cancel')}</Button>}
+          {status?.log && <details className={css.logs}><summary>{t('connectionLog')}</summary><pre>{status.log}</pre></details>}
         </div>
       })}
       {draft === undefined ? <Button variant="outline" disabled={!editable || busy} onClick={() => { setDraft(draftOf(revision)); setError(''); setRemoving(undefined) }}>{t('add')}</Button>
@@ -100,6 +95,14 @@ export function RemoteSettingsPage({
           </select></label>
           {(['host', 'profile', 'directory', ...(draft.deployment === 'existing' ? ['node', 'dsh'] as const : [])] as const).map(field => <label key={field} className={css.field}>{t(field)}
             <Input required={field !== 'directory'} value={draft[field]} disabled={busy} onChange={(event) => { setDraft({ ...draft, [field]: event.target.value }) }} /></label>)}
+          <label className={css.field}>{t('proxyMode')}<select disabled={busy} value={draft.proxyMode ?? 'inherit'} onChange={event => { setDraft({ ...draft, proxyMode: event.target.value as NonNullable<HostDraft['proxyMode']> }) }}>
+            <option value="inherit">{t('proxyInherit')}</option><option value="custom">{t('proxyCustom')}</option><option value="direct">{t('proxyDirect')}</option>
+          </select></label>
+          {draft.proxyMode === 'custom' && <>
+            <label className={css.field}>{t('proxyUrl')}<Input required type="url" placeholder="http://127.0.0.1:7890" value={draft.proxyUrl ?? ''} disabled={busy} onChange={event => { setDraft({ ...draft, proxyUrl: event.target.value }) }} /></label>
+            <label className={css.field}>{t('noProxy')}<Input placeholder=".example.com,10.0.0.1" value={draft.noProxy ?? ''} disabled={busy} onChange={event => { setDraft({ ...draft, noProxy: event.target.value }) }} /></label>
+          </>}
+          <p className={css.secondary}>{t('proxyHint')}</p>
           {error && <p className={css.error} role="alert">{error}</p>}
           <div className={css.actions}><Button type="submit" variant="primary" disabled={busy || !editable}>{busy && <StateDot state="ongoing" />}{t('save')}</Button>
             <Button disabled={busy} onClick={() => { setDraft(undefined); setError('') }}>{t('cancel')}</Button></div>
@@ -115,13 +118,4 @@ export function RemoteSettingsPage({
 export function RemoteToast({ useRemoteNotice, dismissRemoteNotice }: PropsRuntime<'shell.overlay'> & InjectFace<RemoteToastInjected>) {
   const notice = useRemoteNotice(value => value)
   return notice && <Toast key={notice.sequence} text={notice.text} {...notice.success ? { tone: 'success' as const } : {}} onDone={dismissRemoteNotice} />
-}
-
-/** Identify the remote host using the page's existing Connection state.
- * @param props - Host identity, locale, and framework-bound Connection hook.
- * @returns a compact identity and connection badge.
- */
-export function RemoteIdentity({ host, useRemoteConnection, t }: PropsRuntime<'shell.overlay'> & PropsLocale<'remote'> & InjectFace<RemoteIdentityInjected>) {
-  const phase = useRemoteConnection(value => value ?? 'connecting')
-  return <div className={css.badge}>{t('remoteIdentity', { host })} · {t(phase)}</div>
 }

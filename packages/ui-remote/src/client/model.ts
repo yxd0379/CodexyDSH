@@ -15,7 +15,7 @@ export interface HostDraft extends RemoteHostConfig {
 /** Editor failure translated by the settings registration. */
 export class DraftError extends Error {
   /** @param key - Localized field-validation key. */
-  constructor(readonly key: 'invalidName' | 'invalidHost' | 'invalidProfile' | 'invalidDirectory' | 'invalidExecutable' | 'duplicate') {
+  constructor(readonly key: 'invalidName' | 'invalidHost' | 'invalidProfile' | 'invalidDirectory' | 'invalidExecutable' | 'invalidProxy' | 'duplicate') {
     super(key)
     this.name = 'RemoteHostDraftError'
   }
@@ -30,7 +30,8 @@ export class DraftError extends Error {
 export function draftOf(revision: number, name?: string, host?: RemoteHostConfig): HostDraft {
   return { name: name ?? '', ...(name === undefined ? {} : { originalName: name }), revision,
     host: host?.host ?? '', profile: host?.profile ?? 'codexy', directory: host?.directory ?? '',
-    node: host?.node ?? 'node', dsh: host?.dsh ?? 'dsh', deployment: host?.deployment ?? 'auto' }
+    node: host?.node ?? 'node', dsh: host?.dsh ?? 'dsh', deployment: host?.deployment ?? 'auto',
+    proxyMode: host?.proxyMode ?? 'inherit', proxyUrl: host?.proxyUrl ?? '', noProxy: host?.noProxy ?? '' }
 }
 
 /** Validate and replace one non-secret host definition.
@@ -44,8 +45,17 @@ export function draftOperations(draft: HostDraft): SettingsPathOpView[] {
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(draft.profile)) throw new DraftError('invalidProfile')
   if (draft.directory !== '' && (!draft.directory.startsWith('/') || /[\0\r\n]/u.test(draft.directory))) throw new DraftError('invalidDirectory')
   if (![draft.node, draft.dsh].every(value => value.trim() !== '' && !/[\0\r\n]/u.test(value))) throw new DraftError('invalidExecutable')
+  if (draft.proxyMode === 'custom') {
+    try {
+      const url = new URL(draft.proxyUrl ?? '')
+      if (!['http:', 'https:'].includes(url.protocol) || url.pathname !== '/' || url.search || url.hash || /[\s\0]/u.test(draft.proxyUrl ?? '') || /[\0\r\n]/u.test(draft.noProxy ?? '')) throw new Error()
+    } catch { throw new DraftError('invalidProxy') }
+  }
   return [{ op: 'set', path: ['hosts', draft.name], value: {
     host: draft.host, profile: draft.profile, directory: draft.directory, node: draft.node, dsh: draft.dsh,
     deployment: draft.deployment ?? 'auto',
+    proxyMode: draft.proxyMode ?? 'inherit',
+    proxyUrl: draft.proxyMode === 'custom' ? draft.proxyUrl?.trim() ?? '' : '',
+    noProxy: draft.proxyMode === 'custom' ? draft.noProxy?.trim() ?? '' : '',
   } }]
 }

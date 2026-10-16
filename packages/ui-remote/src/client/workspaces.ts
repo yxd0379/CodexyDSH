@@ -56,7 +56,6 @@ export function installUnifiedWorkspaces(ctx: Context, projects: RemoteProjects,
   const remoteAction = async (row: UnifiedWorkspaceRow, action: Parameters<RemoteProjects['request']>[1]): Promise<void> => { await projects.request(row.host!, action) }
   const injected: UnifiedWorkspacesInjected = {
     hooks: { unifiedWorkspaces: state },
-    openWorkspace: async row => { if (row.host) await projects.openWorkspace(ref(row)); else if (row.id) { useLocal(); await navigation.openWorkspace(row.id as WorkspaceId) } },
     openSession: async (row, session) => { if (row.host) await projects.openSession(ref(row), session.id); else { useLocal(); navigation.openSession(session.id as SessionId) } },
     newSession: async row => { if (row.host) await projects.newSession(ref(row)); else { useLocal(); navigation.startSession((row.id || undefined) as WorkspaceId | undefined) } },
     renameWorkspace: async (row, title) => { if (row.host) await remoteAction(row, { action: 'renameWorkspace', id: row.id, title }); else await local.rename(row.id as WorkspaceId, title) },
@@ -91,7 +90,7 @@ export function installUnifiedWorkspaces(ctx: Context, projects: RemoteProjects,
         }
       }
       if (host) await projects.createWorkspace(host, input.path)
-      else { const workspace = await local.create({ path: input.path }); useLocal(); await navigation.openWorkspace(workspace.workspaceId) }
+      else await local.create({ path: input.path })
     },
   }
   ctx.slots.inject('sidebar.workspaces', () => ctx.slots.register({ name: 'sidebar.workspaces', priority: -1000, inject: () => injected }, UnifiedWorkspaces))

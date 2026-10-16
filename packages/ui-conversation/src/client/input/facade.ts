@@ -216,6 +216,17 @@ export class SessionInputShell implements SessionInput {
     this.draftEditor.setDraft(text)
   }
 
+  /** Apply initial text only while editable, preserving an existing draft by default. */
+  requestDraftInitialization(options: import('../contract/input.ts').DraftInitializationOptions): import('../contract/input.ts').DraftInitializationResult {
+    const { phase } = this.core.state
+    if (this.disposed || phase === 'adjudicating' || phase === 'submitting'
+      || this.detachedDrafts.size > 0 || this.attachmentFlights.size > 0) return 'blocked'
+    if (options.prompt === undefined && options.clearPreviousDraft !== true) return 'preserved'
+    if (options.clearPreviousDraft !== true && (this.snapshot.draft !== '' || this.attachmentIds.length > 0)) return 'preserved'
+    this.setDraft(options.prompt ?? '')
+    return 'applied'
+  }
+
   /** Append ordered attachment ids unless an admission transaction is locked. */
   addAttachments(ids: readonly DraftAttachmentId[]): boolean {
     if (this.snapshot.phase === 'adjudicating' || this.snapshot.phase === 'submitting') return false

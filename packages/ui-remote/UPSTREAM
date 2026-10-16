@@ -1,0 +1,9 @@
+directory/DirectoryBrowser.tsx and DirectoryBrowser.module.css derive from:
+https://github.com/deepseek-ai/deepseek-harness
+Tag dsh-v0.2.1-alpha.2, commit d743267388641bc76f17c45ce8b4c231aed1d32c
+packages/client/ui-directory-picker-browse/src/client
+MIT License, Copyright (c) 2026 DeepSeek (see repository LICENSE).
+
+Extensions: location selection and workspace adoption errors. The existing
+directory navigation, path editor, hidden-files toggle, and folder creation
+remain the upstream browser implementation.

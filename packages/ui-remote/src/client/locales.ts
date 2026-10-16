@@ -1,4 +1,4 @@
-/** Remote settings and host identity copy. */
+/** Remote settings and connection copy. */
 export const zh = {
   title: 'SSH 主机', description: '管理远端工作区使用的主机',
   prerequisites: '先在本地终端确认并信任 SSH 主机密钥；连接时可输入密码或 SSH 验证码。默认自动安装 Linux ARM64 服务端，需要远端联网。可填写 SSH 配置中的主机别名，首次连接可能需要数分钟',
@@ -6,6 +6,10 @@ export const zh = {
   name: '主机名称', host: 'SSH 主机', profile: '远端 profile', directory: '初始远端目录（可选）',
   deployment: '服务端部署', deploymentAuto: '自动安装（Linux ARM64）', deploymentExisting: '使用已有安装',
   node: '远端 Node 命令或路径', dsh: '远端 dsh 命令或路径',
+  proxyMode: '远端网络代理', proxyInherit: '继承远端环境（默认）', proxyCustom: '指定代理', proxyDirect: '直连（不使用代理）',
+  proxyUrl: '代理地址', noProxy: '不走代理的主机（可选）',
+  proxyHint: '用于远端模型请求和服务端下载；127.0.0.1 指远端机器。本机代理不会自动传过去。修改后需重新连接；连接日志不显示代理口令。',
+  invalidProxy: '填写有效的 http:// 或 https:// 代理地址，不包含路径、查询参数或换行',
   add: '添加主机', edit: '编辑', remove: '删除', confirmRemove: '确认删除', cancel: '取消', save: '保存',
   connect: '连接', disconnect: '断开连接', cancelConnection: '取消连接', open: '显示远端项目', retry: '重试',
   authenticationTitle: 'SSH 身份验证', authenticationHost: '{name} · SSH：{host}', authenticationSubmit: '继续连接',
@@ -14,7 +18,7 @@ export const zh = {
   noRemoteProjects: '此主机还没有项目', noRemoteSessions: '还没有会话', addRemoteProject: '添加远端项目',
   remoteProjectPath: '远端绝对目录，例如 /work/project', newRemoteSession: '新建远端会话', runningSession: '正在运行', remoteFrameTitle: '远端工作区：{host}',
   returnLocal: '返回本地工作区',
-  disconnected: '未连接', connecting: '正在连接', connected: '已连接', failed: '连接失败',
+  disconnected: '未连接', connecting: '正在连接', connected: '已连接', failed: '连接失败', connectionLog: '连接日志',
   disconnectHint: '断开只关闭本地连接，远端 dsh 和任务继续运行',
   saved: '主机配置已保存', removed: '主机配置已删除', connectionReady: '远端已连接', connectionClosed: '本地连接已断开',
   operationFailed: '操作失败：{message}', observationFailed: '无法读取连接状态：{message}',
@@ -22,7 +26,7 @@ export const zh = {
   invalidName: '主机名称须为 1–64 位字母、数字、下划线或连字符，并以字母或数字开头',
   invalidHost: '填写 SSH 主机别名或 user@host，不能包含空白或以连字符开头',
   invalidProfile: '填写有效的远端 Web profile 名称', invalidDirectory: '远端目录须为绝对路径',
-  invalidExecutable: '填写有效的远端命令或文件路径', remoteIdentity: 'SSH：{host}', noUrl: '远端连接未提供可用地址',
+  invalidExecutable: '填写有效的远端命令或文件路径', noUrl: '远端连接未提供可用地址',
 } as const
 
 /** English dictionary with the same field and feedback keys. */
@@ -33,6 +37,10 @@ export const en: Record<keyof typeof zh, string> = {
   name: 'Host name', host: 'SSH host', profile: 'Remote profile', directory: 'Initial remote directory (optional)',
   deployment: 'Server deployment', deploymentAuto: 'Automatic (Linux ARM64)', deploymentExisting: 'Use existing installation',
   node: 'Remote Node command or path', dsh: 'Remote dsh command or path',
+  proxyMode: 'Remote network proxy', proxyInherit: 'Inherit remote environment (default)', proxyCustom: 'Use a proxy', proxyDirect: 'Direct (no proxy)',
+  proxyUrl: 'Proxy address', noProxy: 'Bypass proxy for hosts (optional)',
+  proxyHint: 'Applies to remote model requests and server downloads. 127.0.0.1 means the remote machine; local proxy settings are not copied. Reconnect after changes. Connection logs hide proxy credentials.',
+  invalidProxy: 'Enter an http:// or https:// proxy address without a path, query, or newline',
   add: 'Add host', edit: 'Edit', remove: 'Delete', confirmRemove: 'Confirm delete', cancel: 'Cancel', save: 'Save',
   connect: 'Connect', disconnect: 'Disconnect', cancelConnection: 'Cancel connection', open: 'Show remote projects', retry: 'Retry',
   authenticationTitle: 'SSH authentication', authenticationHost: '{name} · SSH: {host}', authenticationSubmit: 'Continue',
@@ -41,7 +49,7 @@ export const en: Record<keyof typeof zh, string> = {
   noRemoteProjects: 'No projects on this host yet', noRemoteSessions: 'No sessions yet', addRemoteProject: 'Add remote project',
   remoteProjectPath: 'Absolute remote path, e.g. /work/project', newRemoteSession: 'New remote session', runningSession: 'Running', remoteFrameTitle: 'Remote workspace: {host}',
   returnLocal: 'Return to local workspace',
-  disconnected: 'Disconnected', connecting: 'Connecting', connected: 'Connected', failed: 'Connection failed',
+  disconnected: 'Disconnected', connecting: 'Connecting', connected: 'Connected', failed: 'Connection failed', connectionLog: 'Connection log',
   disconnectHint: 'Disconnect closes the local connection. Remote dsh and its tasks keep running.',
   saved: 'Host configuration saved', removed: 'Host configuration deleted', connectionReady: 'Remote connected', connectionClosed: 'Local connection disconnected',
   operationFailed: 'Operation failed: {message}', observationFailed: 'Cannot read connection status: {message}',
@@ -49,5 +57,5 @@ export const en: Record<keyof typeof zh, string> = {
   invalidName: 'Use 1–64 letters, digits, underscores, or hyphens, starting with a letter or digit',
   invalidHost: 'Enter an SSH alias or user@host without whitespace or a leading hyphen',
   invalidProfile: 'Enter a valid remote Web profile name', invalidDirectory: 'Use an absolute remote directory path',
-  invalidExecutable: 'Enter a valid remote command or file path', remoteIdentity: 'SSH: {host}', noUrl: 'The remote connection did not provide an address',
+  invalidExecutable: 'Enter a valid remote command or file path', noUrl: 'The remote connection did not provide an address',
 }

@@ -2,16 +2,12 @@
 import { request, type IncomingMessage, type IncomingHttpHeaders, type ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import type { Socket } from 'node:net'
-import { promisify } from 'node:util'
-import { brotliDecompress, gunzip, inflate } from 'node:zlib'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-client-connection'
-import { transformEmbeddedIndex } from './embedding.ts'
 
 const PREFIX = '/codexy-remote'
 const MUX = '/api/remote.mux'
-const INDEX_LIMIT = 8 * 1024 * 1024
 const HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade'])
 
 function publicHeaders(headers: IncomingHttpHeaders): IncomingHttpHeaders {
@@ -20,7 +16,7 @@ function publicHeaders(headers: IncomingHttpHeaders): IncomingHttpHeaders {
   return Object.fromEntries(Object.entries(headers).filter(([name]) => !omitted.has(name) && name !== 'set-cookie'))
 }
 
-/** Prefix URL shared by browser embedding and the local HTTP WebSocket carrier. */
+/** Prefix URL shared by the native child Client's HTTP and WebSocket carriers. */
 export function embeddedRemotePath(name: string): string { return `${PREFIX}/${encodeURIComponent(name)}/` }
 
 function refuse(socket: Duplex, status: number): void {
@@ -134,11 +130,6 @@ export class EmbeddedRemoteProxy {
     return url
   }
 
-  private streamBase(name: string, authority: string): string {
-    const server = this.ctx.webServer
-    return `${server.protocol}//${authority}${embeddedRemotePath(name)}`
-  }
-
   private async http(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const admission = this.ctx.connection.admit(req)
     if ('rejection' in admission) { res.writeHead(admission.rejection); res.end('Remote access refused'); return }
@@ -161,7 +152,7 @@ export class EmbeddedRemoteProxy {
         const pending = request(target, { method: req.method, headers: this.headers(req, upstream, cookie) }, response => {
           stopWaiting()
           if (response.statusCode === 401) this.invalidate(name)
-          void this.respond(name, target, response, res, req.method, req.headers.host ?? '').then(resolve, reject)
+          void this.respond(name, target, response, res).then(resolve, reject)
         })
         pending.once('finish', () => {
           // Uploads may remain active for longer than the response-header deadline.
@@ -173,14 +164,14 @@ export class EmbeddedRemoteProxy {
         req.once('aborted', () => { pending.destroy() })
         req.pipe(pending)
       })
-    } catch {
+    } catch (error) {
+      this.ctx.logger.error('Remote proxy request failed for %s: %s', name, error instanceof Error ? error.stack ?? error.message : String(error))
       if (res.headersSent) res.destroy()
       else { res.writeHead(502, { 'cache-control': 'no-store' }); res.end('Remote host is unavailable') }
     }
   }
 
-  private async respond(name: string, target: URL, response: IncomingMessage, res: ServerResponse,
-    method: string | undefined, authority: string): Promise<void> {
+  private async respond(name: string, target: URL, response: IncomingMessage, res: ServerResponse): Promise<void> {
     const headers = publicHeaders(response.headers)
     headers['cache-control'] = 'no-store'
     if (headers.location !== undefined) {
@@ -188,28 +179,6 @@ export class EmbeddedRemoteProxy {
       if (location.origin !== target.origin) { response.resume(); throw new Error('Remote redirect leaves the owned tunnel') }
       location.search = withoutLaunchToken(location.search)
       headers.location = embeddedRemotePath(name).slice(0, -1) + location.pathname + location.search + location.hash
-    }
-    const index = (target.pathname === '/' || target.pathname === '/index.html') && response.headers['content-type']?.includes('text/html')
-    if (index && method === 'HEAD') delete headers['content-length']
-    if (index && method !== 'HEAD') {
-      const chunks: Buffer[] = []
-      let length = 0
-      for await (const chunk of response) {
-        const buffer = Buffer.from(chunk as Uint8Array)
-        length += buffer.length
-        if (length > INDEX_LIMIT) throw new Error('Remote index exceeds the embedding limit')
-        chunks.push(buffer)
-      }
-      let body = Buffer.concat(chunks)
-      const encoding = response.headers['content-encoding']
-      if (encoding === 'gzip') body = await promisify(gunzip)(body, { maxOutputLength: INDEX_LIMIT })
-      else if (encoding === 'br') body = await promisify(brotliDecompress)(body, { maxOutputLength: INDEX_LIMIT })
-      else if (encoding === 'deflate') body = await promisify(inflate)(body, { maxOutputLength: INDEX_LIMIT })
-      else if (encoding !== undefined && encoding !== 'identity') throw new Error('Unsupported remote index encoding')
-      delete headers['content-length']; delete headers['content-encoding']; delete headers.etag
-      res.writeHead(response.statusCode ?? 502, headers)
-      res.end(transformEmbeddedIndex(body.toString('utf8'), this.streamBase(name, authority)))
-      return
     }
     res.writeHead(response.statusCode ?? 502, headers)
     await new Promise<void>((resolve, reject) => {

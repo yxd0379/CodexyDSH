@@ -46,6 +46,18 @@ try {
 } catch { process.exit(1); }
 `
 
+// Runtime versions are independent of the product release. UI-only updates reuse them.
+const matchingToolchain = String.raw`
+const fs = require('node:fs');
+const path = require('node:path');
+try {
+  const [root, dsh, pnpm] = process.argv.slice(1);
+  for (const [name, version] of [['@deepseek-ai/dsh', dsh], ['pnpm', pnpm]]) {
+    if (JSON.parse(fs.readFileSync(path.join(root, 'lib/node_modules', name, 'package.json'), 'utf8')).version !== version) process.exit(1);
+  }
+} catch { process.exit(1); }
+`
+
 /** Shell preflight does not need Node and does not create or edit any file. */
 function preflight(releaseId: string, profile: string): string {
   validateIdentity(releaseId, profile)
@@ -66,7 +78,7 @@ libc_minor=${shellDollar}{libc_version#*.}
 libc_minor=${shellDollar}{libc_minor%%.*}
 case "$libc_major:$libc_minor" in *[!0-9:]*|:*|*:) fail 'Cannot determine remote glibc version.' ;; esac
 { [ "$libc_major" -gt 2 ] || { [ "$libc_major" -eq 2 ] && [ "$libc_minor" -ge 28 ]; }; } || fail 'Automatic remote installation requires glibc 2.28 or newer.'
-for tool in tar gzip curl sha256sum mkdir mktemp cat chmod mv rmdir; do
+for tool in tar gzip curl sha256sum mkdir mktemp cat chmod mv flock ln; do
   command -v "$tool" >/dev/null 2>&1 || fail "Automatic remote installation requires the remote tool: $tool"
 done
 case "${shellDollar}{HOME:-}" in /*) ;; *) fail 'Remote HOME must be an absolute path.' ;; esac
@@ -143,8 +155,12 @@ if [ "$installed" = 1 ]; then cat >/dev/null; emit; exit 0; fi
 umask 077
 unset NODE_OPTIONS NODE_PATH
 mkdir -p "$dsh_home/products/codexy/remote-runtimes"
-mkdir "$lock" 2>/dev/null || fail 'Another managed remote installation for this profile is in progress; wait for it to finish. Existing files were retained.'
-trap 'rmdir "$lock" 2>/dev/null || :' EXIT
+# The kernel releases this lock when the installer exits, including SSH interruption.
+# Use a new filename so old directory locks cannot strand future installations.
+exec 9>"$lock.flock"
+flock -w 20 9 || fail '远端正在安装更新，请稍后重试连接。'
+` + preflight(releaseId, profile) + String.raw`
+if [ "$installed" = 1 ]; then cat >/dev/null; emit; exit 0; fi
 owned_pid=
 cancel() {
   trap '' INT HUP TERM
@@ -166,21 +182,63 @@ run_owned() {
 runtime=$(mktemp -d "$base.XXXXXXXX")
 cat > "$runtime/release.tar.gz"
 printf '%s  %s\n' '${sha256}' "$runtime/release.tar.gz" | sha256sum -c >/dev/null 2>&1 || fail 'Uploaded remote release checksum mismatch; no installer was run.'
-mkdir "$runtime/release" "$runtime/node"
+mkdir "$runtime/release"
 tar -xzf "$runtime/release.tar.gz" --no-same-owner --no-same-permissions -C "$runtime/release"
-run_owned curl --fail --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 180 --retry 2 --output "$runtime/node.tar.gz" 'https://nodejs.org/dist/v${provisionNode.version}/${provisionNode.file}'
-printf '%s  %s\n' '${provisionNode.sha256}' "$runtime/node.tar.gz" | sha256sum -c >/dev/null 2>&1 || fail 'Downloaded Node runtime checksum mismatch; no downloaded code was run.'
-tar -xzf "$runtime/node.tar.gz" --no-same-owner --no-same-permissions --strip-components=1 -C "$runtime/node"
+progress() { printf 'DSH_REMOTE_PROGRESS %s\n' "$1" >&2; }
+toolchains="$dsh_home/products/codexy/toolchains"
+mkdir -p "$toolchains"
+exec 8>"$toolchains/install.flock"
+flock -w 20 8 || fail '远端正在准备基础运行时，请稍后重试。'
+toolchain_record="$toolchains/node-${provisionNode.version}-dsh-${dshVersion}-pnpm-${pnpmVersion}.ready"
+toolchain=
+compatible() {
+  [ -x "$1/node/bin/node" ] && [ -x "$1/bin/dsh" ] &&
+  [ "$("$1/node/bin/node" --version 2>/dev/null)" = 'v${provisionNode.version}' ] &&
+  "$1/node/bin/node" -e ${quote(matchingToolchain)} "$1" '${dshVersion}' '${pnpmVersion}'
+}
+if [ -f "$toolchain_record" ]; then
+  IFS= read -r candidate < "$toolchain_record" || candidate=
+  case "$candidate" in "$toolchains"/*|"$dsh_home/products/codexy/remote-runtimes/"*)
+    if compatible "$candidate"; then toolchain="$candidate"; fi ;;
+  esac
+fi
+if [ -z "$toolchain" ]; then
+  # Adopt a version-matching runtime already installed by earlier releases.
+  for record in "$dsh_home/products/codexy/remote-runtimes/"*.ready; do
+    [ -f "$record" ] || continue
+    IFS= read -r candidate < "$record" || continue
+    case "$candidate" in "$dsh_home/products/codexy/remote-runtimes/"*)
+      if compatible "$candidate"; then toolchain="$candidate"; break; fi ;;
+    esac
+  done
+fi
+if [ -n "$toolchain" ]; then
+  progress '复用 Node/DSH 基础运行时，无需下载'
+else
+  toolchain=$(mktemp -d "$toolchains/runtime.XXXXXXXX")
+  mkdir "$toolchain/node"
+  progress '下载 Node 运行时（仅首次安装）'
+  run_owned curl --fail --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 180 --retry 2 --output "$toolchain/node.tar.gz" 'https://nodejs.org/dist/v${provisionNode.version}/${provisionNode.file}'
+  printf '%s  %s\n' '${provisionNode.sha256}' "$toolchain/node.tar.gz" | sha256sum -c >/dev/null 2>&1 || fail 'Downloaded Node runtime checksum mismatch; no downloaded code was run.'
+  tar -xzf "$toolchain/node.tar.gz" --no-same-owner --no-same-permissions --strip-components=1 -C "$toolchain/node"
+  progress '安装 DSH 基础运行时（仅首次安装）'
+  run_owned "$toolchain/node/bin/node" "$toolchain/node/lib/node_modules/npm/bin/npm-cli.js" install --global --prefix "$toolchain" --ignore-scripts --include=optional --no-audit --no-fund --registry https://registry.npmjs.org '${'@deepseek-ai/dsh@' + dshVersion}' 'pnpm@${pnpmVersion}'
+fi
+printf '%s\n' "$toolchain" > "$runtime/toolchain.ready"
+mv "$runtime/toolchain.ready" "$toolchain_record"
+exec 8>&-
+for part in node bin lib; do ln -s "$toolchain/$part" "$runtime/$part"; done
 PATH="$runtime/node/bin:$runtime/bin:$PATH"
 export PATH
 DSH_HOME="$dsh_home"
 export DSH_HOME
 "$runtime/node/bin/node" --input-type=module -e ${quote(verifyRelease)} "$runtime/release" '${dshVersion}' '${releaseId}'
-run_owned "$runtime/node/bin/node" "$runtime/node/lib/node_modules/npm/bin/npm-cli.js" install --global --prefix "$runtime" --ignore-scripts --include=optional --no-audit --no-fund --registry https://registry.npmjs.org '${'@deepseek-ai/dsh@' + dshVersion}' 'pnpm@${pnpmVersion}'
 printf '%s\n' "$dsh_home" > "$runtime/dsh-home"
 printf '%s\n' '#!/bin/sh' 'set -eu' 'runtime=${shellDollar}{0%/*}' 'IFS= read -r DSH_HOME < "$runtime/dsh-home"' 'export DSH_HOME' 'PATH="$runtime/node/bin:$runtime/bin:$PATH"' 'export PATH' 'exec "$runtime/node/bin/node" "$runtime/bin/dsh" "$@"' > "$runtime/launch-dsh"
 chmod 700 "$runtime/launch-dsh"
+progress '安装产品更新'
 run_owned "$runtime/node/bin/node" "$runtime/release/install.mjs" --release "$runtime/release" --home "$dsh_home" --dsh "$runtime/launch-dsh" --web --managed-profile "$profile"
+progress '服务端更新完成'
 printf '%s\n' "$runtime" > "$runtime/ready"
 mv "$runtime/ready" "$base.ready"
 installed=1

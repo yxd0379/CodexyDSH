@@ -18,6 +18,9 @@
     "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-host-directory-picker-browse": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-client-ui-directory-picker-browse": "0.2.1-alpha.2",
+    "@codexydsh/ui-workspace": "workspace:*",
     "@codexydsh/browser-session": "workspace:*",
     "@codexydsh/bundle": "workspace:*",
     "@codexydsh/api-remotes": "workspace:*",

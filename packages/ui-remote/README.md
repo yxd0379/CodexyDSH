@@ -1,23 +1,23 @@
 # @codexydsh/ui-remote
 
-在 Web 设置中编辑 SSH 主机，连接、取消连接和断开本地转发。Host 配置行 id 为 `codexy-remote`，依赖 `@codexydsh/remote` 的 Client 状态模型。
+把 SSH 主机上的工作区作为普通工作区加入现有左侧列表。用户仍在同一个窗口、同一套工作区导航中选择本地或远端项目；远端会话、对话、终端和文件操作由远端 Host 执行。
 
-编辑使用读取时的配置 revision；失败保留草稿并在编辑器显示原因，删除需要确认。命令行或 home 覆盖的配置由上游设置服务拒绝保存。
+每个已连接主机拥有一个独立的 Cordis Context。父页面的 ModuleLoader 清单决定可用插件，远端 Context 通过 Loader 正常组合这些插件，并将 Connection 指向 `@codexydsh/remote` 提供的本机 HTTP/WebSocket 代理。父页面只负责统一工作区列表和当前主面板；远端 Context 保有自己的 Session、Conversation、工具和右侧栏状态。这里没有 iframe、第二套侧栏、`postMessage` 协议或由插件启动其他功能插件的特殊路径。
 
-连接后的远端项目显示在现有左侧栏的 **Remote projects** 区域，与本地项目和会话共存。选择项目或会话在当前窗口的中心区域打开，不弹出新窗口。可填写远端绝对目录添加项目，在项目旁新建会话。中心区域显示主机身份并提供返回本地工作区的入口。每个已连接主机保留独立 iframe runtime；切回本地不会丢失远端输入草稿。断开会移除该 runtime，并关闭本地转发，远端任务继续运行。
+设置页负责保存 SSH 主机、连接、取消和断开。配置写入使用 Settings revision；密码、私钥口令和验证码只交给当次 SSH askpass，不进入配置或浏览器存储。浏览器仅持久化 `{ host, workspaceId, title, path }` 导航引用，不保存代理地址、token 或能力句柄。
 
-本地 WorkspaceBrowser 保持原来的注册；远端项目通过 additive `sidebar.footer.action` seat 加入。中心面板通过 keyed `main` seat 导航，iframe 挂在持久的 `shell.overlay` seat 中。远端嵌入模式使用 public sidebar owner width 报告空导航栏的宽度，由父视口裁切，因此没有重复的侧栏；远端 Conversation 和右侧工具仍使用远端自身的插件图与连接。
+断开会释放该主机的 Client Context 和本地 SSH 转发，远端进程、项目与会话继续存在。已知工作区保留在侧边栏，显示未连接；展开时连接主机，再从远端加载会话。搜索不会自动连接所有离线主机。界面文案由中英文 locale 提供；本包不构造模型请求。
 
-桥接协议 `codexy.remote.projects.v1` 只投影项目/会话展示字段，命令仅允许打开项目、打开会话、新建会话与添加目录。消息同时验证 window source、精确 origin、每次 runtime 随机生成的 channel；过期 runtime 消息不再生效。相同远端 id 在不同主机下保持独立。URL 和 capability 不写入持久存储。未响应的旧版远端 profile 显示超时与重试入口。SSH 主机须安装包含本包的 Codexy profile。
+远端 Client 挂载上游 `ui-reference`，让文件/会话引用沿用其候选和序列化实现。桌面本机的路径桥只用于本机会话；远端会话选择或拖入 Mac 文件时上传内容，而不是引用 Mac 路径。上游 FileUpload 在激活时捕获该主机的上传 fetch，随后恢复父页面的 bootstrap hook；上传与普通 RPC 一样经过该主机的 HTTP 代理，不写入本机 Host。
 
-界面文案通过中英文 locale 字典提供。本包不构造模型请求。
+工作区列表复用 `@codexydsh/ui-workspace` 中保留的上游 `dsh-v0.2.1-alpha.2` 界面，通过 Cordis 的 `workspaceBrowser` 服务接入各主机的数据和操作。工作区行点击只展开或收起，加号才创建会话；远端行显示主机名，不同主机的路径不混合嵌套或排序。添加工作区使用同版本上游目录浏览器，增加位置选择，支持输入路径和浏览本机、远端目录。旧的 `UnifiedWorkspaces` 源文件未启用；按本轮保留文件的要求没有删除它们。
 
-独立集成验证：先使用 `scripts/compatibility.mjs --release <发行目录> --keep` 准备临时安装，然后运行：
+工作区菜单提供详情和归档。归档仅保存当前客户端的工作区显示偏好：从侧边栏隐藏工作区及其会话，不改变远端会话的归档状态，不停止任务，也不删除目录。设置 → 工作区统一管理本机和远端工作区的显示；恢复工作区不会恢复其中单独归档的会话。搜索默认排除隐藏工作区，可显式勾选包含它们；这不会改变首页的显示偏好。主机徽标与悬停操作共用固定宽度区域。
 
-```sh
-CODEXY_PLAYWRIGHT_PACKAGE=/path/to/test-tools/package.json \
-  node --import tsx tests/fixtures/remote-project-browser.mjs \
-  /path/to/dsh/package.json /path/to/temporary-validation-home
-```
+## 本轮手动检查（2026-10-16）
 
-测试启动两个独立真实 DSH Host，仅 SSH 转发使用本地 fixture，不读取个人账号、不发送模型请求。检查同窗项目/会话、切换后的远端草稿、本地与远端存储隔离，截图保留在输出的临时目录。可另设 `CODEXY_TEST_ELECTRON=/path/to/Electron` 验证隐藏的 `dsh-app://app` 测试壳；该测试不启动或改动用户已安装的桌面应用。
+在 macOS 的 Web 实例和 Ascend SSH 主机上，逐步操作检查了展开/收起、加号新建、本地与远端切换、未发送草稿保留、名称搜索及退出、工作区菜单和重命名（随后恢复原名）、小窗口侧栏滚动、目录浏览、等待时切回本机或取消、错误路径改正后恢复，以及断开后保留工作区并重新连接。独立测试页确认添加已有远端目录只调用 `workspace/create`，不调用 `session/create`，也不切换当前会话。
+
+上述检查未发送模型消息，未删除文件或会话；新建操作留下了少量空白测试会话。没有执行删除菜单，也没有覆盖密码认证失败、主机密钥变化、多主机并发和其他平台。这是本次实际操作记录，不是自动验收脚本或兼容性承诺。
+
+追加手动检查：本机工作区详情、归档后刷新保留、搜索默认排除及显式包含、设置恢复均通过；Ascend 工作区详情显示主机/完整路径/连接状态，归档和设置恢复通过，归档期间未观察到 POST 请求。悬停前后远端行标题的 x 坐标及宽度均未变化。置顶会话随工作区隐藏；单列表、全部对话和仅显示已归档筛选均未让隐藏工作区的会话重新出现；恢复工作区后，单独归档的会话仍保持归档。检查后已将所用会话恢复为未置顶、未归档，恢复按工作区/最近更新/隐藏已归档的视图设置。检查未发送模型请求。

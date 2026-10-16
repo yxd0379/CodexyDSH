@@ -1,0 +1,8 @@
+Source: https://github.com/deepseek-ai/deepseek-harness
+Tag: dsh-v0.2.1-alpha.2
+Commit: d743267388641bc76f17c45ce8b4c231aed1d32c
+Directory: packages/client/ui-workspace/src
+License: MIT, Copyright (c) 2026 DeepSeek (see repository LICENSE)
+
+The upstream workspace UI is retained here so remote workspace sources can
+join its existing interaction model without replacing the sidebar UI.

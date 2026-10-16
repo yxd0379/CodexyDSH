@@ -7,6 +7,7 @@
  * here is the submit plane (phase, claim, attempt) alone.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { Branded } from '@deepseek-ai/dsh-brand'
@@ -227,7 +228,15 @@ export interface SessionInput extends InputTarget {
 export interface SessionInputResolver {
   /** Resolve the facade for one session-scope ctx. */
   for(actx: Context): SessionInput
+  requestDraftInitialization(binding: SessionBinding, options: DraftInitializationOptions): DraftInitializationResult
 }
+
+/** Initial text for a target Session; attachments keep their existing owner. */
+export interface DraftInitializationOptions {
+  readonly prompt?: string
+  readonly clearPreviousDraft?: boolean
+}
+export type DraftInitializationResult = 'applied' | 'preserved' | 'blocked'
 
 /**
  * The public input action face provided to every session-scope slot

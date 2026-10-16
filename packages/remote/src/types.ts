@@ -14,6 +14,12 @@ export interface RemoteHostConfig {
   node: string
   /** Remote dsh executable name or absolute path. */
   dsh: string
+  /** Network policy for the remote server and managed downloads, never the local UI. */
+  proxyMode?: 'inherit' | 'custom' | 'direct'
+  /** HTTP(S) proxy as seen from the remote machine. */
+  proxyUrl?: string
+  /** Comma-separated hosts that bypass a custom proxy. Loopback always bypasses it. */
+  noProxy?: string
 }
 
 /** A saved host's current local tunnel state; disconnect leaves its remote process running. */
@@ -30,6 +36,9 @@ export interface RemoteHostStatus {
   url: string | null
   /** Last connection failure, with launch tokens removed. */
   error: string | null
+  /** Current connection step and bounded diagnostic output; never launch credentials. */
+  progress?: string
+  log?: string
   /** Ephemeral OpenSSH password, passphrase, or keyboard-interactive question. */
   authChallenge?: { id: string; prompt: string }
 }

@@ -1,0 +1,48 @@
+.shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dsh-color-bg, #fff);
+}
+
+.main {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rightbar {
+  width: min(420px, 42vw);
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--dsh-color-border, rgba(0, 0, 0, 0.08));
+}
+
+.rightbar[data-fullscreen] {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  border-left: 0;
+  background: var(--dsh-color-bg, #fff);
+}
+
+.bottom {
+  grid-column: 1 / -1;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.overlay > * {
+  pointer-events: auto;
+}

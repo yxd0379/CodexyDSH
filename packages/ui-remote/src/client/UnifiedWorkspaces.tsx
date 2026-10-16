@@ -1,6 +1,7 @@
 /** One workspace browser for local folders and SSH folders. */
 import { useRef, useState } from 'react'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
   Button, Input, Menu, Modal, StateDot,
@@ -44,7 +45,6 @@ type Operation = void | Promise<void>
 /** Product actions route identities to their owning controller; presentation does not route RPCs. */
 export interface UnifiedWorkspacesInjected {
   hooks: { unifiedWorkspaces: SnapshotStore<UnifiedWorkspaceSnapshot> }
-  openWorkspace(row: UnifiedWorkspaceRow): Operation
   openSession(row: UnifiedWorkspaceRow, session: UnifiedWorkspaceSession): Operation
   newSession(row: UnifiedWorkspaceRow): Operation
   renameWorkspace(row: UnifiedWorkspaceRow, title: string): Operation
@@ -210,15 +210,15 @@ export function UnifiedWorkspaces(props: UnifiedWorkspacesProps) {
             <button type="button" className={css.disclosure} aria-label={`${open ? '收起' : '展开'} ${row.title}`} aria-expanded={open} onClick={() => { setCollapsed({ ...collapsed, [row.key]: open }) }}>
               <span className={css.folder}><IconFolderCloseRegular size={16} /></span><span className={css.chevron}>{open ? <IconChevronDownOutlineRegular size={14} /> : <IconChevronRightOutlineRegular size={14} />}</span>
             </button>
-            <button type="button" className={css.workspaceButton} title={`${row.host ? `${row.host}: ` : ''}${row.path}`} data-testid="workspace-open" onClick={() => { setCollapsed({ ...collapsed, [row.key]: false }); run(() => props.openWorkspace(row)) }}>
+            <button type="button" className={css.workspaceButton} title={`${row.host ? `${row.host}: ` : ''}${row.path}`} aria-expanded={open} data-testid="workspace-open" onClick={() => { setCollapsed({ ...collapsed, [row.key]: open }) }}>
               <span className={css.workspaceTitle}>{row.title || row.path}</span>{row.host && <span className={css.host}>{row.host}</span>}
             </button>
             <div className={css.workspaceActions} data-menu-open={workspaceMenu === row.key || undefined}>
               <Menu open={workspaceMenu === row.key} portal align="end" compact onClose={() => { setWorkspaceMenu(undefined) }}
                 anchor={<button type="button" className={css.iconButton} aria-label={`${row.title}的操作`} aria-expanded={workspaceMenu === row.key} onClick={() => { setWorkspaceMenu(workspaceMenu === row.key ? undefined : row.key) }}><IconEllipsisOutlineRegular size={15} /></button>}
-                items={[{ id: 'open', label: '打开工作区' }, { id: 'rename', label: '重命名' }, { id: 'remove', label: '移除工作区' }]}
-                onSelect={id => { setWorkspaceMenu(undefined); if (id === 'rename') rename({ row }); else if (id === 'remove') { setRemoving(row); setError('') } else run(() => props.openWorkspace(row)) }} />
-              <button type="button" className={css.iconButton} title="新会话" aria-label={`新会话 ${row.title}`} onClick={() => { run(() => props.newSession(row)) }}><IconPlusOutlineRegular size={15} /></button>
+                items={[{ id: 'rename', label: '重命名' }, { id: 'remove', label: '移除工作区' }]}
+                onSelect={id => { setWorkspaceMenu(undefined); if (id === 'rename') rename({ row }); else if (id === 'remove') { setRemoving(row); setError('') } }} />
+              <button type="button" className={css.iconButton} title="新会话" aria-label={`新会话 ${row.title}`} onClick={() => { setCollapsed({ ...collapsed, [row.key]: false }); run(() => props.newSession(row)) }}><IconPlusOutlineRegular size={15} /></button>
             </div>
           </div>
           {row.error && <p className={css.error} role="alert">{row.error}</p>}

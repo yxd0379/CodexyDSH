@@ -16,7 +16,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type {
-  DraftAttachmentId, DraftAttachmentSerializationResult, InputTriggerController,
+  DraftAttachmentId, DraftAttachmentSerializationResult, InputTriggerController, DraftInitializationOptions, DraftInitializationResult,
   SessionInputResolver, SessionInput, SubmitOutcome,
 } from '../contract/input.ts'
 import type { ComposerKeyboard } from '../contract/draft-editor.ts'
@@ -51,6 +51,13 @@ interface ConversationAttachmentFace {
 /** Session-addressed input facade registry (SessionInputResolver face + composer-layer extras). */
 export class InputHub implements SessionInputResolver {
   private readonly shells = new WeakMap<SessionBinding, SessionInputShell>()
+
+  requestDraftInitialization(binding: SessionBinding, options: DraftInitializationOptions): DraftInitializationResult {
+    if (this.sessions().binding(binding.sessionId) !== binding) {
+      throw new Error('conversation.input.requestDraftInitialization requires a retained Session binding')
+    }
+    return this.shellFor(binding).requestDraftInitialization(options)
+  }
 
   /**
    * @param ctx - client root context (services resolved lazily per call — boot order stays free).

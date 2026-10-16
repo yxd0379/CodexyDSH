@@ -1,6 +1,6 @@
-.root { display: flex; flex: 1; flex-direction: column; width: 100%; min-width: 0; min-height: 0; color: var(--dsw-alias-label-primary); font-size: 12px; }
+.root { display: flex; flex: 1; flex-direction: column; width: 100%; min-width: 0; min-height: 0; color: var(--dsw-alias-label-primary); font-size: 14px; }
 .header { display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 12px; flex-shrink: 0; }
-.heading { flex: 1; min-width: 0; font-size: 11px; color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); }
+.heading { flex: 1; min-width: 0; font-size: 14px; color: var(--dsw-alias-label-tertiary); }
 .iconButton { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer; }
 .iconButton:hover { background: var(--dsw-alias-bg-hover, #8882); color: var(--dsw-alias-label-primary); }
 .iconButton:focus-visible, .workspaceButton:focus-visible, .sessionButton:focus-visible, .showMore:focus-visible { outline: 2px solid var(--dsw-alias-border-active, #8888); outline-offset: -2px; }
@@ -9,7 +9,7 @@
 .workspaceRow { display: flex; align-items: center; min-height: 32px; gap: 1px; border-radius: 6px; }
 .workspaceButton { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; min-height: 32px; border: 0; border-radius: 6px; padding: 0 2px; color: inherit; background: transparent; font: inherit; font-weight: 500; cursor: pointer; text-align: left; }
 .disclosure { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
-.workspaceRow:hover { background: var(--dsw-alias-bg-hover, #8881); }
+.workspaceRow:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .workspaceTitle { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .folder, .chevron { display: flex; width: 16px; flex-shrink: 0; align-items: center; justify-content: center; color: var(--dsw-alias-label-secondary); }
 .chevron { display: none; }
@@ -20,8 +20,8 @@
 .workspaceRow:hover .workspaceActions, .workspaceRow:focus-within .workspaceActions, .workspaceActions[data-menu-open] { visibility: visible; }
 .sessions { padding-left: 0; }
 .sessionRow { display: flex; align-items: center; position: relative; height: 32px; border-radius: 6px; padding-right: 4px; }
-.sessionRow:hover { background: var(--dsw-alias-bg-hover, #8881); }
-.sessionRow[data-active] { background: var(--dsw-alias-bg-selected, var(--dsw-alias-bg-hover, #8882)); }
+.sessionRow:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.sessionRow[data-active] { background: var(--dsw-alias-interactive-bg-hover); }
 .sessionRow[data-archived] .sessionTitle { color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary)); }
 .sessionButton { display: flex; align-items: center; gap: 6px; height: 32px; min-width: 0; flex: 1; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .sessionButton:disabled { cursor: default; }

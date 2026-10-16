@@ -58,11 +58,14 @@ export const inject = [
 export interface Config {
   /** Maximum generic-file uploads allowed to run concurrently in browser Workers. */
   maxConcurrentFileUploads?: number
+  /** The desktop's picked-file paths belong to this Host. Remote clients upload bytes instead. */
+  useHostFilePaths?: boolean
 }
 
 /** Validated Conversation runtime configuration. */
 export const Config: z<Config> = z.object({
   maxConcurrentFileUploads: z.natural().min(1).default(2),
+  useHostFilePaths: z.boolean().default(true),
 })
 
 // Stable no-session sources keep the renderer's observable-hook cache and
@@ -413,7 +416,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       const conversation = concreteConversation(ctx)
       const shell = inputHub.shell(sessionId)
       const inputTriggers = inputHub.inputTriggers(sessionId)
-      const bridge = hostPathBridge()
+      const bridge = config.useHostFilePaths === false ? undefined : hostPathBridge()
       return {
         keyboard: shell,
         addFiles: (files, directories = new Set()) => {

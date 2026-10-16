@@ -7,6 +7,7 @@ const status = z.object({
   name: z.string(), host: z.string(), profile: z.string(),
   phase: z.enum(['disconnected', 'connecting', 'connected', 'failed']),
   url: z.string().nullable(), error: z.string().nullable(),
+  progress: z.string().optional(), log: z.string().optional(),
   authChallenge: z.object({ id: z.string(), prompt: z.string() }).optional(),
 })
 const catalog = () => z.array(status)

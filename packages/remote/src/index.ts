@@ -26,6 +26,9 @@ const Host: z<RemoteHostConfig> = z.object({
   node: executable.default('node'),
   deployment: z.union([z.const('auto'), z.const('existing')]).default('auto'),
   dsh: executable.default('dsh'),
+  proxyMode: z.union([z.const('inherit'), z.const('custom'), z.const('direct')]).default('inherit'),
+  proxyUrl: z.string().pattern(/^(?:|https?:\/\/[^\s\0]+)(?![\s\S])/u).default(''),
+  noProxy: z.string().pattern(/^[^\0\r\n]*(?![\s\S])/u).default(''),
 })
 const Hosts = z.dict(z.union([Host, z.const(null)]), z.string().pattern(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?![\s\S])/u)).default({})
 
@@ -34,6 +37,8 @@ interface Attempt {
   controller: AbortController
   phase: RemoteHostStatus['phase']
   error: string | null
+  progress?: string
+  log?: string
   tunnel?: Tunnel
   ready: Promise<RemoteHostStatus>
   closing?: Promise<void>
@@ -163,13 +168,21 @@ export class RemoteLauncher extends TypertRemoteService {
         let authentication: Awaited<ReturnType<typeof createSshAuthentication>> | undefined
         try {
           authentication = await createSshAuthentication((prompt, questionSignal) => this.authenticate(name, attempt, prompt, AbortSignal.any([lifetime, questionSignal])), lifetime)
-          const options = { ...this.config, auth: authentication.env }
+          const options = { ...this.config, auth: authentication.env,
+            onProgress: (message: string) => {
+              attempt.progress = message
+              this.appendLog(attempt, message)
+            },
+            onOutput: (message: string) => { this.appendLog(attempt, message) },
+          }
           const remote = await launchRemote(target, options, lifetime)
           const tunnel = await openTunnel(target, remote, options, lifetime)
           attempt.tunnel = tunnel
           this.proxy?.invalidate(name)
           lifetime.throwIfAborted()
           attempt.phase = 'connected'
+          attempt.progress = 'SSH 隧道已连接'
+          this.appendLog(attempt, attempt.progress)
           this.publish()
           const ended = (reason: string): void => {
             if (attempt.closing !== undefined || this.disposed) return
@@ -182,6 +195,7 @@ export class RemoteLauncher extends TypertRemoteService {
           await attempt.tunnel?.close()
           if (!controller.signal.aborted) {
             attempt.phase = 'failed'; attempt.error = redactTokens(error instanceof Error ? error.message : String(error))
+            this.appendLog(attempt, attempt.error)
             this.publish()
           }
           throw new Error(redactTokens(error instanceof Error ? error.message : String(error)))
@@ -264,12 +278,21 @@ export class RemoteLauncher extends TypertRemoteService {
     return { name, host: target.host, profile: target.profile, phase: current?.phase ?? 'disconnected',
       url: current?.phase === 'connected' ? this.proxy ? embeddedRemotePath(name) : current.tunnel?.url ?? null : null,
       error: current?.error ?? null,
+      ...(current?.progress ? { progress: current.progress } : {}),
+      ...(current?.log ? { log: current.log } : {}),
       ...(current?.authentication ? { authChallenge: { ...current.authentication.challenge } } : {}) }
   }
 
   private publish(): void {
     this.revision++
     for (const wake of this.followers) wake()
+  }
+
+  private appendLog(attempt: Attempt, message: string): void {
+    const line = redactTokens(message).trim()
+    if (!line) return
+    attempt.log = `${attempt.log ?? ''}[${new Date().toLocaleTimeString('en-GB', { hour12: false })}] ${line}\n`.slice(-this.config.maxOutputBytes)
+    this.publish()
   }
 
   private isDisposed(): boolean { return this.disposed }
