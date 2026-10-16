@@ -6,32 +6,17 @@
 
 ## 为什么用 CodexyDSH
 
-原生 DSH 是通用 agent 平台：账号、桌面窗口、Web shell、工作区、设置、插件加载都已具备。CodexyDSH 不重做这些，它换掉的是模型看到的东西，并补上平台缺的两块。下面每条先给事实，再说为什么值得。
+原生 DSH 是通用 agent 平台：账号、桌面窗口、Web shell、工作区、设置、插件加载都已具备。CodexyDSH 不重做这些，它换掉的是模型看到的东西，并补上平台缺的两块。下面每行先给事实，再说这个事实带来什么。
 
-**工具名与调用顺序**
+| 维度 | 原生 DSH | CodexyDSH | 所以 |
+| --- | --- | --- | --- |
+| 工具名 | `bash`、`read`、`todo_write` 等 | `exec_command`、`apply_patch`、`update_plan` 等 | 提示词与 skills 直接复用 |
+| 跨会话记忆 | 无 memory 包 | `@codexydsh/memory` | 换会话不用重述背景 |
+| 自动审查 | `dsh-experimental-auto-review`，默认关闭 | `@codexydsh/auto-review`，默认挂载 | 少被打断，权限不必整体放开 |
+| 远端主机 | 无 SSH 包 | `@codexydsh/remote`，OpenSSH 起远端 codexy | 重活放远端，本机不用装环境 |
+| 界面 | `dsh-client-ui-*` | `@codexydsh/ui-*` | 与 Codex 用法一致 |
 
-原生 DSH 给模型的是 `bash`、`shell`、`read`、`write`、`edit`、`todo_write`、`subagent_fork`；CodexyDSH 给的是 `exec_command`、`write_stdin`、`apply_patch`、`update_plan`、`view_image`、`request_user_input`，子 Agent 用 `multi_agent_v1`，声明顺序按 Codex 0.162.1 的 wire profile 固定。
-→ 为 Codex 写的 AGENTS.md、skills 与提示词里出现的是后一组名字，搬到原生 DSH 上得逐条改名。
-
-**跨会话记忆**
-
-上游安装树里没有任何 memory 包（只有 `dsh-compaction` 系列）；CodexyDSH 有 `@codexydsh/memory`，分两步：先抽取该记的内容，再按相关性检索并注入上下文。
-→ 原生 DSH 换个会话就要重新交代项目背景。
-
-**自动审查**
-
-上游的 `dsh-experimental-auto-review` 官方说明是「安装包默认关闭」；CodexyDSH 的 bundle 默认挂载 `@codexydsh/auto-review`，模式 `codexful`。
-→ 原生 DSH 默认是每个敏感操作都来问你，或者干脆整体放开权限；这里先由模型审一遍，只有需要更大权限的才转人工。
-
-**远端主机**
-
-上游与远端有关的只有 `dsh-api-remotes`（浏览器到 Host 的能力转发面）和 `dsh-remote-mock`（测试替身），没有任何 SSH 相关包；CodexyDSH 的 `@codexydsh/remote` 用本机 OpenSSH 启动远端的 `dsh --profile codexy`，只监听本地回环地址做 HTTP/WebSocket 转发，并自动部署固定版本的 Node 与 DSH。
-→ 原生 DSH 想这样用只能自己搭；这里连上之后远端工作区直接进同一个侧栏与窗口。
-
-**界面**
-
-上游界面来自 `dsh-client-ui-*`；CodexyDSH 换成 `@codexydsh/ui-*`。
-→ 对话、轨迹、审批与用量的读法跟 Codex 一致，不用重新学一套。
+完整清单：上游命令工具是 `bash` / `shell`，文件工具是 `read` / `write` / `edit` / `read_image`，计划工具是 `todo_write`，子 Agent 是 `subagent_fork`；产品对应 `exec_command` / `write_stdin`、`apply_patch`（只走 patch）、`update_plan`、`view_image`、`request_user_input`，子 Agent 用 `multi_agent_v1`，声明顺序按 Codex 0.162.1 的 wire profile 固定。
 
 平台能力不变：登录、账号、已选模型与工作区继续有效；移除 profile 里的产品 patch 行即可回到原版组合。
 
