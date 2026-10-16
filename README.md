@@ -10,14 +10,14 @@ DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区
 
 | 维度 | 原生 DSH | CodexyDSH |
 | --- | --- | --- |
-| Agent loop | 上游 loop 与通用输入放置 | 产品驱动：Codexy 输入顺序、原生 freeform 工具、冻结的 provider 与工具世代、提前派发已完成的工具调用、完成输出恢复、mailbox 续跑 |
-| 工具形态 | 通用工具集 | Codex 形态：`exec_command` / `write_stdin` 的 PTY 会话、`apply_patch`（只用 patch 改文件）、`update_plan`、`request_user_input`、`view_image`；工具声明顺序按 Codex 0.162.1 的 wire profile 固定 |
-| 提示词与上下文 | 通用 AGENTS 与 skills | Codex 指令格式与全局指令、按会话刷新；Codex 风格的两阶段记忆抽取、本地检索与稳定注入；compaction 使用 Codex checkpoint 格式 |
-| 审批与执行 | 通用 approval 与 permission | Codex 风格策略：`ask` / `never`，沙箱预设 `read-only` / `workspace-write` / `danger-full-access`，可配 Auto review 自动审查 |
-| 子 Agent | 上游 subagent | Codex V1 与 codexful V2 两套子 Agent，含结构化输出与续跑 |
-| 模型接入 | 上游 provider | `deepseek-account`（账号服务 token）与 `deepseek-official`（独立 API key）互不回退，另有 Pi provider |
-| 界面 | 上游 Web 界面 | Codex 风格的对话、轨迹、工具、审批、记忆与用量视图，含 MCP |
-| 远端 | 只有浏览器到 Host 的连接与能力转发（`dsh-client-connection`、Gateway 的 Typert Remote 流、`api-remotes` 装配面），没有远端主机概念 | SSH 远端主机：自动部署独立的 Node 与 DSH、本地隧道、同一窗口内的远端工作区与会话 |
+| Agent 行为 | 通用 agent 循环 | 按 Codex 的顺序与派发方式运行 |
+| 工具 | 通用工具集 | `exec_command`、`apply_patch`、`update_plan` 等 Codex 工具 |
+| 提示词与记忆 | 通用 AGENTS/skills | Codex 指令格式与记忆机制 |
+| 审批与沙箱 | 通用审批与权限 | Codex 的 `ask` / `never` 与三个沙箱预设 |
+| 子 Agent | 上游子 Agent | Codex V1 与 V2，含续跑 |
+| 模型 | 上游模型入口 | DeepSeek 账号与 API key 两个入口 |
+| 界面 | 上游界面 | Codex 风格的对话、轨迹、审批与用量 |
+| 远端主机 | 无 | SSH 远端主机，同一窗口内的远端工作区 |
 
 界面的形态、工具的名字与调用顺序、模型收到的提示词都会改变，但平台能力不变：你的登录、账号、已选模型与工作区继续有效。移除 profile 里的产品 patch 行即可回到原版组合。
 
@@ -80,6 +80,14 @@ dsh --profile codexy-headless "task"
 | Web shell 与平台服务 | 登录/账号、基础布局、工作区、设置、插件加载、凭据与授权 | 产品 API 与对话、工具、审批、轨迹、记忆等界面 |
 | 本地执行运行时 | 公开的 Cordis/Session/模型目录与平台服务接口 | Agent loop、模型请求适配、执行工具、记忆 |
 | 远端接入 | 上游只有浏览器到 Host 的 Remote 通道：连接代次、能力与事件转发 | 复用该通道，另加 SSH 启动与隧道、远端部署、远端 Cordis/Loader Client 树 |
+
+具体换掉的行为如下：
+
+- **Agent loop**：Codexy 输入顺序、原生 freeform 工具、冻结的 provider 与工具世代、提前派发已完成的工具调用、完成输出恢复、mailbox 续跑。
+- **工具契约**：`exec_command` / `write_stdin` 的 PTY 会话、`apply_patch`（只用 patch 改文件）、`update_plan`、`request_user_input`、`view_image`；工具声明顺序按 Codex 0.162.1 的 wire profile 固定。
+- **提示词与上下文**：Codex 指令格式与全局指令、按会话刷新；两阶段记忆抽取、本地检索与稳定注入；compaction 使用 Codex checkpoint 格式。
+- **审批与执行**：`ask` / `never` 策略、`read-only` / `workspace-write` / `danger-full-access` 沙箱预设、Auto review 自动审查。
+- **模型路由**：`deepseek-account`（账号服务 token）与 `deepseek-official`（独立 API key）互不回退，另有 Pi provider。
 
 三个设计取舍值得说明：产品会话使用上游原生 Session 存储，插件状态走设置、凭据或 `storageDomain`，请求诊断只进日志，因此不扩展会话格式；平台包声明为 peer 且 profile 关闭自动 peer 安装，让产品与启动器复用同一份平台模块；日志上传、会话遥测与插件清单上传默认关闭。
 
