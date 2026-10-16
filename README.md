@@ -6,17 +6,19 @@
 
 ## 为什么用 CodexyDSH
 
-DSH 本身是通用 agent 平台：账号、桌面窗口、Web shell、工作区、设置、插件加载都已具备。CodexyDSH 不重做这些，它把 **agent 的行为换成 Codex 的语义**——模型看到什么工具、工具怎么被调度、提示词与审批怎么组织。两边能力大部分重合（AGENTS.md、skills、三档权限、子 Agent、DeepSeek 账号与 API key 都各有一套），差别在这几处：
+原生 DSH 给你平台：账号、桌面窗口、Web shell、工作区、设置、插件加载。CodexyDSH 在这之上给你 **Codex 的干活方式**——同一套工具名与调用顺序、同一套提示词与 skills 写法、同一套审批节奏，并补上 DSH 缺的跨会话记忆与远端主机。
 
-| 维度 | 原生 DSH | CodexyDSH |
+| 你会得到 | 原生 DSH | 为什么值得 |
 | --- | --- | --- |
-| 模型看到的工具 | `bash`、`read`、`write`、`todo_write` | `exec_command`、`apply_patch`、`update_plan`、`view_image`，子 Agent 用 `multi_agent_v1`；声明顺序按 Codex 固定 |
-| 跨会话记忆 | 缺失 | 会记住值得留下的内容，下次自动带进上下文 |
-| 自动审查 | 有实验实现但默认关闭，默认一切问人 | 默认开启：先由模型审一遍，放行或转人工 |
-| 远端主机 | 缺失 | SSH 到远端机器跑同一个 codexy，同窗口使用 |
-| 界面 | 上游 Web 界面 | Codex 风格的对话、轨迹、审批与用量 |
+| Codex 的工具集与顺序 | `bash`、`read`、`write` | 提示词、skills 与 AGENTS.md 不必为改名重写 |
+| 跨会话记忆 | 缺失 | 换会话接着干，项目背景自动带上 |
+| Auto review 默认开启 | 默认关闭 | 常规操作不打断你，也不必整体放开权限 |
+| SSH 远端主机 | 缺失 | 重活丢远端机器跑，本机不用装环境 |
+| Codex 风格界面 | 上游 Web 界面 | 轨迹、审批、用量不用重新学一套 |
 
-界面的形态、工具的名字与调用顺序、模型收到的提示词都会改变，但平台能力不变：你的登录、账号、已选模型与工作区继续有效。移除 profile 里的产品 patch 行即可回到原版组合。
+工具即 `exec_command`、`apply_patch`、`update_plan`、`view_image`，子 Agent 用 `multi_agent_v1`。
+
+平台能力不变：登录、账号、已选模型与工作区继续有效；移除 profile 里的产品 patch 行即可回到原版组合。
 
 ## 使用
 
