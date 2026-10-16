@@ -49,7 +49,7 @@ Remote SSH 使用本机 SSH 配置和凭据。默认自动部署：首次连接�
 | 模型请求录制与离线对拍重放 | 外部包 `dsh-parity`（`link:../dsh-parity`） | 原始 cassette 留存、显式 trace identity/时间比较、独立整轮审计；真实 CLI/评分器结果与合成测试、协议探针范围分开 |
 | 执行、文件系统保护、审批与 Auto review | `processes`、`filesystem`、`filesystem-sandbox`、`files`、`permissions`、`approval`、`exec-policy`、`auto-review` | 真实进程 fixture、经公开策略钩子的自有工具、取消与准入拆除 |
 | V1/V2 子 Agent、结构化输出与续跑 | `delegation`、`delegation-driver`、`fork`、`spawn`、`subagents` | 真实子 Agent、冷续跑、继承 seed、原生捕获与嵌套 PTC 输出 |
-| 计划、目标、任务、终端、文件搜索与 Agent 提醒 | `plans`、`exec` 工具导出、`schedule` | 工具行为、任务生命周期与真实持久化提醒派发/重启 |
+| 计划、目标、任务、终端与文件搜索 | `plans`、`exec` 工具导出 | 工具行为与任务生命周期 |
 | 会话控制、原生模型选择、标题、提示词优化与用量 | `api-session-controller`、`api-session`、`api-prompt`、`api-memory`、`api-usage`、`api-remotes`、`headless` | 真实选择辅助、公开 wire codec、辅助模型调用与产品 headless 入口 |
 | 对话、历史、折叠、轨迹、工具/审批视图与诊断 | `ui-chat`、`ui-conversation`、`ui-trajectory`、`ui-tool`、`ui-approval`、其余 `ui-*` | 渲染/交互套件、公开 profile 设置与命令归属、构建后 ModuleLoader 冒烟 |
 | MCP 配置与按会话连接选择 | `mcp`、`ui-mcp`、`ui-settings` | 真实公开 Settings/Gateway、冻结浏览器字典、真实传输、隔离与恢复 |

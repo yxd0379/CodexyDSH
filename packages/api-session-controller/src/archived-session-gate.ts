@@ -3,8 +3,8 @@
  * Session, or a subagent descendant of one, must not run a model step until
  * it is restored. The work a Session still runs is reported and stopped by
  * its owners — the Agent registry (`turn`), the job registry seam (`job`),
- * the Subagent runtime (`subagent`), and the Schedule plugin (`schedule`) —
- * through the Workspace registry's archive-admission events.
+ * and the Subagent runtime (`subagent`) — through the Workspace registry's
+ * archive-admission events.
  */
 
 import type { Context, Plugin } from '@deepseek-ai/cordis'
