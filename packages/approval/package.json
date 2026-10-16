@@ -24,6 +24,7 @@
   ],
   "license": "MIT",
   "peerDependencies": {
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2 || 0.2.1-alpha.2",
     "@deepseek-ai/dsh-agent": "0.2.0-rc.2 || 0.2.1-alpha.2",
     "@deepseek-ai/dsh-brand": "0.2.0-rc.2 || 0.2.1-alpha.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2 || 0.2.1-alpha.2",
@@ -36,9 +37,11 @@
     "@deepseek-ai/schemastery": "3.18.4 || 3.18.5-alpha.1"
   },
   "dependencies": {
+    "zod": "^4.4.3",
     "@codexydsh/runtime": "workspace:*"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-storage-domain": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-agent": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-brand": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-llm": "0.2.1-alpha.2",

@@ -34,7 +34,7 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionHandle, SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
-import { ReactLoopAgent, type CodexMailboxDeferral, type CodexMailboxPreemption } from './agent.ts'
+import { ReactLoopAgent, type CodexMailboxDeferral } from './agent.ts'
 import { inboxProjectionDefinition } from './inbox.ts'
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 import type { CodexWorldStateInput } from './codex-world-state.ts'
@@ -49,7 +49,6 @@ export { codexWorldStateMessageSource, fullCodexPermissions } from './codex-worl
 export { CODEX_EXPLICIT_MULTI_AGENT_MODE, CODEX_PROACTIVE_MULTI_AGENT_MODE } from './codex-multi-agent-mode.ts'
 export type { RuntimeContextSource } from './runtime-context.ts'
 export type { AdmittedInput, InputAdmission, InputAdmissionPolicy } from './input-admission.ts'
-export type { CodexMailboxPreemption } from './agent.ts'
 export type { CodexMailboxDeferral } from './agent.ts'
 
 // Published Cordis exposes these lifecycle codes through a type-only const enum.
@@ -482,31 +481,6 @@ export class AgentLoop extends Service implements AgentFactory {
     return agent.enableCodexToolConcurrency()
   }
 
-  /**
-   * Opt one owned agent into dispatching completed tool items during streaming.
-   * @param agent - the agent owned by this loop.
-   * @returns a disposer that restores whole-response scheduling for later steps.
-   */
-  enableCodexStreamingTools(agent: Agent): () => void {
-    if (!(agent instanceof ReactLoopAgent)) {
-      throw new Error('agent-loop Codex streaming tools requires an agent owned by this loop')
-    }
-    return agent.enableCodexStreamingTools()
-  }
-
-  /**
-   * Opt one owned agent into ending a response after a completed item when its
-   * application has pending mailbox input to deliver at the next step.
-   * @param agent - the agent owned by this loop.
-   * @param shouldPreempt - item and pending-input policy selected by the application.
-   * @returns a disposer that restores whole-response streaming for later steps.
-   */
-  enableCodexMailboxPreemption(agent: Agent, shouldPreempt: CodexMailboxPreemption): () => void {
-    if (!(agent instanceof ReactLoopAgent)) {
-      throw new Error('agent-loop Codex mailbox preemption requires an agent owned by this loop')
-    }
-    return agent.enableCodexMailboxPreemption(shouldPreempt)
-  }
 
   /**
    * Keep non-waking mailbox input queued after a completed answer for a later waking turn.

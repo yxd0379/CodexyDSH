@@ -1,4 +1,4 @@
-import { appendProductEvent, appendProductRecord, platformHeader, deriveMessageNodes, requestHeaderOf, deriveProductMessages } from '../session.ts'
+import { platformHeader, deriveMessageNodes, requestHeaderOf, rememberRequestHeader, deriveProductMessages } from '../session.ts'
 /**
  * Default Agent driver over queued turns and step-boundary input. Every request
  * is derived from the session log.
@@ -41,7 +41,7 @@ import { ToolNotificationQueue } from './tool-notifications.ts'
 import { DeveloperContextProjection, RuntimeContextProjection } from './runtime-context.ts'
 import { AssistantStreamAttempt } from './assistant-stream.ts'
 import { SystemPromptProjection } from './runtime-context.ts'
-import { CodexStreamingToolCalls, executeToolCalls } from './tool-calls.ts'
+import { executeToolCalls } from './tool-calls.ts'
 import { codexMultiAgentRoleMessage, codexPermissionMessage, codexPermissionRoleMigrations, projectCodexWorldState } from './codex-world-state.ts'
 import type { CodexWorldStateInput, CodexWorldStateUpdates } from './codex-world-state.ts'
 import type { CodexWorldStateProjection } from './world-state-projection.ts'
@@ -65,12 +65,6 @@ type Phase =
 type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }>
 type StepOutcome = { end: StepEndReason | null; assistant: AssistantMessage | undefined }
 
-/** Decide whether a completed response item should yield to pending mailbox input. */
-export type CodexMailboxPreemption = (
-  block: ContentBlock,
-  replayState: ReplayEnvelope | undefined,
-  pending: readonly UserMessage[],
-) => boolean
 
 /** Decide whether pending non-waking mail waits for a later turn after a completed response. */
 export type CodexMailboxDeferral = (
@@ -151,7 +145,6 @@ export class ReactLoopAgent implements Agent {
   /** Whether this loop instance has appended its initial/resume request anchor. */
   private requestHeaderLogged = false
   /** Whether this attachment has guarded Codexful Responses headers for older readers. */
-  private codexfulResponsesFeatureLogged = false
   /** Surface generation at attachment or the preceding built request. */
   private requestSurfaceGeneration: number
   private readonly runtimeContext: RuntimeContextProjection
@@ -171,8 +164,6 @@ export class ReactLoopAgent implements Agent {
   /** Number of scoped registrations that admit all parallel-safe calls in a step. */
   private codexToolConcurrencyOwners = 0
   /** Number of scoped registrations that start completed tool items during a model stream. */
-  private codexStreamingToolOwners = 0
-  private codexMailboxPreemption: CodexMailboxPreemption | undefined
   private codexMailboxDeferral: CodexMailboxDeferral | undefined
   private codexMailboxClassifier: ((message: UserMessage) => boolean) | undefined
   private codexPriorConversationClassifier: ((message: UserMessage) => boolean) | undefined
@@ -403,31 +394,6 @@ export class ReactLoopAgent implements Agent {
     }
   }
 
-  /**
-   * Start completed Codexful tool items while later response items stream.
-   * The disposer restores whole-response scheduling for later steps.
-   * @returns the registration disposer.
-   */
-  enableCodexStreamingTools(): () => void {
-    this.codexStreamingToolOwners++
-    let disposed = false
-    return () => {
-      if (disposed) return
-      disposed = true
-      this.codexStreamingToolOwners--
-    }
-  }
-
-  /** Yield a streaming response at a completed item when an owned policy selects pending mail. */
-  enableCodexMailboxPreemption(shouldPreempt: CodexMailboxPreemption): () => void {
-    if (this.codexMailboxPreemption !== undefined) {
-      throw new Error('Codex mailbox preemption is already installed for this agent')
-    }
-    this.codexMailboxPreemption = shouldPreempt
-    return () => {
-      if (this.codexMailboxPreemption === shouldPreempt) this.codexMailboxPreemption = undefined
-    }
-  }
 
   /** Let a completed response leave only non-waking mail pending for a later turn. */
   enableCodexMailboxDeferral(shouldDefer: CodexMailboxDeferral): () => void {
@@ -976,277 +942,76 @@ export class ReactLoopAgent implements Agent {
       )
       const request = this.buildRequest(config, preparedCall, requestTools, startsRequestSeries, signal,
         (timing) => {
-          live.recordTiming(timing)
-          appendProductRecord(this.session, 'llm/request-timing', { turn, step, timing })
+          this.loopCtx.logger.debug('llm/request-timing %o', { sessionId: this.session.id, turn, step, timing })
         })
-      const eagerTools = this.codexStreamingToolOwners > 0
-        ? new CodexStreamingToolCalls(
-          this.loopCtx, turn, step, signal,
-          context => this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context]),
-          requestBinding,
-        )
-        : undefined
-      const shouldPreemptMailbox = this.codexMailboxPreemption
-      const completedItemIndexes = new Set<number>()
-      const completedToolCallIds = new Set<string>()
-      const observedItemIndexes = new Set<number>()
-      const itemOrder: number[] = []
-      const completedItems = new Map<number, ContentBlock>()
-      const observeItem = (chunk: StreamChunk): void => {
-        if (!('index' in chunk) || observedItemIndexes.has(chunk.index)) return
-        observedItemIndexes.add(chunk.index)
-        itemOrder.push(chunk.index)
-      }
-      const completedContent = () => {
-        const content = [...completedItems.values()].some(block => block.type === 'provider-output')
-          ? itemOrder.flatMap(index => { const block = completedItems.get(index); return block === undefined ? [] : [block] })
-          : [...completedItems.values()]
-        const replayState = live.completedReplayState
-        if (replayState === undefined) return { content, replayState }
-        const blocks = replayState.blocks
-        if (blocks === undefined) return { content, replayState }
-        const firstSeen = itemOrder.filter(index => completedItems.has(index))
-        if (blocks.length !== firstSeen.length) return { content, replayState: undefined }
-        const byIndex = new Map(firstSeen.map((index, position) => [index, blocks[position]]))
-        return {
-          content,
-          replayState: { response: replayState.response, blocks: content.some(block => block.type === 'provider-output')
-            ? firstSeen.map(index => byIndex.get(index)) : [...completedItems.keys()].map(index => byIndex.get(index)) },
-        }
-      }
-      const settleCompletedItems = (interrupted: boolean): void => {
-        const { content, replayState } = completedContent()
-        if (content.length === 0) {
-          live.settle('assistant/attempt', () => this.session.append('assistant/attempt', {
-            turn, step, stream: live.stream, ...live.diagnostics,
-            ...live.attemptReplayState === undefined ? {} : { replayState: live.attemptReplayState },
-          }).seq)
-          return
-        }
-        live.settle('assistant/message', () => this.session.append('assistant/message', {
-          turn,
-          step,
-          message: createAssistantMessage({
-            content,
-            source: {
-              provider: request.provider,
-              model: request.model,
-              ...replayState === undefined ? {} : { replayState },
-            },
-          }),
-          ...interrupted ? { interrupted: true } : {},
-          ...live.usage === undefined ? {} : { usage: live.usage },
-          stream: live.stream, ...live.diagnostics,
-        }, { surfaceOp: 'append' }).seq)
-      }
+      // Follow upstream: settle the model response before starting its tools.
       let started = false
-      let mailboxPreempted = false
       try {
-        const requestSentTime = Date.now()
         const stream = preparedCall?.stream(request) ?? this.loopCtx.codexyRequests.stream(request)
         signal.throwIfAborted()
-        live.start(requestSentTime)
+        live.start()
         started = true
         for await (const chunk of stream) {
           signal.throwIfAborted()
-          observeItem(chunk)
-          if (eagerTools !== undefined && chunk.type === 'block-end'
-            && !completedItemIndexes.has(chunk.index)) {
-            if (chunk.block.type !== 'text' && chunk.block.type !== 'reasoning' && chunk.block.type !== 'tool-call'
-              && chunk.block.type !== 'provider-output') {
-              throw new LlmError(`Codexful does not support streamed ${chunk.block.type} output items`, 'UNSUPPORTED_CONTENT')
-            }
-            if (chunk.block.type === 'tool-call') {
-              if (chunk.block.id.length === 0 || chunk.block.name.length === 0) {
-                throw new LlmError('streamed tool call requires nonempty id and name', 'INVALID_TOOL_CALL')
-              }
-              if (completedToolCallIds.has(chunk.block.id)) {
-                throw new LlmError(`duplicate streamed tool call id: ${chunk.block.id}`, 'INVALID_TOOL_CALL')
-              }
-            }
-            appendProductEvent(this.session, 'assistant/output-item', {
-              turn, step,
-              index: chunk.index,
-              block: chunk.block,
-              provider: request.provider,
-              model: request.model,
-              ...chunk.replayState === undefined ? {} : { replayState: chunk.replayState },
-            })
-            live.push(chunk)
-            completedItemIndexes.add(chunk.index)
-            if (chunk.block.type === 'tool-call') completedToolCallIds.add(chunk.block.id)
-            completedItems.set(chunk.index, chunk.block)
-            if (chunk.block.type === 'tool-call') eagerTools.offer(chunk.block)
-          } else {
-            live.push(chunk)
-            if (eagerTools === undefined && chunk.type === 'block-end' && !completedItemIndexes.has(chunk.index)) {
-              completedItemIndexes.add(chunk.index)
-              completedItems.set(chunk.index, chunk.block)
-              if (chunk.block.type === 'provider-output') appendProductEvent(this.session, 'assistant/output-item', {
-                turn, step, index: chunk.index, block: chunk.block, provider: request.provider, model: request.model,
-                ...chunk.replayState === undefined ? {} : { replayState: chunk.replayState },
-              })
-            }
-          }
-          if (eagerTools !== undefined && chunk.type === 'block-end'
-            && shouldPreemptMailbox?.(chunk.block, chunk.replayState, this.inbox.nextStep) === true) {
-            mailboxPreempted = true
-            break
-          }
+          live.push(chunk)
         }
-        if (mailboxPreempted) live.push({ type: 'finish', reason: { kind: 'stop', endTurn: false } })
         signal.throwIfAborted()
       } catch (error: unknown) {
-        if (!started && eagerTools === undefined) throw error
+        if (!started) throw error
         try {
-          if (eagerTools !== undefined) {
-            if (started) {
-              settleCompletedItems(signal.aborted)
-              await eagerTools.settle()
-            }
-          } else if (live.completedBlocks().some(block => block.type === 'provider-output')) {
-            settleCompletedItems(true)
-          } else if (signal.aborted) {
-            const content = live.interruptedBlocks()
-            if (content.length > 0) {
-              live.settle('assistant/message', () => this.session.append('assistant/message', {
-                turn,
-                step,
-                message: createAssistantMessage({
-                  content,
-                  source: {
-                    provider: request.provider,
-                    model: request.model,
-                    ...live.replayState === undefined ? {} : { replayState: live.replayState },
-                  },
-                }),
-                interrupted: true,
-                ...live.usage === undefined ? {} : { usage: live.usage },
-                stream: live.stream, ...live.diagnostics,
-              }, { surfaceOp: 'append' }).seq)
-            } else {
-              live.settle(
-                'assistant/attempt',
-                () => this.session.append('assistant/attempt', { turn, step, stream: live.stream, ...live.diagnostics,
-                  ...live.attemptReplayState === undefined ? {} : { replayState: live.attemptReplayState } }).seq,
-              )
-            }
+          const content = signal.aborted ? live.interruptedBlocks() : []
+          if (content.length > 0) {
+            live.settle('assistant/message', () => this.session.append('assistant/message', {
+              turn, step,
+              message: createAssistantMessage({
+                content,
+                source: { provider: request.provider, model: request.model,
+                  ...live.replayState === undefined ? {} : { replayState: live.replayState } },
+              }),
+              interrupted: true,
+              ...live.usage === undefined ? {} : { usage: live.usage },
+              stream: live.stream,
+            }, { surfaceOp: 'append' }).seq)
           } else {
-            live.settle(
-              'assistant/attempt',
-              () => this.session.append('assistant/attempt', { turn, step, stream: live.stream, ...live.diagnostics,
-                ...live.attemptReplayState === undefined ? {} : { replayState: live.attemptReplayState } }).seq,
-            )
+            live.settle('assistant/attempt', () => this.session.append('assistant/attempt', {
+              turn, step, stream: live.stream,
+            }).seq)
           }
         } catch (settlementError: unknown) {
-          throw new AggregateError(
-            [error, settlementError],
-            'Assistant stream failed and its durable settlement was rejected',
-            { cause: error },
-          )
-        }
-        if (eagerTools !== undefined && error instanceof LlmError && !signal.aborted) {
-          const action = await this.dispatch.waterfall(
-            'agent/request-error', {
-              turn,
-              step,
-              provider: request.provider,
-              failure: error.failure,
-              retryPolicy: preparedCall?.retryPolicy,
-              signal,
-            },
-            () => Promise.resolve<RequestErrorAction>(undefined),
-          )
-          signal.throwIfAborted()
-          if (action?.kind === 'retry') continue
+          throw new AggregateError([error, settlementError],
+            'Assistant stream failed and its durable settlement was rejected', { cause: error })
         }
         throw error
       }
       try {
         const finish = live.finish
         if (finish.kind === 'error' || finish.kind === 'aborted') {
-          if (eagerTools !== undefined) {
-            settleCompletedItems(live.completedBlocks().some(block => block.type === 'provider-output'))
-            await eagerTools.settle()
-          } else if (live.completedBlocks().some(block => block.type === 'provider-output')) {
-            settleCompletedItems(true)
-          } else {
-            live.settle(
-              'assistant/attempt',
-              () => this.session.append('assistant/attempt', { turn, step, stream: live.stream, ...live.diagnostics,
-                ...live.attemptReplayState === undefined ? {} : { replayState: live.attemptReplayState } }).seq,
-            )
-          }
-          const action = await this.dispatch.waterfall(
-            'agent/request-error', {
-              turn,
-              step,
-              provider: request.provider,
-              failure: finish.failure,
-              retryPolicy: preparedCall?.retryPolicy,
-              signal,
-            },
-            () => Promise.resolve<RequestErrorAction>(undefined),
-          )
+          live.settle('assistant/attempt', () => this.session.append('assistant/attempt', {
+            turn, step, stream: live.stream,
+          }).seq)
+          const action = await this.dispatch.waterfall('agent/request-error', {
+            turn, step, provider: request.provider, failure: finish.failure,
+            retryPolicy: preparedCall?.retryPolicy, signal,
+          }, () => Promise.resolve<RequestErrorAction>(undefined))
           signal.throwIfAborted()
-          if (action?.kind !== 'retry') {
-            throw new LlmError(finish.failure.message, finish.failure.code, finish.failure)
-          }
+          if (action?.kind !== 'retry') throw new LlmError(finish.failure.message, finish.failure.code, finish.failure)
           continue
         }
-
-        const { content, replayState } = eagerTools === undefined
-          ? { content: live.blocks(), replayState: live.replayState }
-          : completedContent()
         const message = createAssistantMessage({
-          content,
-          source: {
-            provider: request.provider,
-            model: request.model,
-            ...replayState !== undefined ? { replayState } : {},
-          },
+          content: live.blocks(),
+          source: { provider: request.provider, model: request.model,
+            ...live.replayState === undefined ? {} : { replayState: live.replayState } },
         })
+        live.settle('assistant/message', () => this.session.append('assistant/message', {
+          turn, step, message, stream: live.stream,
+          ...live.usage === undefined ? {} : { usage: live.usage },
+        }, { surfaceOp: 'append' }).seq)
+        const assistant = message
+        if (finish.kind === 'max-tokens') return { end: { kind: 'max-tokens' }, assistant }
         const toolCalls = message.content.filter(block => block.type === 'tool-call')
-        if (eagerTools !== undefined) {
-          const callIds = new Set<string>()
-          for (const block of toolCalls) {
-            if (callIds.has(block.id)) {
-              settleCompletedItems(false)
-              await eagerTools.settle()
-              throw new LlmError(`duplicate streamed tool call id: ${block.id}`, 'INVALID_TOOL_CALL')
-            }
-            callIds.add(block.id)
-          }
-        }
-        if (eagerTools !== undefined && content.length === 0) {
-          live.settle('assistant/attempt', () => this.session.append('assistant/attempt', {
-            turn, step, stream: live.stream, ...live.diagnostics,
-            ...live.attemptReplayState === undefined ? {} : { replayState: live.attemptReplayState },
-          }).seq)
-        } else {
-          live.settle(
-            'assistant/message',
-            () => this.session.append('assistant/message', {
-              turn,
-              step,
-              message,
-              ...live.usage === undefined ? {} : { usage: live.usage },
-              stream: live.stream, ...live.diagnostics,
-            }, { surfaceOp: 'append' }).seq,
-          )
-        }
-        const assistant = eagerTools !== undefined && content.length === 0 ? undefined : message
-        if (finish.kind === 'max-tokens' && (eagerTools === undefined || eagerTools.count === 0)) {
-          return { end: { kind: 'max-tokens' }, assistant }
-        }
-
         if (toolCalls.length === 0) return {
           end: finish.kind === 'stop' && finish.endTurn === false ? null : { kind: 'completed' },
           assistant,
-        }
-        if (eagerTools !== undefined) {
-          const { concluded } = await eagerTools.settle()
-          return { end: concluded ? { kind: 'completed' } : null, assistant }
         }
         const { concluded } = await executeToolCalls(
           this.loopCtx, turn, step, toolCalls, signal,
@@ -1259,7 +1024,6 @@ export class ReactLoopAgent implements Agent {
         )
         return { end: concluded ? { kind: 'completed' } : null, assistant }
       } catch (error: unknown) {
-        await eagerTools?.drain()
         if (!live.ended) live.abandon()
         throw error
       }
@@ -1348,13 +1112,8 @@ export class ReactLoopAgent implements Agent {
     const baseline = requestHeaderOf(this.session)
     const startsSeries = startsRequestSeries
       || this.requestSurfaceGeneration !== surfaceGeneration
-    if (config.codexfulResponses !== undefined && !this.codexfulResponsesFeatureLogged) {
-      appendProductEvent(session, 'request/feature', { name: 'codexful-responses', version: 1 })
-      this.codexfulResponsesFeatureLogged = true
-    }
     let headerReason: 'initial' | 'resume' | 'change' | 'series' | undefined
     if (!this.requestHeaderLogged) {
-      appendProductEvent(session, 'runtime/feature', { name: 'native-request-header', version: 1 })
       headerReason = baseline === undefined ? 'initial' : 'resume'
       this.requestHeaderLogged = true
     } else if (baseline === undefined || !headerEquals(baseline, header)) {
@@ -1363,9 +1122,10 @@ export class ReactLoopAgent implements Agent {
       headerReason = 'series'
     }
     if (headerReason !== undefined) {
-      const data = { header: platformHeader(header), codexyHeader: header, reason: headerReason,
+      const data = { header: platformHeader(header), reason: headerReason,
         ...headerReason === 'change' && startsSeries ? { startsSeries: true as const } : {} }
       session.append('request/header', data)
+      rememberRequestHeader(session, header)
     }
     this.requestSurfaceGeneration = surfaceGeneration
 

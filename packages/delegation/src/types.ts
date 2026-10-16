@@ -261,6 +261,7 @@ export interface ContinuableCreateRequest {
  * manager owns the child's whole lifecycle after preparation.
  */
 export interface ContinuableCreateSpec {
+  readonly forkCutoffSeq?: number
   /**
    * Balanced prefix of the parent's log to seed the child session with,
    * or absent for a fresh child. Same durable contract as

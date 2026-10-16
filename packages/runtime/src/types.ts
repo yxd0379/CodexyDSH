@@ -192,9 +192,6 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap { 'codexy/fact': { type: string; data: JsonValue } }
-  interface PluginRecordMap {
-    'plugin:codexy/runtime': { type: string; data: JsonValue }
-  }
 }
 /** Durable carrier for native tool outputs on the original user-message surface. */
 export interface ToolNotificationSource {
@@ -202,7 +199,10 @@ export interface ToolNotificationSource {
   notification: SessionEventMap['tool/notification']
 }
 declare module '@deepseek-ai/dsh-llm' {
-  interface MessageSourceMap { 'codexy-tool-notification': ToolNotificationSource }
+  interface MessageSourceMap {
+    'codexy-tool-notification': ToolNotificationSource
+    'codexy-tool-output': { kind: 'codexy-tool-output'; callId: import('@deepseek-ai/dsh-llm').ToolCallId }
+  }
 }
 declare module '@deepseek-ai/dsh-llm' {
   interface ContentBlockMap { 'provider-output': ProviderOutputBlock }

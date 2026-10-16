@@ -12,6 +12,12 @@ export interface CodexV1Identity {
   readonly agentPath?: string
 }
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    'codexy-subagents/identity-changed'(id: SessionId, identity: CodexV1Identity): void
+  }
+}
+
 /** Own-suffix Codex v1 identity with the event position that established it. */
 export type CodexV1IdentityProjection = CodexV1Identity & { readonly seq: SessionSeq }
 

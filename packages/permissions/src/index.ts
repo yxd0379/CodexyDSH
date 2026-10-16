@@ -21,6 +21,7 @@ import z from '@deepseek-ai/schemastery'
 import { z as zod } from 'zod'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { Session, SessionEvent as PlatformSessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { appendProductEvent, projectProductEvent } from '@codexydsh/runtime/session'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import { SANDBOX_MODES, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
@@ -28,7 +29,7 @@ import { SANDBOX_MODES, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 // `sandboxMode` this service reads), without a value dependency on the seam.
 import type {} from '@deepseek-ai/dsh-shell'
 import type { ApprovalPolicy, ApprovalReviewer } from '@codexydsh/approval'
-import { APPROVAL_POLICIES, APPROVAL_REVIEWERS, setApprovalPolicy, setApprovalReviewer } from '@codexydsh/approval'
+import { APPROVAL_POLICIES, APPROVAL_REVIEWERS, setApprovalPolicy } from '@codexydsh/approval'
 // Type-only: resolves the required projection service and optional settings/command children.
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-commands'
@@ -115,11 +116,13 @@ export interface KnobState {
 
 /** Projection state for permission overrides and constructor-seed status. */
 interface PermissionProjectionState extends KnobState {
+  sessionId: string
   /** Whether the log contains a constructor-seed boundary. */
   seeded: boolean
 }
 
 const permissionStateSchema: zod.ZodType<PermissionProjectionState> = zod.object({
+  sessionId: zod.string(),
   preset: zod.string().nullable(),
   sandbox: zod.union([
     zod.literal('read-only'),
@@ -252,11 +255,12 @@ export class PermissionPresetService extends TypertRemoteService {
     }) as zod.ZodType<PermissionSelection>
     ctx.sessionProjections.register({
       key: 'permissions',
-      stateVersion: 3,
+      stateVersion: 4,
       stateSchema: permissionStateSchema,
-      init: () => ({ ...EMPTY_KNOBS, seeded: false }),
+      init: header => ({ ...EMPTY_KNOBS, seeded: false, sessionId: header.id }),
       apply: applyPermissionEvent,
-      wire: { viewSchema: selectionSchema, view: state => ({ currentValue: this.derive(state) }) },
+      wire: { viewSchema: selectionSchema, view: state => ({ currentValue: this.derive({ ...state,
+        reviewer: ctx.codexyApproval.reviewerOf({ id: SessionId(state.sessionId) }) }) }) },
     })
     ctx.on('session/created', (session) => {
       this.pinInitialPermission(session)
@@ -277,7 +281,7 @@ export class PermissionPresetService extends TypertRemoteService {
         // No settlement text labels its value with this command's own name: a
         // surface that renders `name · text` (the web command row) would
         // otherwise read `permission · Permission preset: workspace-write.`
-        handler: ({ agent, rawInput }) => {
+        handler: async ({ agent, rawInput }) => {
           const name = rawInput.trim()
           if (name === '') {
             return { kind: 'success', text: `current preset ${this.current(agent.session)} (available: ${this.names.join(', ')})` }
@@ -285,8 +289,8 @@ export class PermissionPresetService extends TypertRemoteService {
           if (!this.names.includes(name)) {
             return { kind: 'error', text: `unknown preset "${name}" (available: ${this.names.join(', ')})` }
           }
-          this.apply(agent.session, name, (policy) => { this.ctx.codexyApproval.setPolicy(agent, policy) },
-            (reviewer) => { this.ctx.codexyApproval.setReviewer(agent, reviewer) })
+          await this.apply(agent.session, name, (policy) => { this.ctx.codexyApproval.setPolicy(agent, policy) },
+            (reviewer) => this.ctx.codexyApproval.setReviewer(agent, reviewer))
           return { kind: 'success', text: `preset ${name}` }
         },
       })
@@ -360,7 +364,7 @@ export class PermissionPresetService extends TypertRemoteService {
   private permissionState(session: Session): PermissionProjectionState {
     const state = this.ctx.sessionProjections.stateOf(session, 'permissions')
     if (state === undefined) throw new Error('permission: permissions session projection is not registered')
-    return state
+    return { ...state, reviewer: this.ctx.codexyApproval.reviewerOf(session) }
   }
 
   /**
@@ -426,29 +430,30 @@ export class PermissionPresetService extends TypertRemoteService {
    * @param session - the session the switch belongs to.
    * @param name - the preset to switch to; unknown names throw.
    */
-  set(session: Session, name: string): void {
-    this.apply(session, name, (policy) => { setApprovalPolicy(session, policy) }, (reviewer) => { setApprovalReviewer(session, reviewer) })
+  async set(session: Session, name: string): Promise<void> {
+    await this.apply(session, name, (policy) => { setApprovalPolicy(session, policy) },
+      (reviewer) => this.ctx.codexyApproval.setSessionReviewer(session, reviewer))
   }
 
   /** Apply one preset through its durable identity and canonical knob setters. */
-  private apply(session: Session, name: string, setApproval: (policy: ApprovalPolicy) => void,
-    setReviewer: (reviewer: ApprovalReviewer) => void): void {
+  private async apply(session: Session, name: string, setApproval: (policy: ApprovalPolicy) => void,
+    setReviewer: (reviewer: ApprovalReviewer) => Promise<void>): Promise<void> {
     const spec = this.resolve(name)
     if (name === AUTO_PRESET) this.autoAdmit?.()
     if (name === APPROVE_FOR_ME_PRESET) this.reviewerAdmit?.()
     const current = this.current(session)
     const knobs = this.permissionState(session)
-    const updateKnobs = (): void => {
+    const updateKnobs = async (): Promise<void> => {
       if (spec.sandbox !== (knobs.sandbox ?? this.ctx.shell.sandboxMode)) {
         setSandboxMode(session, spec.sandbox)
       }
       if (spec.approval !== (knobs.approval ?? this.ctx.codexyApproval.config.policy ?? 'ask')) {
         setApproval(spec.approval)
       }
-      if ((spec.reviewer ?? 'user') !== (knobs.reviewer ?? this.ctx.codexyApproval.config.reviewer ?? 'user')) setReviewer(spec.reviewer ?? 'user')
+      if ((spec.reviewer ?? 'user') !== (knobs.reviewer ?? this.ctx.codexyApproval.config.reviewer ?? 'user')) await setReviewer(spec.reviewer ?? 'user')
     }
     if (current !== name) appendProductEvent(session, 'permission/preset', { preset: name })
-    updateKnobs()
+    await updateKnobs()
   }
 
   /**

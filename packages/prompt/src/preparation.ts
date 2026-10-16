@@ -16,7 +16,6 @@ export interface CodexfulDeploymentSnapshot {
   readonly strictModelInput: boolean
   readonly wireProfile: Config['wireProfile']
   readonly responseMetadata: Readonly<ResponseMetadataConfig> | undefined
-  readonly streamToolsDuringResponse: boolean
   readonly protectExistingWorkspaceMetadata: boolean
   readonly updatePlan: boolean | undefined
   readonly networkAccess: 'enabled' | 'disabled' | 'unknown'
@@ -56,7 +55,6 @@ export function captureCodexfulDeployment(config: Config): CodexfulDeploymentSna
     strictModelInput: config.strictModelInput === true,
     wireProfile: config.wireProfile,
     responseMetadata: captureResponseMetadataConfig(config.metadata),
-    streamToolsDuringResponse: config.streamToolsDuringResponse === true,
     protectExistingWorkspaceMetadata: config.protectExistingWorkspaceMetadata === true,
     updatePlan: config.updatePlan,
     networkAccess: config.networkAccess ?? 'unknown',

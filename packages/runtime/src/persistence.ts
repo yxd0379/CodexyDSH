@@ -24,10 +24,9 @@ import {
   validateCodexyEvents, validateCodexyBatch,
 } from './persistence-codec.ts'
 import type { CodexyArtifactHeader } from './persistence-codec.ts'
-import { importLegacySessionDirectory } from './v5-import.ts'
 
 /** Session storage directory and bounded lease timing, shared by every writer of the directory. */
-export interface PersistenceConfig { root: string; leaseStaleMs: number; leaseUpdateMs: number; legacyRoots?: string[] }
+export interface PersistenceConfig { root: string; leaseStaleMs: number; leaseUpdateMs: number }
 function errno(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
 }
@@ -74,7 +73,6 @@ interface Lease { lost: boolean; release(): Promise<void> }
 export class CodexySessionPersistence extends SessionPersistence {
   static Config: z<PersistenceConfig> = z.object({
     root: z.string().required(),
-    legacyRoots: z.array(z.string()).default([]),
     leaseStaleMs: z.number().step(1).min(5000).default(30000),
     leaseUpdateMs: z.number().step(1).min(1000).default(10000),
   })
@@ -96,15 +94,6 @@ export class CodexySessionPersistence extends SessionPersistence {
   }
   private async initialize(): Promise<void> {
     await mkdir(this.root, { recursive: true, mode: 0o700 })
-    for (const source of this.config.legacyRoots ?? []) {
-      if (resolve(source) === this.root) throw new TypeError('legacy Session root must differ from the product root')
-      let sourceExists = true
-      try { await stat(source) } catch (error: unknown) {
-        if (!errno(error, 'ENOENT')) throw error
-        sourceExists = false
-      }
-      if (sourceExists) await importLegacySessionDirectory(source, this.root)
-    }
   }
   /** Read an active, unpublished prefix from its sole local writer. */
   async readPending(id: SessionId): Promise<{ metadata: CodexyArtifactHeader; events: SessionEvent[] } | undefined> {
@@ -389,4 +378,3 @@ class ProductSessionHandle implements SessionHandle {
 }
 export default CodexySessionPersistence
 export * from './persistence-codec.ts'
-export * from './v5-import.ts'

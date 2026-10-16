@@ -1,4 +1,4 @@
-import { appendProductEvent, projectProductEvents } from '@codexydsh/runtime/session'
+import { projectProductEvents } from '@codexydsh/runtime/session'
 /**
  * Codex multi_agent_v1 calls over durable, continuable child Sessions.
  * The parent Session's successful tool results record the logical open roster;
@@ -15,7 +15,7 @@ import { SessionId } from '@codexydsh/runtime/session'
 import type { SessionEvent } from '@codexydsh/runtime/session'
 import { defineTool } from '@codexydsh/tool-schema'
 import type { ToolDefinition, ToolSchemaRequest, ValueSchemaSpec } from '@codexydsh/tool-schema'
-import { codexV1IdentityOf, resolveChildAgentOptions } from '@codexydsh/delegation'
+import { resolveChildAgentOptions } from '@codexydsh/delegation'
 import type {} from '@deepseek-ai/dsh-session-query'
 import { codexV1SpawnDescription } from './codex-v1-spawn-description.ts'
 import {
@@ -229,9 +229,8 @@ export function apply(ctx: Context, config: Config): void {
     using observed = await ctx.sessionQuery.observeSession(parent.id, { signal, projectionMode: 'none' })
     const legacy = codexV1NicknamesFromLog(projectProductEvents(observed.events), observed.inheritedEventCount)
     const identities = await Promise.all(children.map(async (child) => {
-      using childObservation = await ctx.sessionQuery.observeSession(child.id, { signal })
-      const identity = childObservation.projections?.values.codexV1Identity
-      if (identity === undefined) throw new Error('Codex v1 nickname recovery requires its child identity projection')
+      signal.throwIfAborted()
+      const identity = ctx.codexySubagents.identityOf(child.id)
       const previous = legacy.get(child.id)
       if (identity !== null && previous !== undefined && identity.nickname !== previous) {
         throw new Error(`Conflicting Codex v1 nickname for child ${JSON.stringify(child.id)}`)
@@ -408,10 +407,10 @@ export function apply(ctx: Context, config: Config): void {
         const child = ctx.agents.get(id)
         if (child === undefined) throw new Error(`agent ${JSON.stringify(args.id)} was not loaded`)
         const pool = nicknames.pool(parent)
-        const identity = codexV1IdentityOf(child.session, ctx.sessionProjections)
+        const identity = ctx.codexySubagents.identityOf(child.session.id)
         if (identity === null) {
           const nickname = pool.snapshot().get(id) ?? pool.reserve(CODEX_V1_NICKNAMES)
-          appendProductEvent(child.session, 'subagent/codex-v1-identity', { nickname })
+          await ctx.codexySubagents.setIdentity(child.session.id, { nickname })
           pool.remember(id, nickname)
         } else pool.remember(id, identity.nickname)
         const current = await status(id, exec.signal)

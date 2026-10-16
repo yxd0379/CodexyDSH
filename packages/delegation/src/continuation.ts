@@ -197,6 +197,7 @@ export class SubagentContinuationManager {
           provider: spec.provider,
           parent,
           create: {
+            ...prepared.forkCutoffSeq === undefined ? {} : { forkCutoffSeq: prepared.forkCutoffSeq },
             seed,
             meta: childSessionMeta(parent, childDepth, prepared.seed !== undefined),
             inheritedEventCount,

@@ -49,8 +49,7 @@
     "@codexydsh/sandbox": "workspace:*",
     "@codexydsh/skill-filesystem": "workspace:*",
     "@codexydsh/token-meter": "workspace:*",
-    "@codexydsh/deepseek-extensions": "workspace:*",
-    "@codexydsh/schedule": "workspace:*"
+    "@codexydsh/deepseek-extensions": "workspace:*"
   },
   "dsh": {
     "bundle": {

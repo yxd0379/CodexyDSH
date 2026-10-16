@@ -3,7 +3,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '../agent-api.ts'
 import type { SessionEventMap } from '../session.ts'
-import { appendProductEvent } from '../session.ts'
 import { createUserMessage } from '../llm.ts'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 
@@ -50,8 +49,12 @@ export class ToolNotificationQueue {
     const accepted = this.pending.length > 0
     while (this.pending.length > 0) {
       const pending = this.pending[0]!
-      appendProductEvent(this.owner.session, 'runtime/feature', { name: 'tool-notification', version: 1 })
-      this.owner.session.append('user/message', createUserMessage({ content: pending.message.content, source: { kind: 'codexy-tool-notification', notification: { turn, ...pending } } }), { surfaceOp: 'append', sourceEventSeqs: [pending.callSeq] })
+      // Additional asynchronous output is a notification, not a second result
+      // for an already-settled tool call. Keep the actual history upstream-readable.
+      this.owner.session.append('user/message', createUserMessage({
+        content: [{ type: 'text', text: `Additional output from tool call ${pending.message.toolCallId}:` }, ...pending.message.content],
+        source: { kind: 'codexy-tool-output', callId: pending.message.toolCallId },
+      }), { surfaceOp: 'append', sourceEventSeqs: [pending.callSeq] })
       this.pending.shift()
     }
     return accepted

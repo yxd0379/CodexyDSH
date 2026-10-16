@@ -133,6 +133,7 @@ export interface MaterializeInputs {
    * so a resume never re-captures the parent's policy.
    */
   create?: {
+    forkCutoffSeq?: number
     seed: readonly SessionEvent[] | undefined
     meta: NonNullable<CreateAgentOptions['meta']>
     /** Exact parent-log prefix length inside {@link seed}. */
@@ -715,15 +716,18 @@ export class ContinuableActivationRegistry {
   ): Promise<Activation> {
     const { childId, provider, parent, create } = inputs
     inputs.signal.throwIfAborted()
-    const setup = (childCtx: Context, child: Agent): void => {
+    const setup = async (childCtx: Context, child: Agent): Promise<void> => {
       // Only fresh creation appends the descriptor and delegated policy after
       // the inherited marker; a cold resume replays those persisted events.
       if (create !== undefined) {
+        if (create.forkCutoffSeq !== undefined) {
+          await childCtx.codexySubagents.setForkCutoff(child.id, create.forkCutoffSeq)
+        }
         appendProductEvent(child.session, 'subagent/descriptor', create.descriptor)
         if (create.codexV1Identity !== undefined) {
-          appendProductEvent(child.session, 'subagent/codex-v1-identity', create.codexV1Identity)
+          await childCtx.codexySubagents.setIdentity(child.session.id, create.codexV1Identity)
         }
-        appendDelegatedPolicyOverrides(child.session, create.delegatedPolicies)
+        await appendDelegatedPolicyOverrides(childCtx, child.session, create.delegatedPolicies)
       }
       applyChildComposition(childCtx, parent, inputs.composition)
     }
@@ -761,8 +765,7 @@ export class ContinuableActivationRegistry {
       announced: false,
       retainUntilClose: inputs.retainUntilClose === true,
       codexV1Notified: false,
-      codexV1Identity: this.ctx.get('sessionProjections')
-        ?.stateOf(handle.agent.session, 'codexV1Identity')?.identity ?? null,
+      codexV1Identity: this.ctx.codexySubagents.identityOf(handle.agent.session.id),
       poke: Promise.withResolvers<void>(),
     }
     this.resident.set(childId, activation)
@@ -773,10 +776,11 @@ export class ContinuableActivationRegistry {
       const wakeOnInboxRemoval = (): void => { this.wake(activation) }
       handle.agent.ctx.on('agent/inbox/claimed', wakeOnInboxRemoval)
       handle.agent.ctx.on('agent/inbox/discarded', wakeOnInboxRemoval)
+      handle.agent.ctx.on('codexy-subagents/identity-changed', (id, identity) => {
+        if (id === handle.agent.session.id) activation.codexV1Identity = identity
+      })
       handle.agent.ctx.on('session/event', (session, rawEvent) => {
         const event = projectProductEvent(rawEvent)
-        if (session === handle.agent.session && event.type === 'subagent/codex-v1-identity'
-          && session.isOwnSeq(event.seq)) activation.codexV1Identity = event.data
         if (session === handle.agent.session && event.type === 'turn/end') {
           this.notifyCodexfulTurn(activation, event)
         }

@@ -6,15 +6,9 @@ import { encodeProductEvents, projectProductEvents, buildForkSeed, foldSurface, 
 import type { Session, SessionEvent, SessionLogOffset as SessionLogOffsetType, SessionSeq as SessionSeqType } from '@codexydsh/runtime/session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
-declare module '@codexydsh/runtime/types' {
-  interface SessionEventMap {
-    /** Parent-history selection retained for the child's first model request. */
-    'subagent/fork-window': { lastNTurns: number; cutoffSeq: SessionSeqType }
-  }
-}
-
 /** Balanced child seed and the exact cut between copied and fork-owned events. */
 export interface CodexfulForkSeed {
+  readonly forkCutoffSeq?: number
   readonly seed: readonly SessionEvent[]
   readonly inheritedEventCount: SessionLogOffsetType
 }
@@ -78,6 +72,7 @@ export function codexfulForkSeed(parent: Agent, lastNTurns?: number): CodexfulFo
   const finals = finalAssistantSeqs(events)
   const seed = projectProductEvents(buildForkSeed(encodeProductEvents(events), last.seq)).map(event =>
     event.type === 'assistant/message' && finals.has(event.seq) ? withoutReasoning(event) : event)
+  let forkCutoffSeq: number | undefined
   if (lastNTurns !== undefined) {
     const active = new Set(parent.session.surface.nodes)
     const boundaries: SessionSeqType[] = []
@@ -92,13 +87,10 @@ export function codexfulForkSeed(parent: Agent, lastNTurns?: number): CodexfulFo
         instructionInTurn = true
       }
     }
-    const cutoffSeq = boundaries[Math.max(0, boundaries.length - lastNTurns)] ?? SessionSeq(events.length)
-    seed.push({
-      type: 'subagent/fork-window', seq: SessionSeq(seed.length), time: last.time,
-      data: { lastNTurns, cutoffSeq },
-    })
+    forkCutoffSeq = boundaries[Math.max(0, boundaries.length - lastNTurns)] ?? events.length
   }
-  return { seed, inheritedEventCount: SessionLogOffset(events.length) }
+  return { seed, inheritedEventCount: SessionLogOffset(events.length),
+    ...forkCutoffSeq === undefined ? {} : { forkCutoffSeq } }
 }
 
 /** Hide inherited model items that Codex does not carry into a fork request. */
@@ -122,22 +114,13 @@ function excludeInherited(event: SessionEvent, finals: ReadonlySet<SessionSeqTyp
  */
 export function scrubCodexfulForkHistory(
   session: Session, turn: number, step: number, descriptorSeq: SessionSeqType,
+  forkCutoffSeq?: number,
 ): void {
   if (session.inheritedEventCount === 0) return
   // oxlint-disable-next-line typescript/no-deprecated -- Read the immutable inherited prefix once for final-answer classification.
   const inherited = productSnapshot(session, SessionLogOffset(0), session.inheritedEventCount)
   const finals = finalAssistantSeqs(inherited)
-  // oxlint-disable-next-line typescript/no-deprecated -- The selection is a fork-owned log event before the descriptor.
-  const windows = productSnapshot(session, session.inheritedEventCount, SessionLogOffset(descriptorSeq))
-    .filter(event => event.type === 'subagent/fork-window')
-  if (windows.length > 1) throw new Error('fork history contains multiple selection events')
-  const window = windows[0]
-  const cutoffSeq = window?.data.cutoffSeq
-  if (window !== undefined && (!Number.isSafeInteger(window.data.lastNTurns)
-    || window.data.lastNTurns <= 0 || !Number.isSafeInteger(cutoffSeq)
-    || Number(cutoffSeq) < 0 || Number(cutoffSeq) > Number(session.inheritedEventCount))) {
-    throw new Error('fork history selection event is invalid')
-  }
+  const cutoffSeq = forkCutoffSeq === undefined ? undefined : SessionSeq(forkCutoffSeq)
   const inheritedNodes = foldSurface(encodeProductEvents(inherited)).nodes
   const cutoffIndex = cutoffSeq === undefined ? -1 : inheritedNodes.indexOf(cutoffSeq)
   if (cutoffSeq !== undefined && Number(cutoffSeq) !== Number(session.inheritedEventCount) && cutoffIndex < 0) {

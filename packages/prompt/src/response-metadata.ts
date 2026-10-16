@@ -4,7 +4,7 @@ import { isAbsolute } from 'node:path'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { encodeCodexClientMetadata, isCodexWorkspacesMetadata } from '@codexydsh/runtime/llm'
 import type { CodexClientMetadata, CodexWorkspacesMetadata } from '@codexydsh/runtime/llm'
-import { appendProductEvent, snapshotProductEvents } from '@codexydsh/runtime/session'
+import { snapshotProductEvents } from '@codexydsh/runtime/session'
 import type { Session } from '@codexydsh/runtime/session'
 
 /** Model restrictions chosen by the operator, not assertions that a Node tool is mounted. */
@@ -129,39 +129,16 @@ export class ResponseWorkspaceEnrichment {
     const controller = new AbortController()
     const state: WorkspaceEnrichment = { turnId, controller, workspaces: undefined }
     this.turns.set(session, state)
-    const fact = events.findLast(event => event.type === 'codexful/workspace-enrichment'
-      && event.data.turnStartSeq === start.seq)
-    const header = events.findLast(event => event.type === 'request/header')
-    const canonical = canonicalMetadata(header?.type === 'request/header'
-      ? header.data.header.config.codexfulResponses?.clientMetadata : undefined)
-    const retained = canonical?.['turn_id'] === turnId && isCodexWorkspacesMetadata(canonical['workspaces'])
-      ? canonical['workspaces'] : undefined
-    const ready = fact?.type === 'codexful/workspace-enrichment' && fact.data.phase === 'ready'
-    if (retained !== undefined || ready) {
-      const workspaces = retained ?? (fact?.type === 'codexful/workspace-enrichment' ? fact.data.workspaces : undefined)
-      state.workspaces = workspaces === undefined ? undefined : Object.freeze(Object.fromEntries(
-        Object.entries(workspaces).map(([directory, facts]) => [directory, Object.freeze({ ...facts })])))
-      return
-    }
-    const directory = fact?.type === 'codexful/workspace-enrichment' ? fact.data.cwd : cwd
-    if (fact === undefined) appendProductEvent(session, 'codexful/workspace-enrichment', {
-      turnStartSeq: start.seq, cwd: directory, phase: 'pending',
-    })
     this.pending.add(controller)
     const combinedSignal = signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal])
-    void probeResponseWorkspaces(this.subprocess, directory, combinedSignal).then(workspaces => {
+    void probeResponseWorkspaces(this.subprocess, cwd, combinedSignal).then(workspaces => {
       const active = snapshotProductEvents(session).findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
       if (!combinedSignal.aborted && !this.disposed && active?.type === 'turn/start' && active.seq === start.seq) {
-        appendProductEvent(session, 'codexful/workspace-enrichment', {
-          turnStartSeq: start.seq, cwd: directory, phase: 'ready',
-          ...workspaces === undefined ? {} : { workspaces },
-        })
         state.workspaces = workspaces
       }
     }, () => {
       // Failed or cancelled optional enrichment adds no invented Git facts.
     }).catch(error => {
-      // A failed required fact commit must surface before these facts enter a request.
       state.failure = { error }
     }).finally(() => { this.pending.delete(controller) })
   }

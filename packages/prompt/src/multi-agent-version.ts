@@ -1,17 +1,15 @@
-/** Durable Codexful delegation version shared by model requests and child Sessions. */
+/** Plugin-owned delegation version shared by model requests and child sessions. */
 
 import { z } from 'zod'
-import { appendProductEvent, projectProductEvent, type Session } from '@codexydsh/runtime/session'
-import type SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
+import type { Session } from '@deepseek-ai/dsh-session'
+import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
+import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { CodexfulMultiAgentVersion } from './prompts.ts'
 
 declare module '@codexydsh/runtime/types' {
   interface SessionEventMap {
     /**
-     * Records the Session's selected delegation version before it determines
-     * model-visible tools. Child Sessions inherit the version; model changes
-     * and compaction preserve it. Log-only, with no surface operation.
+     * Legacy migration vocabulary. New selections use the prompt domain.
      */
     'codexful/multi-agent-version': {
       /** Selected Codex delegation interface. */
@@ -20,55 +18,37 @@ declare module '@codexydsh/runtime/types' {
   }
 }
 
-declare module '@deepseek-ai/dsh-session-projection/types' {
-  interface SessionProjectionStateMap {
-    /** Selected delegation version, or null before the first selection. */
-    codexfulMultiAgentVersion: CodexfulMultiAgentVersion | null
-  }
-}
-
 const versionSchema = z.enum(['v1', 'v2'])
-
-/** Host-only projection of the latest explicit Session delegation selection. */
-export const codexfulMultiAgentVersionProjection = {
-  key: 'codexfulMultiAgentVersion',
-  stateVersion: 1,
-  stateSchema: versionSchema.nullable(),
-  init: () => null,
-  apply: (state, rawEvent) => {
-    const event = projectProductEvent(rawEvent)
-    return event.type === 'codexful/multi-agent-version'
-      ? versionSchema.parse(event.data.version) : state
-  },
-} satisfies ProjectionDefinition<'codexfulMultiAgentVersion', CodexfulMultiAgentVersion | null>
+/** Plugin state, not an extension of the conversation format. */
+export const promptDomain = defineDomain({
+  name: 'codexy_prompt', version: 1,
+  tables: { delegation: domainTable(z.object({ version: versionSchema })) },
+})
+type Selections = KvTable<string, { version: CodexfulMultiAgentVersion }>
 
 /**
- * Read the selected delegation version from the required Session projection.
- * @param projections - registry owning the version projection.
+ * Read the selected delegation version from plugin storage.
+ * @param selections - plugin-owned delegation table.
  * @param session - Session whose selection is read.
  * @returns the selected version, or null before selection.
  */
 export function codexfulMultiAgentVersion(
-  projections: Pick<SessionProjectionRegistry, 'stateOf'>,
+  selections: Selections,
   session: Session,
 ): CodexfulMultiAgentVersion | null {
-  const version = projections.stateOf(session, 'codexfulMultiAgentVersion')
-  if (version === undefined) throw new Error('Codexful delegation requires its Session version projection')
-  return version
+  return selections.get(session.id)?.version ?? null
 }
 
 /**
  * Record a delegation selection before its tool family reaches a model request.
- * @param projections - registry owning the version projection.
+ * @param selections - plugin-owned delegation table.
  * @param session - Session receiving the selection.
  * @param version - model-selected, inherited, or explicitly configured version.
  */
-export function recordCodexfulMultiAgentVersion(
-  projections: Pick<SessionProjectionRegistry, 'stateOf'>,
+export async function recordCodexfulMultiAgentVersion(
+  selections: Selections,
   session: Session,
   version: CodexfulMultiAgentVersion,
-): void {
-  if (codexfulMultiAgentVersion(projections, session) !== version) {
-    appendProductEvent(session, 'codexful/multi-agent-version', { version })
-  }
+): Promise<void> {
+  if (codexfulMultiAgentVersion(selections, session) !== version) await selections.put(session.id, { version })
 }

@@ -24,6 +24,7 @@
   ],
   "license": "MIT AND Apache-2.0",
   "peerDependencies": {
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2 || 0.2.1-alpha.2",
     "@deepseek-ai/cordis": "4.0.4 || 4.0.5-alpha.1",
     "@codexydsh/runtime": "workspace:*",
     "@deepseek-ai/dsh-compaction": "0.2.0-rc.2 || 0.2.1-alpha.2",
@@ -51,6 +52,7 @@
     "@codexydsh/prompt-registry": "workspace:*"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-storage-domain": "0.2.1-alpha.2",
     "@deepseek-ai/cordis": "4.0.5-alpha.1",
     "@deepseek-ai/dsh-agent": "0.2.1-alpha.2",
     "@codexydsh/runtime": "workspace:*",

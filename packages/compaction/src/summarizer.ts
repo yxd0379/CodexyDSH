@@ -1,4 +1,4 @@
-import { appendProductEvent, requestHeaderOf } from '@codexydsh/runtime/session'
+import { requestHeaderOf } from '@codexydsh/runtime/session'
 import type { CompactionRequestFailure, CompactionRequestSource, PreparedCompactionModelInput, SessionEventMap } from '@codexydsh/runtime/types'
 /**
  * Default summarization and durable checkpoint framing.
@@ -226,14 +226,11 @@ export async function summarizeWithLlm(
   let attempt = 0
   const identity = () => ({ version: 1 as const, invocationId, requestId: randomUUID(),
     attempt: attempt + 1, omittedInputMessages, source })
-  const checkpoint = async () => {
-    if (!await ctx.sessions.flush(agent.session)) throw new Error('compaction durability checkpoint has no persistence listener')
-  }
   const preparationError = async (error: unknown, stage: 'model' | 'call') => {
-    appendProductEvent(agent.session, 'compaction/preparation-error', {
+    ctx.logger.debug('compaction/preparation-error %o', {
+      sessionId: agent.session.id,
       ...identity(), dispatchInvoked: false, stage, proposedInput: modelInputSnapshot(options), failure: requestFailure(error),
     })
-    await checkpoint()
   }
   let preparedModel: PreparedLlmModel
   try {
@@ -281,10 +278,7 @@ export async function summarizeWithLlm(
     const retryPolicy = config.checkpointFormat === 'codex' ? preparedCall.retryPolicy : undefined
     const request = identity()
     attempt += 1
-    appendProductEvent(agent.session, 'compaction/request', { ...request, preparedInput })
-    // Dispatch only the detached sealed input we checkpointed. Cancellation
-    // during the durability wait leaves a pending/unknown fact, not a result.
-    await checkpoint()
+    ctx.logger.debug('compaction/request %o', { sessionId: agent.session.id, ...request, preparedInput })
     signal?.throwIfAborted()
     options = deepFreeze<GenerateOptions>({ ...preparedInput, ...signal === undefined ? {} : { signal } })
     let streamFailure: unknown
@@ -338,10 +332,7 @@ export async function summarizeWithLlm(
       ...completedReplayState === undefined ? {} : { completedReplayState },
       ...assembler.attemptReplayState === undefined ? {} : { attemptReplayState: assembler.attemptReplayState },
     }
-    // Persistence failure is not a provider failure and must never enter the
-    // existing model retry policy or cause another dispatch.
-    appendProductEvent(agent.session, 'compaction/request-result', result)
-    await checkpoint()
+    ctx.logger.debug('compaction/request-result %o', { sessionId: agent.session.id, ...result })
     if (!failed && projectionFailed) throw projectionError
     if (!failed) { completedFinish = finish; break }
     {

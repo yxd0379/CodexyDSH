@@ -277,10 +277,11 @@ export function captureDelegatedPolicyOverrides(
  * @param childSession - the unpublished child's session.
  * @param overrides - the policy captured at delegation.
  */
-export function appendDelegatedPolicyOverrides(
+export async function appendDelegatedPolicyOverrides(
+  ctx: Context,
   childSession: Session,
   overrides: DelegatedPolicyOverrides,
-): void {
+): Promise<void> {
   if (overrides.sandboxMode !== undefined) {
     childSession.append('sandbox/mode', { mode: overrides.sandboxMode, source: 'delegation' })
   }
@@ -288,7 +289,7 @@ export function appendDelegatedPolicyOverrides(
     appendProductEvent(childSession, 'approval/policy', { policy: overrides.approvalPolicy, source: 'delegation' })
   }
   if (overrides.approvalReviewer !== undefined) {
-    appendProductEvent(childSession, 'approval/reviewer', { reviewer: overrides.approvalReviewer, source: 'delegation' })
+    await ctx.codexyApproval.setSessionReviewer(childSession, overrides.approvalReviewer)
   }
   if (overrides.permissionPreset !== undefined) {
     appendProductEvent(childSession, 'permission/preset', { preset: overrides.permissionPreset })

@@ -3,8 +3,6 @@
   disabled: true
 - id: tools
   disabled: true
-- id: session-persistence-jsonl
-  disabled: true
 - id: llm-pi-ai
   disabled: true
 - id: llm-deepseek
@@ -86,8 +84,6 @@
 - id: tool-result-pruner
   disabled: true
 - insert:
-    - id: codexy-schedule
-      name: '@codexydsh/schedule'
     - id: codexy-prompt-registry
       name: '@codexydsh/prompt-registry'
     - id: codexy-requests
@@ -105,7 +101,6 @@
     - id: codexy-prompt
       name: '@codexydsh/prompt'
       config:
-        streamToolsDuringResponse: true
         protectExistingWorkspaceMetadata: true
         maxProviderRetryAfterMs: 300000
         additionalRetryableCodes:
@@ -142,10 +137,6 @@
       name: '@codexydsh/bridges/tools'
       config:
         mode: native
-    - id: codexy-session-persistence-jsonl
-      name: '@codexydsh/runtime/persistence'
-      config:
-        root: !!js dshHomePath('sessions/codexy')
     - id: codexy-llm-pi-ai
       name: '@codexydsh/models'
     - id: codexy-deepseek-extensions

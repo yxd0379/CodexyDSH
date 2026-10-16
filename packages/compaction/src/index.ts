@@ -153,7 +153,7 @@ const modelPolicy: z<ModelCompactPolicyConfig> = z.object({
  * token meter.
  */
 export class BasicCompactionEngine extends CompactionEngine {
-  static inject = ['llm', 'codexyTokenMeter', 'sessions']
+  static inject = ['llm', 'codexyTokenMeter', 'sessions', 'codexyRequests']
 
   static Config: z<BasicCompactionConfig> = z.object({
     checkpointFormat: z.union([z.const('dsh'), z.const('codex')]),

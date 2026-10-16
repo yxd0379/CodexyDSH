@@ -721,7 +721,7 @@ export function apply(ctx: Context, config: Config): void {
       try {
         for (const session of ctx.sessions.list()) {
           if (permissionPresets.current(session) !== AUTO_PRESET) continue
-          permissionPresets.set(session, 'danger-full-access')
+          await permissionPresets.set(session, 'danger-full-access')
         }
       } finally {
         lifecycle.abort(new Error('auto-review integration disposed'))

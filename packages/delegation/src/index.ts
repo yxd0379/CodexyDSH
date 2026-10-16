@@ -30,7 +30,10 @@
  */
 import type { Volatile } from '@deepseek-ai/cordis'
 
-import { Context } from '@deepseek-ai/cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
+import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
+import { delegationDomain } from './storage.ts'
+import type { CodexV1Identity } from './projection-types.ts'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
@@ -76,7 +79,6 @@ import type { SubagentDescendantListEntry } from './list-children.ts'
 import { installSubagentArchiveAdmission } from './archive-admission.ts'
 import { snapshotSubagentDescriptor } from './descriptor.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
-import { codexV1IdentityProjectionDefinition } from './codex-v1-identity.ts'
 import { establishCatalogChild, subagentCatalogProjectionDefinition } from './catalog.ts'
 import type { SubagentCatalogEntry } from './projection-types.ts'
 import { deliverSubagentPrompt } from './internal.ts'
@@ -201,6 +203,33 @@ export interface Config {
 
 /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
 export class SubagentRuntime extends TypertRemoteService {
+  static inject = ['storageDomain']
+  private identities!: KvTable<string, CodexV1Identity>
+  private forkWindows!: KvTable<string, { cutoffSeq: number }>
+
+  protected async [Service.init](): Promise<void> {
+    const domain = await this.ctx.storageDomain.open(delegationDomain)
+    this.ctx.effect(() => () => domain.close(), 'delegation.domainClose')
+    this.identities = domain.table('identities')
+    this.forkWindows = domain.table('fork_windows')
+  }
+
+  forkCutoffOf(id: SessionId): number | undefined {
+    return this.forkWindows.get(id)?.cutoffSeq
+  }
+
+  async setForkCutoff(id: SessionId, cutoffSeq: number): Promise<void> {
+    await this.forkWindows.put(id, { cutoffSeq })
+  }
+
+  identityOf(id: SessionId): CodexV1Identity | null {
+    return this.identities.get(id) ?? null
+  }
+
+  async setIdentity(id: SessionId, identity: CodexV1Identity): Promise<void> {
+    await this.identities.put(id, identity)
+    this.ctx.emit('codexy-subagents/identity-changed', id, identity)
+  }
   static Config = z.object({
     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1).volatile(),
     maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8).volatile(),
@@ -233,7 +262,6 @@ export class SubagentRuntime extends TypertRemoteService {
       projections.register(subagentCatalogProjectionDefinition)
       projections.register(subagentTimingProjectionDefinition)
       projections.register(subagentIdentityProjectionDefinition)
-      projections.register(codexV1IdentityProjectionDefinition)
     })
     // Archive admission: this runtime is the owner that knows which live
     // children descend from a Session and how a parent stops them.

@@ -20,30 +20,11 @@ export class AssistantStreamAttempt {
   private readonly assembler = new BlockAssembler()
   private index = 0
   private terminal = false
-  /** Epoch ms the provider call was dispatched; absent until {@link start}. */
-  private dispatchTime: number | undefined
-  private readonly timings: NonNullable<SessionEventMap['assistant/attempt']['requestTimings']> = []
   /** Attempt identity unique within this Agent lifecycle. */
   readonly attemptId: LlmAttemptId
 
   /** Whether this started attempt has emitted its terminal frame. */
   get ended(): boolean { return this.terminal }
-
-  /** Dispatch time of the provider call, or undefined when the attempt never started one. */
-  get requestSentTime(): number | undefined { return this.dispatchTime }
-
-  /** Persisted timing fields shared by every successful, failed, and cancelled settlement. */
-  get diagnostics(): Pick<SessionEventMap['assistant/attempt'], 'requestSentTime' | 'requestTimings'> {
-    return {
-      ...this.dispatchTime === undefined ? {} : { requestSentTime: this.dispatchTime },
-      ...this.timings.length === 0 ? {} : { requestTimings: this.timings.map(timing => ({ ...timing })) },
-    }
-  }
-
-  /** Retain one adapter-owned transport milestone without creating model content. */
-  recordTiming(timing: NonNullable<SessionEventMap['assistant/attempt']['requestTimings']>[number]): void {
-    this.timings.push({ ...timing })
-  }
 
   /**
    * @param sessionId - identity embedded only in the Agent-lifecycle-local attempt id.
@@ -66,10 +47,8 @@ export class AssistantStreamAttempt {
 
   /**
    * Publish the opening marker before the first delivered chunk.
-   * @param requestSentTime - epoch ms taken immediately before the provider call was dispatched.
    */
-  start(requestSentTime: number): void {
-    this.dispatchTime = requestSentTime
+  start(): void {
     this.emit({
       type: 'start',
       attemptId: this.attemptId,

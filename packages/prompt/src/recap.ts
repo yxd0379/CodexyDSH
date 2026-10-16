@@ -1,5 +1,5 @@
 import { deriveProductMessages } from '@codexydsh/runtime/session'
-import { deriveMessageNodes, appendProductEvent } from '@codexydsh/runtime/session'
+import { deriveMessageNodes } from '@codexydsh/runtime/session'
 import { requestHeaderOf } from '@codexydsh/runtime/session'
 /** Independent task recap command; auxiliary requests never alter the conversation surface. */
 
@@ -153,8 +153,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         { role: 'user', content: [{ type: 'text', text: RECAP_CONTEXT_INSTRUCTION }] }]
       const options: GenerateOptions = { ...prepared.config, messages, tools: [], sessionId: session.id, signal: duration.signal }
       duration.signal.throwIfAborted()
-      appendProductEvent(session, 'recap/request', { commandId, sourceEventSeqs: history.map(node => node.seq),
-        sourceThroughSeq, config: prepared.config, messages, tools: [] })
+      ctx.logger.debug('recap/request %o', { commandId, sourceThroughSeq })
       dispatched = true
       const assembler = new BlockAssembler()
       let terminal = false
@@ -173,14 +172,14 @@ export function apply(ctx: Context, config: Config = {}): void {
       const output = blocks.filter(block => block.type === 'text').map(block => block.text).join('')
       const parsed = resultSchema.parse(JSON.parse(output))
       duration.signal.throwIfAborted()
-      const result = appendProductEvent(session, 'recap/result', { commandId, outcome: 'completed', summary: parsed.summary, nextAction: parsed.next_action })
-      return { kind: 'success', text: parsed.summary + (parsed.next_action === null ? '' : '\n\n' + parsed.next_action), sourceEventSeq: result.seq }
+      // Commands persist this result through native command/done.
+      return { kind: 'success', text: parsed.summary + (parsed.next_action === null ? '' : '\n\n' + parsed.next_action) }
     } catch (error: unknown) {
       const reason: unknown = duration.signal.reason
       const outcome = reason instanceof StaleRecap ? 'stale'
         : duration.signal.aborted && timeoutOf(duration.signal, 'RECAP_TIMEOUT') === undefined ? 'cancelled' : 'failed'
       const text = errorText(duration.signal.aborted ? reason : error)
-      if (dispatched) appendProductEvent(session, 'recap/result', { commandId, outcome, error: text })
+      if (dispatched) ctx.logger.debug('recap/result %o', { commandId, outcome, error: text })
       return { kind: 'error', text }
     }
   }

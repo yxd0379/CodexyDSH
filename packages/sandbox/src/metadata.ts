@@ -1,4 +1,4 @@
-/** Existing workspace metadata paths protected by the local bwrap profile. @module @deepseek-ai/dsh-sandbox-local/metadata */
+/** Existing workspace metadata paths protected by local sandbox runner profiles. @module @codexydsh/sandbox/metadata */
 
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -7,7 +7,7 @@ import { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
 const METADATA_NAMES = ['.git', '.agents', '.codex', '.aws'] as const
 
 /**
- * Find existing metadata paths that the bwrap writable-root bind must remount read-only.
+ * Find existing metadata paths that the local workspace-write profile must protect.
  * @param workspaceRoot - canonical workspace root for one confined command.
  * @returns existing metadata paths, including a worktree gitdir inside the workspace.
  */
@@ -56,4 +56,16 @@ export function existingMetadataReadOnlyPaths(workspaceRoot: string): string[] {
     paths.push(resolved)
   }
   return [...new Set(paths)]
+}
+
+/**
+ * Return every top-level metadata authority that a Seatbelt profile must deny,
+ * including names that do not exist yet. Seatbelt can deny first-time creation;
+ * bwrap cannot express that without changing the filesystem shape, so its
+ * caller deliberately uses only {@link existingMetadataReadOnlyPaths}.
+ * @param workspaceRoot - canonical workspace root for one confined command.
+ * @param existingPaths - already inspected paths, including a safe worktree gitdir.
+ */
+export function seatbeltMetadataProtectedPaths(workspaceRoot: string, existingPaths: readonly string[]): string[] {
+  return [...new Set([...METADATA_NAMES.map(name => join(workspaceRoot, name)), ...existingPaths])]
 }

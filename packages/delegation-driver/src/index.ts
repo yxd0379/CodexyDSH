@@ -70,6 +70,7 @@ function toStopReason(reason: TurnEndReason | undefined): SubagentStopReason {
 
 /** Extra inputs the spawn and fork providers supply to the shared driver. */
 export interface InProcessRunOptions {
+  readonly forkCutoffSeq?: number
   /** Balanced parent-history seed for fork, or undefined for a fresh spawn. */
   readonly seed?: readonly SessionEvent[]
   /** Copied parent-event count when the seed also contains fork-owned closers. */
@@ -123,8 +124,11 @@ export async function startInProcessRun(
   const inherited = captureDelegatedPolicyOverrides(parent, request.delegatedApprovalPolicy)
 
   let structured: StructuredAttachment | undefined
-  const setup = (childCtx: Context, child: Agent): void => {
-    appendDelegatedPolicyOverrides(child.session, inherited)
+  const setup = async (childCtx: Context, child: Agent): Promise<void> => {
+    if (options.forkCutoffSeq !== undefined) {
+      await childCtx.codexySubagents.setForkCutoff(child.id, options.forkCutoffSeq)
+    }
+    await appendDelegatedPolicyOverrides(childCtx, child.session, inherited)
     applyChildComposition(childCtx, parent, {
       persona: request.persona,
       toolFilter: request.toolFilter,

@@ -7,7 +7,7 @@ import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
 import type {} from '@deepseek-ai/dsh-commands'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import { SessionSeq, type Session } from '@deepseek-ai/dsh-session'
-import { appendProductEvent, projectProductEvent, snapshotProductEvents } from '@codexydsh/runtime/session'
+import { projectProductEvent, snapshotProductEvents } from '@codexydsh/runtime/session'
 import type { ApprovalAssessment, ApprovalAnswer, ApprovalOutcome } from '@codexydsh/approval'
 import type { ApprovalRequestEvent } from '@codexydsh/approval/types'
 import { CODEXFUL_REVIEW_POLICY } from './codexful-policy.ts'
@@ -383,16 +383,16 @@ export function installCodexfulReview(ctx: Context, config: CodexfulReviewConfig
         if (id === '') return { kind: 'error', text: 'Specify the denied automatic review id.' }
         // oxlint-disable-next-line typescript/no-deprecated -- The command binds explicit authorization to the durable denied action.
         const events = snapshotProductEvents(agent.session)
-        const review = events.findLast(event => event.type === 'approval/review' && event.data.id === id && event.data.status !== 'started' && event.data.status !== 'inspecting')
-        if (review?.type !== 'approval/review' || (review.data.status !== 'denied' && review.data.status !== 'failed')) return { kind: 'error', text: 'The review id does not identify a denied or failed assessment in this Session.' }
-        const asked = events.findLast(event => event.type === 'approval/asked' && event.data.id === review.data.id)
+        const review = ctx.codexyApproval.reviewOf(agent.session, id)
+        if (review === undefined || (review.status !== 'denied' && review.status !== 'failed')) return { kind: 'error', text: 'The review id does not identify a denied or failed assessment in this Session.' }
+        const asked = events.findLast(event => event.type === 'approval/asked' && event.data.id === review.id)
         if (asked?.type !== 'approval/asked' || asked.data.callId === undefined) return { kind: 'error', text: 'The denied action has no exact tool call to authorize.' }
         const call = events.findLast(event => event.type === 'tool/call' && event.seq < asked.seq && event.data.callId === asked.data.callId && event.data.name === asked.data.toolName)
         if (call?.type !== 'tool/call') return { kind: 'error', text: 'The denied action cannot be reconstructed from this Session.' }
         const approved = { action: { tool: call.data.name, arguments: call.data.arguments, cwd: agent.session.header.cwd }, outcome: 'allowed' }
         const authorization = createUserMessage({
           content: [{ type: 'text', text: `${APPROVAL_PREFIX}\n\nTreat this as approval to perform that exact action in the same context in which it was originally requested.\nDo not assume this also authorizes similar operations with different payloads.\n\nApproved action:\n${JSON.stringify(approved, null, 2)}` }],
-          source: { kind: 'codexy-user-approval', approvedActionId: review.data.id },
+          source: { kind: 'codexy-user-approval', approvedActionId: asked.data.id },
         })
         if (agent.status === 'idle') agent.steer(authorization)
         else agent.inject(authorization)
@@ -428,7 +428,7 @@ export function installCodexfulReview(ctx: Context, config: CodexfulReviewConfig
           if (requestTokens(captured.system, captured.messages, captured.tools) > config.inputTokenBudget) {
             throw new ReviewInputBudgetError('the complete private review request exceeds the reviewer input budget')
           }
-          appendProductEvent(session, 'approval/review', { id, status: 'started', round, input: captured })
+          await ctx.codexyApproval.recordReview(session, { id, status: 'started', round, input: captured })
           const options: GenerateOptions = {
             provider: captured.provider, model: captured.model, system: captured.system,
             messages: captured.messages, ...captured.tools === undefined ? {} : { tools: captured.tools },
@@ -443,7 +443,7 @@ export function installCodexfulReview(ctx: Context, config: CodexfulReviewConfig
             const final = blocks.at(-1)
             if (final?.type !== 'text' || blocks.slice(0, -1).some(block => block.type !== 'reasoning')) throw new Error('automatic reviewer must return one final text assessment')
             const assessment = assessmentOf(final.text)
-            appendProductEvent(session, 'approval/review', { id, status: assessment.outcome === 'allow' ? 'approved' : 'denied', assessment, response })
+            await ctx.codexyApproval.recordReview(session, { id, status: assessment.outcome === 'allow' ? 'approved' : 'denied', assessment, response })
             return assessment.outcome === 'allow' ? 'allowed-once' : 'rejected'
           }
           if (fs === undefined || tools === undefined) throw new Error('automatic reviewer requested unavailable investigation tools')
@@ -452,7 +452,7 @@ export function installCodexfulReview(ctx: Context, config: CodexfulReviewConfig
           for (const call of calls) {
             inspectionCalls += 1
             const result = await inspect(fs, call.name, call.arguments, session.header.cwd, signal, config)
-            appendProductEvent(session, 'approval/review', { id, status: 'inspecting', inspection: {
+            await ctx.codexyApproval.recordReview(session, { id, status: 'inspecting', inspection: {
               callId: call.id, name: call.name, arguments: call.arguments, response: blocks, result,
             } })
             messages.push(createToolResultMessage({ callId: call.id, content: [{ type: 'text', text: result }], isError: result.startsWith('Error:') }))
@@ -462,12 +462,12 @@ export function installCodexfulReview(ctx: Context, config: CodexfulReviewConfig
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- Signals can abort across awaited model/file operations.
         const cancelled = lifecycle.signal.aborted || req.signal?.aborted === true
         if (cancelled) {
-          appendProductEvent(session, 'approval/review', { id, status: 'cancelled' })
+          await ctx.codexyApproval.recordReview(session, { id, status: 'cancelled' })
           return 'cancelled'
         }
         const message = deadline.signal.aborted ? 'automatic approval review timed out' : error instanceof Error ? error.message : String(error)
         if (error instanceof ReviewInputBudgetError) {
-          appendProductEvent(session, 'approval/review', { id, status: 'manual', error: message })
+          await ctx.codexyApproval.recordReview(session, { id, status: 'manual', error: message })
           clearTimeout(timer)
           return await new Promise<ApprovalAnswer>((resolve) => {
             const manualSignal = AbortSignal.any([lifecycle.signal, ...req.signal === undefined ? [] : [req.signal]])
@@ -480,7 +480,7 @@ export function installCodexfulReview(ctx: Context, config: CodexfulReviewConfig
               () => { manualSignal.removeEventListener('abort', onAbort); resolve('unavailable') })
           })
         }
-        appendProductEvent(session, 'approval/review', {
+        await ctx.codexyApproval.recordReview(session, {
           id, status: 'failed',
           ...response === undefined ? {} : { response },
           error: deadline.signal.aborted ? TIMEOUT_INSTRUCTIONS : `Automatic approval review failed: ${message}\n${REVIEW_FAILURE_INSTRUCTIONS}`,
@@ -502,8 +502,8 @@ export function installCodexfulReview(ctx: Context, config: CodexfulReviewConfig
       const events = snapshotProductEvents(agent.session)
       const asked = events.findLast(event => event.type === 'approval/asked' && event.data.callId === exec.callId)
       const review = asked?.type === 'approval/asked'
-        ? events.findLast(event => event.type === 'approval/review' && event.data.id === asked.data.id) : undefined
-      const feedback = review?.type === 'approval/review' && review.data.status === 'denied'
+        ? ctx.codexyApproval.reviewOf(agent.session, asked.data.id) : undefined
+      const feedback = review?.status === 'denied'
         ? `This action was rejected due to unacceptable risk.\nReason: ${reason.trim()}\n${REJECTION_INSTRUCTIONS}` : reason
       const content = (downstream.content ?? result.content).map(block => block.type === 'text'
         ? { ...block, text: block.text.replace(/the user rejected/gu, 'automatic approval rejected') } : block)

@@ -117,7 +117,8 @@ export function apply(ctx: Context, config: Config): void {
       const own = productSnapshot(agent.session, agent.session.inheritedEventCount)
       const descriptor = own.find(event => event.type === 'subagent/descriptor'
         && event.data.provider === config.providerName)
-      if (descriptor !== undefined) scrubCodexfulForkHistory(agent.session, turn, step, descriptor.seq)
+      if (descriptor !== undefined) scrubCodexfulForkHistory(agent.session, turn, step, descriptor.seq,
+        ctx.codexySubagents.forkCutoffOf(agent.session.id))
     }), 'codexful.forkHistory')
   })
 }

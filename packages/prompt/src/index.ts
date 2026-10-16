@@ -22,7 +22,6 @@ import type {} from '@codexydsh/retry'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@codexydsh/delegation'
-import { codexV1IdentityOf } from '@codexydsh/delegation'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { RUN_CODE_NAME } from '@codexydsh/runtime/tools'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -32,7 +31,7 @@ import type { ApprovalPolicy, ApprovalReviewer } from '@codexydsh/approval'
 import type { PromptAssembly, PromptPreparation } from '@codexydsh/runtime/prompt'
 import { withPromptPreparationFinalizer } from '@codexydsh/prompt-registry'
 import { DSH_HOST_ADAPTATION, type CodexfulToolMode } from './prompts.ts'
-import { codexfulMultiAgentVersion, codexfulMultiAgentVersionProjection, recordCodexfulMultiAgentVersion } from './multi-agent-version.ts'
+import { codexfulMultiAgentVersion, promptDomain, recordCodexfulMultiAgentVersion } from './multi-agent-version.ts'
 import { buildCodexfulInitialContext, captureCodexfulInitialContextAssembly } from './initial-context.ts'
 import type { CodexfulInitialContextAssembly } from './initial-context.ts'
 import { captureCodexfulDeployment, codexfulPreparationOf, prepareCodexfulVariables } from './preparation.ts'
@@ -49,7 +48,7 @@ export type { CodexfulModelProfile, CodexfulMultiAgentVersion, CodexfulToolMode,
 export const name = 'codexful-prompt'
 
 /** Services that supply the active shell, file policy, and approval policy. */
-export const inject = ['codexyPrompt', 'sandboxPolicy', 'codexyApproval', 'subprocess', 'agentLoop', 'llmRetry', 'tools', 'sessionProjections']
+export const inject = ['codexyPrompt', 'sandboxPolicy', 'codexyApproval', 'subprocess', 'agentLoop', 'llmRetry', 'tools', 'sessionProjections', 'storageDomain']
 
 const MAX_ENVIRONMENT_SUBAGENTS = 8
 const MAX_ENVIRONMENT_SUBAGENT_BYTES = 1_024
@@ -75,8 +74,6 @@ export interface Config {
   wireProfile?: 'codex-0.162.1'
   /** Actual application identity, entry and collection facts for the explicit wire profile. */
   metadata?: ResponseMetadataConfig
-  /** Start completed tool items while later model response items are still streaming. */
-  streamToolsDuringResponse?: boolean
   /** Describe Codexful's existing-path shell metadata protection when the mounted runner enables it. */
   protectExistingWorkspaceMetadata?: boolean
   /** Explicit update_plan exposure; Codex's pinned config defaults to disabled. */
@@ -107,7 +104,6 @@ export const Config: z<Config> = z.object({
       nodeReplAutoReviewRequired: z.boolean(),
     }),
   }),
-  streamToolsDuringResponse: z.boolean().default(false),
   protectExistingWorkspaceMetadata: z.boolean().default(false),
   updatePlan: z.boolean(),
   networkAccess: z.union(['enabled', 'disabled', 'unknown'] as const).default('unknown'),
@@ -413,11 +409,13 @@ interface CapturedCodexfulAssembly {
  * @param ctx - scoped agent context.
  * @param config - deployment choices for prompt preparation and Agent lifecycle effects.
  */
-export function apply(ctx: Context, config: Config): void {
+export async function apply(ctx: Context, config: Config): Promise<void> {
   captureCodexfulDeployment(config)
   const workspaceEnrichment = new ResponseWorkspaceEnrichment(ctx.subprocess)
   ctx.effect(() => () => workspaceEnrichment.dispose())
-  ctx.sessionProjections.register(codexfulMultiAgentVersionProjection)
+  const domain = await ctx.storageDomain.open(promptDomain)
+  ctx.effect(() => () => domain.close(), 'codexy-prompt.domainClose')
+  const selections = domain.table('delegation')
   const hiddenToolsByAgent = new WeakMap<Agent, ReadonlySet<string>>()
   const assembledWorldState = new WeakMap<PromptAssembly, CodexWorldStateInput>()
   const currentAssemblies = new WeakMap<Session, CapturedCodexfulAssembly>()
@@ -460,7 +458,7 @@ export function apply(ctx: Context, config: Config): void {
     const agent = context.agent
     if (agent === undefined) return next()
     const deployment = captureCodexfulDeployment(config)
-    const selectedVersion = codexfulMultiAgentVersion(ctx.sessionProjections, agent.session)
+    const selectedVersion = codexfulMultiAgentVersion(selections, agent.session)
     const fallback = { provider: agent.options.provider, model: agent.options.model, reasoningEffort: agent.options.reasoningEffort }
     const variables = await next()
     return withPromptPreparationFinalizer(variables, finalVariables =>
@@ -488,7 +486,7 @@ export function apply(ctx: Context, config: Config): void {
       || assembled.variables.model !== undefined && assembled.variables.model !== model) {
       throw new Error('Codexful assembly route differs from its captured preparation')
     }
-    recordCodexfulMultiAgentVersion(ctx.sessionProjections, agent.session, version)
+    await recordCodexfulMultiAgentVersion(selections, agent.session, version)
     const hiddenTools = new Set<string>(toolProfile.hiddenTools)
     const policy = ctx.sandboxPolicy.resolve({ session: agent.session })
     const approval = ctx.codexyApproval.overrideOf(agent.session) ?? ctx.codexyApproval.config.policy ?? 'ask'
@@ -508,7 +506,7 @@ export function apply(ctx: Context, config: Config): void {
         // A resumed resident survives tool reload before its parent result is committed.
         const live = subagents.loadedContinuable(agent, child.id)
         if (live === undefined) continue
-        const identity = codexV1IdentityOf(live.session, ctx.sessionProjections)
+        const identity = subagents.identityOf(live.session.id)
         legacySubagents.push({ id: child.id,
           ...identity === null ? {} : {
             nickname: identity.nickname,
@@ -710,20 +708,20 @@ export function apply(ctx: Context, config: Config): void {
     }
     return proposedRequest
   }, { prepend: true })
-  ctx.on('agent/created', ({ agent, source }) => {
+  ctx.on('agent/created', async ({ agent, source }) => {
     agent.ctx.effect(() => () => workspaceEnrichment.cancel(agent.session), 'codexful.workspaceEnrichment')
     const deployment = captureCodexfulDeployment(config)
     if (deployment.toolProfile !== 'codex-pinned') {
-      recordCodexfulMultiAgentVersion(ctx.sessionProjections, agent.session, 'v2')
-    } else if (codexfulMultiAgentVersion(ctx.sessionProjections, agent.session) === null) {
+      await recordCodexfulMultiAgentVersion(selections, agent.session, 'v2')
+    } else if (codexfulMultiAgentVersion(selections, agent.session) === null) {
       const parentId = agent.session.header.parentSession
       const parent = parentId === undefined ? undefined : ctx.get('agents')?.get(parentId)
       const inherited = parent === undefined ? null
-        : codexfulMultiAgentVersion(ctx.sessionProjections, parent.session)
+        : codexfulMultiAgentVersion(selections, parent.session)
       if (inherited !== null) {
-        recordCodexfulMultiAgentVersion(ctx.sessionProjections, agent.session, inherited)
+        await recordCodexfulMultiAgentVersion(selections, agent.session, inherited)
       } else if (source === 'resume' || agent.session.header.isSeeded) {
-        recordCodexfulMultiAgentVersion(ctx.sessionProjections, agent.session, 'v1')
+        await recordCodexfulMultiAgentVersion(selections, agent.session, 'v1')
       }
     }
     agent.ctx.effect(() => ctx.agentLoop.enableCodexWorldState(agent, (assembly) => {
@@ -750,13 +748,6 @@ export function apply(ctx: Context, config: Config): void {
       endsWithAssistantAnswer(message) && pending.length > 0
       && pending.every(input => input.source.kind === 'agent-message' && input.source.queueOnly === true)),
     'codexful.mailboxDeferral')
-    if (deployment.streamToolsDuringResponse) {
-      agent.ctx.effect(() => ctx.agentLoop.enableCodexStreamingTools(agent), 'codexful.streamingTools')
-      agent.ctx.effect(() => ctx.agentLoop.enableCodexMailboxPreemption(agent, (block, replayState, pending) =>
-        pending.some(message => message.source.kind === 'agent-message' || message.source.kind === 'subagent-settled')
-        && (block.type === 'reasoning' || block.type === 'text' && isCommentaryItem(replayState))),
-      'codexful.mailboxPreemption')
-    }
     agent.ctx.effect(() => ctx.tools.guard(exec =>
       exec.agent === agent && currentToolRequestBinding() === undefined && hiddenToolsByAgent.get(agent)?.has(exec.name)
         ? `${exec.name} is unavailable in the current Codexful model tool profile`

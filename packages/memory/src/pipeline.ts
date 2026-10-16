@@ -1,5 +1,4 @@
 import { requestHeaderOf } from '@codexydsh/runtime/session'
-import { appendProductEvent } from '@codexydsh/runtime/session'
 /** Source-guided two-phase extraction and consolidation with validated, non-destructive publication. */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -41,7 +40,7 @@ const revisionSchema = z.object({ revision: z.string(), documents: z.array(z.tup
 const usageSchema = z.record(z.string(), z.object({ count: z.number().int().nonnegative(), lastUsedAt: z.number() }).strict())
 const failureSchema = z.object({ retryAt: z.number(), error: z.string() }).strict()
 
-/** One bounded auxiliary request; every dispatch and terminal outcome is durably attributed. */
+/** One bounded auxiliary request; diagnostics do not become conversation history. */
 async function generate(ctx: Context, config: Config, request: MemoryRefreshRequest, runId: RunId,
   phase: 'extract' | 'consolidate', route: MemoryRoute, sourceSessions: readonly SessionId[], system: string, text: string): Promise<string> {
   if (Buffer.byteLength(system) + Buffer.byteLength(text) > config.maxInputBytes) throw new Error(`memory ${phase} input exceeds maxInputBytes`)
@@ -49,7 +48,7 @@ async function generate(ctx: Context, config: Config, request: MemoryRefreshRequ
   const messages = [createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'codexful-memory', phase } })]
   const options: GenerateOptions = { provider: route.provider, model: route.model, system, messages,
     temperature: 0, maxTokens: config.maxOutputTokens, sessionId: request.session.id, signal: duration.signal }
-  appendProductEvent(request.session, 'memory/request', { runId, phase, version: config.version, sourceSessions, route, system, messages, maxTokens: config.maxOutputTokens, temperature: 0 })
+  ctx.logger.debug('memory/request %o', { runId, phase, sourceSessions, route })
   try {
     duration.signal.throwIfAborted()
     const assembler = new BlockAssembler()
@@ -70,10 +69,10 @@ async function generate(ctx: Context, config: Config, request: MemoryRefreshRequ
       const parsed = config.version === 'v1' ? extractionV1.parse(JSON.parse(output)) : extractionV2.parse(JSON.parse(output))
       noOutput = parsed.rollout_summary.trim() === '' && (!('raw_memory' in parsed) || parsed.raw_memory.trim() === '')
     } else consolidationSchema.parse(JSON.parse(output))
-    appendProductEvent(request.session, 'memory/result', { runId, phase, sourceSessions, outcome: noOutput ? 'no-output' : 'succeeded', output: redactSecrets(output) })
+    ctx.logger.debug('memory/result %o', { runId, phase, outcome: noOutput ? 'no-output' : 'succeeded' })
     return output
   } catch (error) {
-    appendProductEvent(request.session, 'memory/result', { runId, phase, sourceSessions, outcome: duration.signal.aborted ? 'cancelled' : 'failed', error: redactSecrets(error instanceof Error ? error.message : String(error)) })
+    ctx.logger.debug('memory/result %o', { runId, phase, outcome: duration.signal.aborted ? 'cancelled' : 'failed', error: redactSecrets(error instanceof Error ? error.message : String(error)) })
     throw error
   }
 }
@@ -286,7 +285,7 @@ export async function runPipeline(ctx: Context, store: MemoryStore, config: Conf
     documents.set('.state/current.json', JSON.stringify({ revision, updatedAt: now, inputDigest, selected: sourceSessions, documentHashes, sourceFingerprints }))
     // Publication is uncancellable after staging; the journal exposes the prior committed documents until settlement.
     await store.publish(documents, new Map([['MEMORY.md', previousMemory], ['memory_summary.md', previousSummary]]))
-    appendProductEvent(request.session, 'memory/updated', { runId, revision, sourceSessions, paths: [...documents.keys()] })
+    ctx.logger.debug('memory/updated %o', { runId, revision, sourceSessions, paths: [...documents.keys()] })
     return { extracted, skipped, consolidated: true, revision }
   } catch (error) {
     if (request.signal?.aborted) throw error

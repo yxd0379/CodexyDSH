@@ -6,6 +6,8 @@
 
 import { randomUUID } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
+import { approvalDomain, type StoredReview } from './domain.ts'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -110,10 +112,6 @@ export function setApprovalPolicy(session: Session, policy: ApprovalPolicy): voi
  * @param session - Session whose reviewer changes.
  * @param reviewer - human or automatic reviewer.
  */
-export function setApprovalReviewer(session: Session, reviewer: ApprovalReviewer): void {
-  if (!APPROVAL_REVIEWERS.includes(reviewer)) throw new TypeError('approval reviewer must be "user" or "auto_review"')
-  appendProductEvent(session, 'approval/reviewer', { reviewer })
-}
 
 /**
  * Readonly same-process permission question. `callId` links to an already
@@ -166,6 +164,42 @@ export interface Config {
  * changes to the model through the runtime-context snapshot and switch notices.
  */
 export class ApprovalService extends Service {
+  static inject = ['storageDomain']
+  private reviews!: KvTable<string, StoredReview>
+  private settings!: KvTable<string, { reviewer: ApprovalReviewer }>
+
+  protected async [Service.init](): Promise<void> {
+    const domain = await this.ctx.storageDomain.open(approvalDomain)
+    this.ctx.effect(() => () => domain.close(), 'approval.domainClose')
+    this.reviews = domain.table('reviews')
+    this.settings = domain.table('settings')
+  }
+
+  async setSessionReviewer(session: Session, reviewer: ApprovalReviewer): Promise<void> {
+    if (!APPROVAL_REVIEWERS.includes(reviewer)) throw new TypeError('approval reviewer must be "user" or "auto_review"')
+    if (this.settings.get(session.id)?.reviewer === reviewer) return
+    await this.settings.put(session.id, { reviewer })
+    // A policy refresh withdraws pending approvals and invalidates old grants
+    // using the existing native approval lifecycle, without a private event.
+    setApprovalPolicy(session, this.effectivePolicy(session))
+  }
+
+  /** Lookup is session-scoped, so an id from another conversation grants nothing. */
+  reviewOf(session: Session, id: string): StoredReview | undefined {
+    const review = this.reviews.get(`${session.id}:${id}`)
+    return review?.sessionId === session.id ? review : undefined
+  }
+
+  /** Retain the latest assessment as plugin state; request traces are diagnostics only. */
+  async recordReview(session: Session, review: SessionEvent<'approval/review'>['data']): Promise<void> {
+    this.ctx.logger.debug('approval/review %o', { sessionId: session.id, ...review })
+    if (review.status === 'started' || review.status === 'inspecting') return
+    await this.reviews.put(`${session.id}:${review.id}`, {
+      sessionId: session.id, id: review.id, status: review.status,
+      ...review.assessment === undefined ? {} : { assessment: review.assessment },
+      ...review.error === undefined ? {} : { error: review.error },
+    })
+  }
   static Config: z<Config> = z.object({
     policy: z.union(['ask', 'never'] as const).default('ask'),
     reviewer: z.union(['user', 'auto_review'] as const).default('user'),
@@ -229,10 +263,10 @@ export class ApprovalService extends Service {
    * @param agent - owner of the changed reviewer setting.
    * @param reviewer - answerer used for subsequent requests.
    */
-  setReviewer(agent: Agent, reviewer: ApprovalReviewer): void {
+  async setReviewer(agent: Agent, reviewer: ApprovalReviewer): Promise<void> {
     const previous = this.reviewerOf(agent.session)
     if (previous === reviewer) return
-    setApprovalReviewer(agent.session, reviewer)
+    await this.setSessionReviewer(agent.session, reviewer)
     agent.inject(createUserMessage({
       content: [{ type: 'text', text: `The approval reviewer changed from "${previous}" to "${reviewer}" (changed by the user).` }],
       source: { kind: 'codexy-user-approval' },
@@ -244,13 +278,8 @@ export class ApprovalService extends Service {
    * @param session - Session whose last reviewer override is read.
    * @returns the override or composition default.
    */
-  reviewerOf(session: Session): ApprovalReviewer {
-    for (let seq = session.seq - 1; seq >= 0; seq -= 1) {
-      // oxlint-disable-next-line typescript/no-deprecated -- Reviewer selection folds its durable events.
-      const event = auditEventAt(session, SessionSeq(seq))
-      if (event?.type === 'approval/reviewer') return event.data.reviewer
-    }
-    return this.config.reviewer ?? 'user'
+  reviewerOf(session: Pick<Session, 'id'>): ApprovalReviewer {
+    return this.settings.get(session.id)?.reviewer ?? this.config.reviewer ?? 'user'
   }
 
   /**
@@ -270,15 +299,9 @@ export class ApprovalService extends Service {
       }
     }
     if (requestId === undefined) return undefined
-    for (let seq = session.seq - 1; seq >= 0; seq -= 1) {
-      // oxlint-disable-next-line typescript/no-deprecated -- Review details are paired through the audit id.
-      const event = auditEventAt(session, SessionSeq(seq))
-      if (event?.type === 'approval/review' && event.data.id === requestId && event.data.status !== 'started') {
-        if (event.data.status === 'manual' || event.data.status === 'inspecting') return undefined
-        return event.data.assessment?.outcome === 'deny' ? event.data.assessment.rationale : event.data.error
-      }
-    }
-    return undefined
+    const review = this.reviewOf(session, requestId)
+    if (review?.status === 'manual') return undefined
+    return review?.assessment?.outcome === 'deny' ? review.assessment.rationale : review?.error
   }
 
   /**

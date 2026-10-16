@@ -112,7 +112,10 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
           throw state.openError ?? new Error(`session "${sessionId}" is not open`)
         }
         const result = await ctx.remote.commands.list(sessionId)
-        if (!result.ok) throw new Error(`command.list failed: ${result.error.code}: ${result.error.message}`)
+        if (!result.ok) {
+          if (result.error.code === 'session/writer-held') throw new Error(this.t('error.sessionInUse'))
+          throw new Error(`command.list failed: ${result.error.code}: ${result.error.message}`)
+        }
         return result.value
       })
     })
