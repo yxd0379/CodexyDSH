@@ -33,8 +33,8 @@ describe('ambient proxy environment', () => {
   it('finds the configurations that declare a setup at all', () => {
     // Guards the discovery itself: a glob that stopped matching would make every case below vacuous.
     expect(declared.map(entry => entry.config)).toEqual([
-      'vitest.bench.config.ts', 'vitest.config.ts', 'vitest.e2e.config.ts', 'vitest.expected.config.ts',
-      'vitest.snapshot.config.ts',
+      'config/vitest.bench.config.ts', 'config/vitest.config.ts', 'config/vitest.expected.config.ts',
+      'config/vitest.snapshot.config.ts',
     ])
   })
 

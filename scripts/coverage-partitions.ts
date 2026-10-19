@@ -437,7 +437,7 @@ function partitionConfigSource(
   const threadSafe = JSON.stringify(files.filter(file => projectOf.get(file) !== 'process-bound').map(file => file.split('\\').join('/')))
   const processBound = JSON.stringify(files.filter(file => projectOf.get(file) === 'process-bound').map(file => file.split('\\').join('/')))
   return [
-    "import base from '../../vitest.config.ts'",
+    "import base from '../../config/vitest.config.ts'",
     "import { coverageForkPool } from '../../scripts/coverage-fork-diagnostics.ts'",
     'export default {',
     '  ...base,',

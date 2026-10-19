@@ -1,18 +1,18 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import tsconfigPaths from 'vite-tsconfig-paths'
-import { resolvePwshPath } from './packages/shell/pwsh-local/src/resolve.ts'
+import { resolvePwshPath } from '../packages/shell/pwsh-local/src/resolve.ts'
 import { defineConfig } from 'vitest/config'
 import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
-import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
-import { COVERAGE_PARTITION_MODE_ENV, COVERAGE_TEST_TIMEOUT_ENV, coverageTestTimeoutOptions } from './scripts/coverage-partitions.ts'
-import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from './scripts/parallelism.ts'
+import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from '../scripts/coverage-exempt.ts'
+import { COVERAGE_PARTITION_MODE_ENV, COVERAGE_TEST_TIMEOUT_ENV, coverageTestTimeoutOptions } from '../scripts/coverage-partitions.ts'
+import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from '../scripts/parallelism.ts'
 
 // Prints exact `path:line:col` records for every uncovered statement, branch
 // path, and function. Coverage is advisory, so this reporter makes the report
 // actionable without failing the run. Absolute path because istanbul-reports
 // require()s custom reporters (which is also why the reporter is CJS).
-const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-uncovered-locations.cjs', import.meta.url))
+const uncoveredLocationsReporter = fileURLToPath(new URL('../scripts/coverage-uncovered-locations.cjs', import.meta.url))
 
 // Resolution facade shared by every plugin instance below: tsconfig.base.json
 // has no include, which vite-tsconfig-paths treats as match-all, so its paths
@@ -172,8 +172,8 @@ const processBoundTests = [
 
 // Claude Code's test-kit module names, served by the mods bridge's test support so the example mods' tests import them unchanged.
 const claudeCodeTestingAliases = {
-  'claude-code/testing': fileURLToPath(new URL('./packages/experimental/claude-code-mods/tests/support/claude-code-testing.ts', import.meta.url)),
-  'claude-code': fileURLToPath(new URL('./packages/experimental/claude-code-mods/tests/support/claude-code.ts', import.meta.url)),
+  'claude-code/testing': fileURLToPath(new URL('../packages/experimental/claude-code-mods/tests/support/claude-code-testing.ts', import.meta.url)),
+  'claude-code': fileURLToPath(new URL('../packages/experimental/claude-code-mods/tests/support/claude-code.ts', import.meta.url)),
 }
 
 export default defineConfig({

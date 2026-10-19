@@ -41,7 +41,7 @@ export const TEST_PROXY_SETUP_FILE = './scripts/test-proxy-environment.ts'
  * @returns repository-relative config paths, sorted.
  */
 export function vitestConfigFiles(): string[] {
-  return globSync('vitest*.ts', { cwd: resolve(import.meta.dirname, '..') }).sort()
+  return globSync('config/vitest*.ts', { cwd: resolve(import.meta.dirname, '..') }).sort()
 }
 
 /**
