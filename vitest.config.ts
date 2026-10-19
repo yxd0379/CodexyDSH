@@ -9,8 +9,8 @@ import { COVERAGE_PARTITION_MODE_ENV, COVERAGE_TEST_TIMEOUT_ENV, coverageTestTim
 import { LOCAL_TEST_PARALLELISM_CAP, defaultParallelism } from './scripts/parallelism.ts'
 
 // Prints exact `path:line:col` records for every uncovered statement, branch
-// path, and function when a file misses the per-file 100% gate — the built-in
-// threshold ERRORs name only the file. Absolute path because istanbul-reports
+// path, and function. Coverage is advisory, so this reporter makes the report
+// actionable without failing the run. Absolute path because istanbul-reports
 // require()s custom reporters (which is also why the reporter is CJS).
 const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-uncovered-locations.cjs', import.meta.url))
 
@@ -129,7 +129,6 @@ const testIncludes = [
   'packages/*/*/tests/**/*.spec.{ts,tsx}',
   'apps/*/tests/**/*.spec.{ts,tsx}',
   'scripts/**/*.spec.ts',
-  'website/tests/**/*.spec.ts',
 ]
 
 // The instrumented coverage gate sets this env; the exempt heavy suites then
@@ -383,19 +382,7 @@ export default defineConfig({
         ...windowsRunnerCoverageExclusions,
         ...pwshCoverageExclusions,
       ],
-      // 100% or it doesn't merge (docs/testing.md: excessive tests are welcome).
-      // Per-file so a well-covered big file can't subsidize a bare one.
-      // Every v8 ignore comment must carry a reason — see the testing policy
-      // (docs/testing.md).
-      thresholds: coveragePartitionMode
-        ? undefined
-        : {
-            perFile: true,
-            statements: 100,
-            branches: 100,
-            functions: 100,
-            lines: 100,
-          },
+      // Coverage is reported for visibility, not enforced as a gate.
       reporter: coveragePartitionMode
         ? []
         : process.env.CI

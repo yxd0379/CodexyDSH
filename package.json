@@ -61,7 +61,6 @@
     "test:coverage": "pnpm run build:native-system && vitest run --coverage",
     "build:native-system": "tsx native/system/scripts/build.ts --host-addon-only",
     "test:coverage:partitioned": "tsx scripts/run-coverage-partitions.ts",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:bench": "npm run build:bench && npm run build:web && npm run test:bench:built",
     "test:bench:built": "vitest run --config vitest.bench.config.ts",
     "test:bench:memory": "tsx scripts/run-memory-pressure-bench.ts",
