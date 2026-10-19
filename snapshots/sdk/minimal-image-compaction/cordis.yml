@@ -1,4 +1,0 @@
-# Disable the external Session uploader in this local fixture.
-- id: session-log-deepseek
-  config:
-    enabled: false
