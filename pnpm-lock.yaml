@@ -10682,28 +10682,6 @@ importers:
         specifier: workspace:*
         version: link:../../core/session
 
-  packages/test-support/remote-mock:
-    dependencies:
-      '@vitest/spy':
-        specifier: ^4.1.11
-        version: 4.1.11
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:~
-        version: link:../../../vendor/cordis
-      '@deepseek-ai/dsh-api-settings-controller':
-        specifier: workspace:*
-        version: link:../../api/settings-controller
-      '@deepseek-ai/dsh-client-connection':
-        specifier: workspace:*
-        version: link:../../client/connection
-      '@deepseek-ai/dsh-typert-protocol':
-        specifier: workspace:*
-        version: link:../../typert/protocol
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-
   packages/test-support/session-snapshot:
     dependencies:
       '@agentclientprotocol/sdk':
