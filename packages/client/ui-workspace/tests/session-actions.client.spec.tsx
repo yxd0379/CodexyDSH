@@ -433,7 +433,6 @@ describe('SessionArchiveConfirmDialog', () => {
       { kind: 'turn' },
       { kind: 'subagent', items: [{ id: 'child-1', label: 'reviewer' }, { id: 'child-2' }] },
       { kind: 'job', items: [{ id: 'bash-1', label: 'pnpm run build' }] },
-      { kind: 'schedule', items: [{ id: 'schedule-1', label: 'check the build' }] },
     ])
     const dialog = screen.getByRole('dialog', { name: '停止并归档此会话？' })
     expect(dialog.textContent).toContain('“Busy session”仍有正在进行的工作')
@@ -442,7 +441,6 @@ describe('SessionArchiveConfirmDialog', () => {
       '进行中的回合',
       '2 个运行中的子智能体：reviewer、child-2',
       '1 个后台任务：pnpm run build',
-      '1 条定时提醒：check the build',
     ])
     fireEvent.click(screen.getByRole('button', { name: '停止并归档' }))
     expect(stopAndArchiveSession).toHaveBeenCalledWith(sid('one'))
@@ -495,14 +493,12 @@ describe('SessionArchiveConfirmDialog', () => {
     ask([
       { kind: 'subagent', items: [{ id: 'child-1', label: 'reviewer' }] },
       { kind: 'job', items: [{ id: 'bash-1' }, { id: 'bash-2' }] },
-      { kind: 'schedule', items: [{ id: 'schedule-1', label: 'check the build' }, { id: 'schedule-2', label: 'stand-up' }] },
       { kind: 'probe', items: [{ id: 'probe-1' }] },
     ])
     const lines = [...screen.getByRole('list', { name: 'Work that will be stopped' }).querySelectorAll('li')].map(li => li.textContent)
     expect(lines).toEqual([
       '1 running subagent: reviewer',
       '2 background jobs: bash-1, bash-2',
-      '2 scheduled reminders: check the build, stand-up',
       '1 other item of work (probe)',
     ])
   })

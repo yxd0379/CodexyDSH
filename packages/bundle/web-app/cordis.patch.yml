@@ -485,12 +485,6 @@
 # The goal service and session driver stay on the host plane, where Gateway
 # remotes resolve them. Presets own the human command and model-facing tool.
 
-- id: command-goal
-  disabled: true
-
-- id: tool-goal
-  disabled: true
-
 - id: plan-mode
   disabled: true
 
@@ -527,12 +521,6 @@
   disabled: true
 
 - id: tool-subagent-fork
-  disabled: true
-
-- id: workflow-ptc
-  disabled: true
-
-- id: tool-workflow
   disabled: true
 
 - id: agent-instructions

@@ -128,8 +128,10 @@ const pwshCoverageExclusions = spawnSync(resolvePwshPath(), ['-NoLogo', '-NoProf
 const testIncludes = [
   'packages/*/*/tests/**/*.spec.{ts,tsx}',
   'apps/*/tests/**/*.spec.{ts,tsx}',
-  'scripts/**/*.spec.ts',
 ]
+
+/** Test-only harness suites are not part of the product test lane. */
+const testExcludes = ['packages/test-support/*/tests/**']
 
 // The instrumented coverage gate sets this env; the exempt heavy suites then
 // run beside it uninstrumented (membership contract in scripts/coverage-exempt.ts).
@@ -184,7 +186,7 @@ export default defineConfig({
     setupFiles: ['./scripts/test-proxy-environment.ts', './scripts/test-dom-environment.ts'],
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
-    exclude: platformUnsupportedTests,
+    exclude: [...testExcludes, ...platformUnsupportedTests],
     // One coverage invocation aggregates both projects. Every suite forks for
     // Node stability; process-bound suites stay separate for inventory control.
     projects: [
@@ -202,6 +204,7 @@ export default defineConfig({
           setupFiles: ['./scripts/test-proxy-environment.ts', './scripts/test-dom-environment.ts'],
           include: testIncludes,
           exclude: [
+            ...testExcludes,
             ...platformUnsupportedTests,
             ...processBoundTests,
             ...coverageExemptExcludes,

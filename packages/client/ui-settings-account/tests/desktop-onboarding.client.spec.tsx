@@ -28,7 +28,7 @@ function mount(step: DesktopOnboardingState['progress']['step'] = 'welcome', bal
       progress: { version: 1, step, purpose: null, process: null, completion: null, usage: 'compact', developerTools: false },
     })
     changeStatus = (value) => { setState(current => ({ ...current, status: value })) }
-    return <DesktopOnboarding track={track} locale={copy === zh ? 'zh' : 'en'} state={state} t={key => copy[key]} complete={complete} retry={retry}
+    return <DesktopOnboarding locale={copy === zh ? 'zh' : 'en'} state={state} t={key => copy[key]} complete={complete} retry={retry}
       update={async (change) => {
         setState(current => ({ ...current, status: 'saving' }))
         const saved = await update(change)
@@ -332,40 +332,4 @@ it('returns from purpose to credit without dropping the selected purpose', async
   const h = mount('purpose')
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: zh.onboardingBack })) })
   expect(h.update).toHaveBeenCalledWith({ step: 'credit' })
-})
-
-
-it('reports visible pages once, funded Continue, and popup close', async () => {
-  const b = mount('credit', 'positive', 'ready', zh, true)
-  expect(b.track).toHaveBeenCalledExactlyOnceWith('onboarding_page_view', { page_name: 'onboarding_recharge' })
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: zh.onboardingSkip })) })
-  expect(b.track).toHaveBeenCalledWith('onboarding_popup_view', { popup_name: 'skip_charge' })
-  b.track.mockClear()
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: zh.close })) })
-  expect(b.track).toHaveBeenCalledExactlyOnceWith('onboarding_popup_click', { popup_name: 'skip_charge', button_name: 'close' })
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: zh.onboardingContinue })) })
-  expect(b.track).toHaveBeenCalledWith('onboarding_page_click', { page_name: 'onboarding_recharge', button_name: 'continue' })
-  expect(b.track).toHaveBeenCalledWith('onboarding_page_view', { page_name: 'onboarding_use_case' })
-})
-
-it('does not report the loading surface as a page', () => {
-  expect(mount('welcome', 'loading', 'loading').track).not.toHaveBeenCalled()
-})
-
-
-it('does not repeat page or popup exposure during save and refresh', () => {
-  const b = mount('credit')
-  fireEvent.click(screen.getByRole('button', { name: zh.onboardingSkip }))
-  act(() => { b.changeStatus('saving') })
-  act(() => { b.changeStatus('loading') })
-  act(() => { b.changeStatus('ready') })
-  expect(b.track.mock.calls.filter(([name]) => name === 'onboarding_page_view')).toHaveLength(1)
-})
-
-it('reports closing the skip-settings popup', () => {
-  const b = mount('purpose')
-  fireEvent.click(screen.getByRole('button', { name: zh.onboardingSkip }))
-  b.track.mockClear()
-  fireEvent.click(screen.getByRole('button', { name: zh.close }))
-  expect(b.track).toHaveBeenCalledExactlyOnceWith('onboarding_popup_click', { popup_name: 'skip_setting', button_name: 'close' })
 })

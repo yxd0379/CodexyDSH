@@ -73,21 +73,6 @@ describe('Desktop Host quit inspection', () => {
     expect(await inspect()).toEqual({ activeTasks: true, scheduledTasks: false })
   })
 
-  it('counts an armed schedule family in any loaded session and stops at the first one', async () => {
-    const asked: SessionId[] = []
-    ctx.on('workspace/session-activity', async ({ sessionId }, next) => { asked.push(sessionId); return next() })
-    agents.push(agent('first'), agent('second'), agent('third'))
-    activity.set(SessionId('second'), [{ kind: 'schedule', items: [{ id: 'reminder-1', label: 'stand-up' }] }])
-    expect(await inspect()).toEqual({ activeTasks: false, scheduledTasks: true })
-    expect(asked).toEqual([SessionId('first'), SessionId('second')])
-  })
-
-  it('reports both when a running session also holds a reminder', async () => {
-    agents.push(agent('both', 'running'))
-    activity.set(SessionId('both'), [{ kind: 'job', items: [{ id: 'bash-1' }] }, { kind: 'schedule', items: [{ id: 'reminder-2' }] }])
-    expect(await inspect()).toEqual({ activeTasks: true, scheduledTasks: true })
-  })
-
   it('does not classify unavailable task services as idle', async () => {
     const empty = new Context()
     try {

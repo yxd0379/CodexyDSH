@@ -55,13 +55,12 @@ it('receives live expiry separately from account snapshots', async () => {
   if (typeof address === 'string' || address === null) throw new Error('missing server address')
   const connected = once(server, 'connection')
   const expired = vi.fn()
-  const onAnalyticsEnabledChanged = vi.fn()
   const snapshot = { status: 'signed-out', attempt: null,
     links: { usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up' } }
   const received = Promise.withResolvers<undefined>()
   const backend = desktopAccountBackend(`http://127.0.0.1:${address.port}`, () => Promise.resolve(snapshot), () => Promise.resolve(''))
   const stop = backend.watch(
-    (value) => { expect(value).toEqual(snapshot); received.resolve(undefined) }, vi.fn(), expired, onAnalyticsEnabledChanged,
+    (value) => { expect(value).toEqual(snapshot); received.resolve(undefined) }, vi.fn(), expired,
   )
   onTestFinished(stop)
   await connected
@@ -73,19 +72,11 @@ it('receives live expiry separately from account snapshots', async () => {
     if (!Buffer.isBuffer(data)) throw new Error('expected a Buffer WebSocket frame')
     const frame = JSON.parse(data.toString('utf8')) as { endpoint: string; streamId: string }
     streams.set(frame.endpoint, frame.streamId)
-    if (streams.size === 3) opened.resolve(undefined)
+    if (streams.size === 2) opened.resolve(undefined)
   })
   await opened.promise
   socket.send(JSON.stringify({ type: 'item', streamId: streams.get('account/watch'), value: snapshot }))
   await received.promise
-  socket.send(JSON.stringify({ type: 'item', streamId: streams.get('productAnalytics/watchPolicy'), value: true }))
-  await vi.waitFor(() => { expect(onAnalyticsEnabledChanged).toHaveBeenLastCalledWith(true) })
-  socket.send(JSON.stringify({ type: 'item', streamId: streams.get('productAnalytics/watchPolicy'), value: false }))
-  await vi.waitFor(() => { expect(onAnalyticsEnabledChanged).toHaveBeenLastCalledWith(false) })
-  socket.send(JSON.stringify({ type: 'item', streamId: streams.get('productAnalytics/watchPolicy'), value: true }))
-  await vi.waitFor(() => { expect(onAnalyticsEnabledChanged).toHaveBeenLastCalledWith(true) })
-  socket.send(JSON.stringify({ type: 'item', streamId: streams.get('productAnalytics/watchPolicy'), value: 'invalid policy' }))
-  await vi.waitFor(() => { expect(onAnalyticsEnabledChanged).toHaveBeenLastCalledWith(false) })
   expect(expired).not.toHaveBeenCalled()
   socket.send(JSON.stringify({ type: 'item', streamId: streams.get('account/watchExpiry'), value: 'session-expired' }))
   await vi.waitFor(() => { expect(expired).toHaveBeenCalledOnce() })

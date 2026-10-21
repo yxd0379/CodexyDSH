@@ -719,6 +719,9 @@ importers:
       '@deepseek-ai/dsh-pwsh-local':
         specifier: workspace:*
         version: link:../../packages/shell/pwsh-local
+      '@deepseek-ai/dsh-remote-mock':
+        specifier: workspace:*
+        version: link:../../packages/test-support/remote-mock
       '@deepseek-ai/dsh-session-projection-cache':
         specifier: workspace:*
         version: link:../../packages/session/session-projection-cache
@@ -10598,6 +10601,9 @@ importers:
       '@deepseek-ai/dsh-client-web':
         specifier: workspace:*
         version: link:../../client/web
+      '@deepseek-ai/dsh-remote-mock':
+        specifier: workspace:*
+        version: link:../remote-mock
       '@deepseek-ai/dsh-session':
         specifier: workspace:*
         version: link:../../core/session
@@ -10681,6 +10687,28 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:*
         version: link:../../core/session
+
+  packages/test-support/remote-mock:
+    dependencies:
+      '@vitest/spy':
+        specifier: ^4.1.11
+        version: 4.1.11
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-settings-controller':
+        specifier: workspace:*
+        version: link:../../api/settings-controller
+      '@deepseek-ai/dsh-client-connection':
+        specifier: workspace:*
+        version: link:../../client/connection
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:*
+        version: link:../../typert/protocol
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   packages/test-support/session-snapshot:
     dependencies:

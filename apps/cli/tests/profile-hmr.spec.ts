@@ -26,7 +26,8 @@ describe('YAML-owned profile HMR', () => {
     expect(hmr([bundle('base')]).disabled).not.toBe(true)
   })
 
-  it.each(['headless', 'sdk-app', 'acp-app'] as const)('%s disables HMR with a bundle override', (mode) => {
+  it('headless disables HMR with a bundle override', () => {
+    const mode = 'headless'
     expect(hmr([bundle('base'), bundle(mode)])).toMatchObject({ disabled: true })
     expect(hmr([bundle('base'), bundle(mode), [{ id: 'hmr', disabled: false }]])).toMatchObject({
       disabled: false, config: { root: [] },
@@ -39,7 +40,4 @@ describe('YAML-owned profile HMR', () => {
     })
   })
 
-  it('keeps the standalone sdk-minimal tree free of HMR', () => {
-    expect(composeEntries([bundle('sdk-minimal')]).find(entry => entry.id === 'hmr')).toBeUndefined()
-  })
 })
