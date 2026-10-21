@@ -584,7 +584,7 @@ describe('coverage partition coordinator', () => {
     expect(allConfigs).toContain('b.spec.ts')
     expect(allConfigs).toContain('c.spec.ts')
     for (const source of partitionConfigs) {
-      expect(source).toContain("from '../../config/vitest.config.ts'")
+      expect(source).toContain("from '../../vitest/vitest.config.ts'")
       expect(source).toContain("from '../../scripts/coverage-fork-diagnostics.ts'")
       expect(source).toContain('pool: coverageForkPool')
     }

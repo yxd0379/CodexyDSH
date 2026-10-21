@@ -105,7 +105,7 @@ export function runScopedMemoryPressureBench(root: string, machine: MemoryPressu
     constrained: process.constrainedMemory(),
   })
   if (violation !== undefined) throw new Error(`run-memory-pressure-bench: ${violation}`)
-  const status = run(root, [...pnpmCommand(), 'exec', 'vitest', 'run', '--config', 'config/vitest.bench.config.ts', ...MEMORY_PRESSURE_FILES])
+  const status = run(root, [...pnpmCommand(), 'exec', 'vitest', 'run', '--config', 'vitest/vitest.bench.config.ts', ...MEMORY_PRESSURE_FILES])
   const oomKills = /^oom_kill (\d+)$/m.exec(cgroupFile('memory.events'))?.[1]
   if (oomKills === undefined) throw new Error('run-memory-pressure-bench: memory.events has no oom_kill counter')
   console.log(JSON.stringify({

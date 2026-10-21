@@ -35,7 +35,7 @@ beforeAll(() => {
   configPath = join(temporaryRoot, 'vitest.config.ts')
   writeFileSync(join(temporaryRoot, 'package.json'), '{ "type": "module" }\n', 'utf8')
   writeFileSync(configPath, [
-    `import base from ${JSON.stringify(resolve(root, 'config/vitest.config.ts').split('\\').join('/'))}`,
+    `import base from ${JSON.stringify(resolve(root, 'vitest/vitest.config.ts').split('\\').join('/'))}`,
     'export default {',
     '  ...base,',
     '  test: {',
