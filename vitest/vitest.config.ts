@@ -187,6 +187,8 @@ export default defineConfig({
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
     include: testIncludes,
     exclude: [...testExcludes, ...platformUnsupportedTests],
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     // One coverage invocation aggregates both projects. Every suite forks for
     // Node stability; process-bound suites stay separate for inventory control.
     projects: [

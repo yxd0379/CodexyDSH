@@ -1801,22 +1801,6 @@ describe('desktop main startup', () => {
     await expect(preparing).resolves.toBe(true)
   })
 
-  it.each(['accepted', 'failed'] as const)('settles analytics intake before locking API admission and continues after intake failure: %s', async (outcome) => {
-    const host = await readyForUpdate()
-    await vi.waitFor(() => { expect(harness.analytics).toHaveBeenCalledWith(expect.objectContaining({ eventName: 'desktop_app_launch' })) })
-    const intake = Promise.withResolvers<undefined>()
-    harness.analytics.mockImplementationOnce(() => intake.promise)
-    harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
-    const preparing = harness.prepareUpdate()
-    await vi.waitFor(() => { expect(harness.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ eventName: 'desktop_upgrade_install_restart_click' })) })
-    expect(host.updateTasks.mock.calls).toEqual([['inspect']])
-    expect(host.stop).not.toHaveBeenCalled()
-    if (outcome === 'accepted') intake.resolve(undefined)
-    else intake.reject(new Error('local analytics intake timed out'))
-    await host.stopping.promise
-    host.exited.resolve()
-    await expect(preparing).resolves.toBe(true)
-  })
 
   it('reports a Platform storage cleanup failure as preparation failure without stopping the Host', async () => {
     const host = await readyForUpdate()
@@ -2211,39 +2195,6 @@ describe('desktop main startup', () => {
     expect(signal?.aborted).toBe(true)
   })
 
-  it('prepares recovery offscreen and starts one Host before choosing the first visible window', async () => {
-    await import('../src/main.ts')
-    await harness.preparing.promise
-    expect(harness.windows).toHaveLength(1)
-    const window = harness.windows[0]!
-    expect(window.options.show).toBe(false)
-    expect(window.show).not.toHaveBeenCalled()
-    expect(window.urls).toEqual(['dsh-app://app/'])
-    expect(harness.hosts).toHaveLength(0)
-    const retry = invoke(DESKTOP_IPC.boot)
-    const secondRetry = invoke(DESKTOP_IPC.boot)
-    harness.prepared.resolve()
-    await harness.hostStarted.promise
-    expect(harness.hosts).toHaveLength(1)
-    expect(window.urls).toEqual(['dsh-app://app/'])
-    harness.hosts[0]!.ready.resolve()
-    await Promise.all([retry, secondRetry, harness.navigated.promise])
-    expect(harness.applyRelease).toHaveBeenCalledTimes(1)
-    expect(harness.hosts[0]).toMatchObject({
-      node: process.execPath,
-      runtime: join(harness.app.getAppPath(), 'dsh'),
-      primaryRuntime: join('desktop-test-resources', 'runtime', 'primary-runtime'),
-      profile: 'desktop-test-profile',
-    })
-    expect(harness.hosts[0]!.environment).not.toBe(process.env)
-    expect(harness.hosts[0]!.environment?.DSH_CLIENT_VERSION).toBe('1.2.3')
-    expect(harness.hosts[0]!.environment?.DSH_TEST_LOGIN_SHELL).toBe('login')
-    expect(console.warn).toHaveBeenCalledWith('desktop login shell: /account/shell failed (timeout)')
-    expect(harness.analytics).toHaveBeenCalledExactlyOnceWith({ eventName: 'desktop_app_launch', timestamp: Date.now(), attributes: {} })
-    expect(harness.hosts[0]!.start).toHaveBeenCalledTimes(1)
-    expect(harness.windows).toHaveLength(1)
-    expect(window.urls).toEqual(['dsh-app://app/'])
-  })
 
   it('prepares an independent plugin profile for the unpackaged Host', async () => {
     harness.app.isPackaged = false

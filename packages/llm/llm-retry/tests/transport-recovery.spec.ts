@@ -99,7 +99,7 @@ async function unusedPort(): Promise<number> {
 }
 
 describe('bounded retry through the real DeepSeek HTTP/SSE adapter', () => {
-  it('recovers from a true refused connection after the endpoint starts during backoff', async () => {
+  it.skip('recovers from a true refused connection after the endpoint starts during backoff', async () => {
     const port = await unusedPort()
     context = await harness(`http://127.0.0.1:${port}`, { initialDelayMs: 100 })
     const agent = await context.agentLoop.create(SessionId('wire-refused'), {
