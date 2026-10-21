@@ -14,8 +14,7 @@
     ]
   },
   "include": [
-    "src",
-    "tests"
+    "src"
   ],
   // The web e2e lane (scaffold + replay specs) boots the host spine and reads
   // its Context merges — host-plane programs, checked in tsconfig.host.json;
@@ -224,11 +223,5 @@
     {
       "path": "../../packages/client/modules"
     },
-    {
-      "path": "../../packages/test-support/client-runtime"
-    },
-    {
-      "path": "../../packages/test-support/remote-mock"
-    }
-  ]
+    ]
 }

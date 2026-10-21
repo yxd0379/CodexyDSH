@@ -54,9 +54,6 @@
       "path": "../../jobs/jobs"
     },
     {
-      "path": "../../schedule/schedule"
-    },
-    {
       "path": "../ui-sidebar"
     },
     {
@@ -79,9 +76,5 @@
     },
     {
       "path": "../shortcuts/tsconfig.client.json"
-    },
-    {
-      "path": "../product-analytics/tsconfig.client.json"
-    }
-  ]
+    },]
 }

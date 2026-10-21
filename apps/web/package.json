@@ -17,16 +17,12 @@
   },
   "files": [
     "dist",
-    "!dist/**/*.map",
-    "!dist/preview.html",
-    "!dist/preview"
+    "!dist/**/*.map"
   ],
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "watch": "vite build --watch --no-emptyOutDir",
-    "build:preview": "pnpm --filter @deepseek-ai/dsh-experimental-webworker-runtime exec tsdown && pnpm --filter @deepseek-ai/dsh-experimental-webworker-packer exec tsdown && vite build && dsh-pack-vfs-image --out dist/preview/vfs-image.tar.gz",
-    "serve:preview": "http-server dist -a 0.0.0.0 -p 4173 -c-1"
+    "watch": "vite build --watch --no-emptyOutDir"
   },
   "license": "MIT",
   "devDependencies": {
@@ -42,10 +38,6 @@
     "@deepseek-ai/dsh-client-web": "workspace:*",
     "@deepseek-ai/dsh-cmdline": "workspace:*",
     "@deepseek-ai/dsh-pwsh-local": "workspace:*",
-    "@deepseek-ai/dsh-experimental-agent-team": "workspace:*",
-    "@deepseek-ai/dsh-experimental-webworker-packer": "workspace:*",
-    "@deepseek-ai/dsh-experimental-webworker-runtime": "workspace:*",
-    "@deepseek-ai/dsh-remote-mock": "workspace:*",
     "@deepseek-ai/dsh-session-projection-cache": "workspace:*",
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "@types/node": "^22.20.1",
@@ -64,11 +56,6 @@
     "@deepseek-ai/dsh-launch-environment": "workspace:*",
     "@deepseek-ai/dsh-workspace-changes": "workspace:*",
     "@deepseek-ai/dsh-subprocess-local": "workspace:*",
-    "@deepseek-ai/dsh-experimental-auto-review": "workspace:*",
-    "@deepseek-ai/dsh-experimental-speech-to-text": "workspace:*",
-    "@deepseek-ai/dsh-experimental-voice-input-bundle": "workspace:*",
-    "@deepseek-ai/dsh-experimental-cot-translation-bundle": "workspace:*",
-    "@deepseek-ai/dsh-experimental-worktree": "workspace:*",
-    "@deepseek-ai/dsh-experimental-plugin-market-bundle": "workspace:*"
+    "@deepseek-ai/dsh-experimental-auto-review": "workspace:*"
   }
 }

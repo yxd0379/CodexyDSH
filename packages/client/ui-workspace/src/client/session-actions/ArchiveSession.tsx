@@ -11,7 +11,6 @@ import type { SessionActivity } from '@deepseek-ai/dsh-api-workspace-controller/
 // Type-only: the family keys each provider merges; a key this program did not compile takes the generic line.
 import type {} from '@deepseek-ai/dsh-agent/types'
 import type {} from '@deepseek-ai/dsh-jobs/view'
-import type {} from '@deepseek-ai/dsh-schedule/client'
 import type {} from '@deepseek-ai/dsh-subagent/client'
 import {
   Button, IconArchiveOutlineRegular, IconUnarchiveOutlineRegular, MenuItemButton, Modal, Tooltip,
@@ -165,7 +164,6 @@ function activityLine(entry: SessionActivity, t: SessionArchiveConfirmProps['t']
     case 'turn': return t('archive.confirm.turn')
     case 'subagent': return t(`archive.confirm.subagents.${plural}`, { n, names })
     case 'job': return t(`archive.confirm.jobs.${plural}`, { n, names })
-    case 'schedule': return t(`archive.confirm.schedules.${plural}`, { n, names })
     default: return t(`archive.confirm.other.${plural}`, { kind: entry.kind, n })
   }
 }

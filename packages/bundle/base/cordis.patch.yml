@@ -40,9 +40,6 @@
     - id: session
       name: '@deepseek-ai/dsh-session'
 
-    - id: session-log-deepseek
-      name: '@deepseek-ai/dsh-session-log-deepseek'
-
     - id: typert
       name: '@deepseek-ai/dsh-typert-registry'
 
@@ -82,11 +79,6 @@
     - id: agent
       name: '@deepseek-ai/dsh-agent'
 
-    - id: plugin-package-inventory-deepseek
-      name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
-
-    # The transport-independent default for Agents created by entry points.
-    # Settings may supply a saved selection; consumers read it at creation time.
     - id: agent-default-model
       name: '@deepseek-ai/dsh-agent-default-model'
       config:
@@ -199,38 +191,6 @@
         writeEveryEvents: 200
         writeIntervalMs: 5000
 
-    - id: otel
-      name: '@deepseek-ai/dsh-otel'
-
-    # OTel releases a Session-log prefix only after explicit user feedback,
-    # regardless of model provider. Ordinary activity never triggers capture.
-    # DSH_TELEMETRY_OTLP_URL overrides the production endpoint. A non-empty
-    # DSH_TELEMETRY_DISABLED — any value, including '0'/'false' — opts the
-    # process out (the launchers patch the row disabled; config cannot disable
-    # a row). Exports carry the harness home's anonymous user id ($DSH_HOME/.anonymous-user-id,
-    # random UUID; delete the file to reset the identity) as the Resource's
-    # user.id. Byte-bounded batching may turn an authorized prefix into
-    # several HTTP requests. Requests run serially; each has its own 1s
-    # transport timeout and 1.5s watchdog. A watchdog does not release the
-    # active request slot. The outer 3s shutdown deadline stops queued sends;
-    # large prefixes or an unsettled transport may leave records unsent.
-    # Every CLI exit path drains by disposing the root on SIGINT/SIGTERM.
-    - id: session-telemetry-otel
-      name: '@deepseek-ai/dsh-session-telemetry-otel'
-      config:
-        mode: !!js process.env.DSH_TELEMETRY_MODE || 'FEEDBACK_ONLY'
-        shutdownTimeoutMillis: 3000
-        maxRequestBytes: 4000000
-        exporter:
-          url: !!js process.env.DSH_TELEMETRY_OTLP_URL ?? 'https://dsh-otel-collector.deepseeksvc.com/v1/logs'
-          compression: gzip
-          timeoutMillis: 1000
-        processor:
-          scheduledDelayMillis: 10000
-          maxQueueSize: 2048
-          maxExportBatchSize: 2048
-          exportTimeoutMillis: 1500
-
     - id: subprocess
       name: '@deepseek-ai/dsh-subprocess-local'
 
@@ -323,12 +283,6 @@
     - id: goal
       name: '@deepseek-ai/dsh-goal'
 
-    - id: goal-round-driver
-      name: '@deepseek-ai/dsh-goal-round-driver'
-
-    - id: command-goal
-      name: '@deepseek-ai/dsh-command-goal'
-
     - id: plan-mode
       name: '@deepseek-ai/dsh-plan-mode'
       config:
@@ -397,14 +351,6 @@
     - id: ptc-runtime
       name: '@deepseek-ai/dsh-ptc-runtime-node'
 
-    - id: workflow-ptc
-      name: '@deepseek-ai/dsh-workflow-ptc'
-      config:
-        provider: spawn
-
-    - id: tool-workflow
-      name: '@deepseek-ai/dsh-tool-workflow'
-
     - id: timeout-policy
       name: '@deepseek-ai/dsh-tool-call-timeout-policy'
 
@@ -441,10 +387,6 @@
 
     # Persisted same-session goals reach the model and the slash menu here; the
     # domain, driver, and `/goal` command are above.
-    - id: tool-goal
-      name: '@deepseek-ai/dsh-tool-goal'
-
-    # Consecutive-repeat reminders on the tool chain.
     - id: repeat-tool-reminder
       name: '@deepseek-ai/dsh-repeat-tool-reminder'
       config:

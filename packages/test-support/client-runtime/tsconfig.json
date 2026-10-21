@@ -82,9 +82,6 @@
       "path": "../../client/web"
     },
     {
-      "path": "../remote-mock"
-    },
-    {
       "path": "../../client/hmr"
     }
   ]

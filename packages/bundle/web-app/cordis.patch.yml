@@ -42,27 +42,6 @@
 # `dsh.client` rows are the browser roster the modules node half scans into
 # window.__DSH_BOOT__; the modules row is simultaneously a host row.
 - insert:
-    - id: desktop-product-telemetry
-      name: '@deepseek-ai/dsh-host-product-telemetry-otel'
-      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
-      config:
-        scheduledDelayMillis: 30000
-        timeoutMillis: 15000
-        exportTimeoutMillis: 20000
-        shutdownTimeoutMillis: 2000
-        serviceName: deepseek-harness-desktop
-        serviceVersion: !!js process.env.DSH_CLIENT_VERSION
-        endpoint: !!js process.env.DSH_PRODUCT_ANALYTICS_OTLP_URL
-
-    - id: product-analytics
-      name: '@deepseek-ai/dsh-client-product-analytics'
-      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
-      config:
-        enabled: true
-        appVersion: !!js process.env.DSH_CLIENT_VERSION
-
-    # Host-owned opt-in sampled when a new Web session receives its preset
-    # delegation tools. The Plugins page edits this settings namespace.
     - id: subagent-model-selection-settings
       name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
@@ -136,11 +115,6 @@
     # as a follow-up in its original Session. The clock reading and the four
     # reminder tools belong to the `standard`, `cordis`, and `ptc` presets,
     # which declare them in their own scope.
-    - id: schedule
-      name: '@deepseek-ai/dsh-schedule'
-
-    # Configuration-surface reads and writes over Typert Remote. Each method
-    # reports an actionable error when its settings-domain provider is absent.
     - id: ui-settings-account
       name: '@deepseek-ai/dsh-client-ui-settings-account'
 
@@ -363,11 +337,6 @@
 
     # Durable workflow lifecycle as an independent Chat node after the
     # existing generic workflow tool row.
-    - id: ui-workflow-run
-      name: '@deepseek-ai/dsh-client-ui-workflow-run'
-
-    # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
-    # it (ui-commands), and the reference sources (ui-skill / ui-reference).
     - id: ui-input-trigger
       name: '@deepseek-ai/dsh-client-ui-input-trigger'
 
@@ -395,10 +364,6 @@
 
     # Task management and Session reminder catalog over the Host Schedule
     # service mounted above.
-    - id: ui-schedule
-      name: '@deepseek-ai/dsh-client-ui-schedule'
-
-    # Goal surface: GoalBar in the input dock over the goal session projection.
     - id: ui-goal
       name: '@deepseek-ai/dsh-client-ui-goal'
 

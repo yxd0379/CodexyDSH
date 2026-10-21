@@ -37,9 +37,5 @@
     },
     {
       "path": "../../api/remotes/tsconfig.client.json"
-    },
-    {
-      "path": "../product-analytics/tsconfig.client.json"
-    }
-  ]
+    },]
 }
