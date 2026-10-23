@@ -25,6 +25,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
     "@codexydsh/remote": "workspace:*",
+    "@deepseek-ai/dsh-api-gateway": "workspace:*",
     "@deepseek-ai/dsh-api-remotes": "workspace:*",
     "@deepseek-ai/dsh-api-session-controller": "workspace:*",
     "@deepseek-ai/dsh-api-workspace-controller": "workspace:*",

@@ -1,5 +1,6 @@
 /** Local navigation and frame lifetimes; remote Session ids never enter local Controllers. */
 import type { Context } from '@deepseek-ai/cordis'
+import type { RemoteStream } from '@deepseek-ai/dsh-api-gateway/client'
 import { createSnapshotStore, storageKey, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -91,22 +92,29 @@ export class RemoteWorkspaceController {
       const offPanel = ctx.layout.panelInfo.subscribe(() => {
         for (const [host, frame] of this.frames) this.publishSource(host, frame)
       })
-      void this.follow()
-      return () => {
+      const catalog = ctx.remote.$stream<RemoteHostStatus[]>({
+        name: 'SSH host catalog',
+        open: signal => ctx.remote.remoteHosts.follow(signal),
+        ended: () => new Error('SSH host catalog ended unexpectedly'),
+      })
+      void this.follow(catalog)
+      return async () => {
         window.removeEventListener('message', receive); offPanel(); this.lifetime.abort(); this.surfaceCleanup?.()
         for (const controller of this.connections.values()) controller.abort()
         for (const frame of this.frames.values()) frame.dispose()
         this.frames.clear()
         for (const pending of this.pending.values()) pending.reject(new Error('Remote view closed'))
         this.pending.clear()
+        await catalog.dispose()
       }
     }, 'remote: local frame and connection lifetimes')
   }
 
-  private async follow(): Promise<void> {
+  private async follow(catalog: RemoteStream<RemoteHostStatus[]>): Promise<void> {
     try {
-      for await (const hosts of this.ctx.remote.remoteHosts.follow(this.lifetime.signal)) {
+      for await (const item of catalog) {
         if (this.lifetime.signal.aborted) break
+        const hosts = item.value
         for (const host of hosts) if (host.phase === 'connected' && host.url !== null && !this.frames.has(host.name)) this.register(host.name)
         for (const [name, frame] of this.frames) if (!hosts.some(host => host.name === name && host.phase === 'connected')) {
           frame.dispose(); this.frames.delete(name)
@@ -114,6 +122,7 @@ export class RemoteWorkspaceController {
         }
         // Publish renderable Hosts only after attach() can resolve their frame ownership.
         this.view.update(state => { state.hosts = hosts })
+        item.accept()
       }
     } catch (error) { if (!this.lifetime.signal.aborted) this.report(error) }
   }

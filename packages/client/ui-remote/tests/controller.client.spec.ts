@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { Context } from '@deepseek-ai/cordis'
+import { RemoteStream, RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
+import type { RemoteStreamOptions } from '@deepseek-ai/dsh-api-gateway/client'
+import type { ConnectionGeneration } from '@deepseek-ai/dsh-client-connection/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { PanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { WorkspaceSource } from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -28,15 +31,26 @@ async function bench() {
     sources.set(source.id, source); return () => { sources.delete(source.id) }
   } } as never)
   ctx.provide('directoryPickerLocations', { register: () => () => {} } as never)
-  const hosts: RemoteHostStatus[] = ['a', 'b'].map(name => ({
+  let hosts: RemoteHostStatus[] = ['a', 'b'].map(name => ({
     name, host: name, profile: 'web', phase: 'connected', url: `/codexy-remote/${name}/`, error: null,
   }))
-  ctx.provide('remote', { remoteHosts: {
-    async *follow(signal: AbortSignal) {
-      yield hosts
-      await new Promise<void>(resolve => { signal.addEventListener('abort', () => { resolve() }, { once: true }) })
+  const generation = createSnapshotStore<ConnectionGeneration | undefined>({ id: 1, host: { home: '/home/test' } })
+  let interrupt: ((reason: Error) => void) | undefined
+  let openings = 0
+  ctx.provide('remote', {
+    $stream: <Item>(options: RemoteStreamOptions<Item>) => new RemoteStream({ generation }, options),
+    remoteHosts: {
+      async *follow(signal: AbortSignal) {
+        openings++
+        yield hosts
+        await new Promise<void>((resolve, reject) => {
+          const aborted = (): void => { resolve() }
+          signal.addEventListener('abort', aborted, { once: true })
+          interrupt = reason => { signal.removeEventListener('abort', aborted); reject(reason) }
+        })
+      },
     },
-  } } as never)
+  } as never)
   const controller = new RemoteWorkspaceController(ctx)
   await vi.waitFor(() => { expect(sources.size).toBe(2) })
   const iframe = (): HTMLIFrameElement => {
@@ -55,8 +69,23 @@ async function bench() {
     receive(element, { source: 'codexydsh-child', kind: 'snapshot', frameId,
       value: { groups: [], selectedSessionId: 'remote-session' } })
   }
-  return { ctx, controller, sources, panelInfo, a, b, receive, snapshot }
+  return { ctx, controller, sources, panelInfo, a, b, receive, snapshot,
+    addHost: (host: RemoteHostStatus) => { hosts = [...hosts, host] },
+    openings: () => openings,
+    interrupt: (reason: Error) => { if (interrupt === undefined) throw new Error('Catalog is not open'); interrupt(reason) },
+  }
 }
+
+it('keeps following host additions after the transport reconnects without reporting a connection failure', async () => {
+  const b = await bench()
+  b.addHost({ name: 'c', host: 'offline.invalid', profile: 'web', phase: 'disconnected', url: null, error: null })
+  b.interrupt(new RemoteStreamCarrierError('api gateway: Remote stream reconnect requested'))
+  await vi.waitFor(() => { expect(b.openings()).toBe(2) })
+  expect(b.controller.view.getSnapshot().hosts.map(host => host.name)).toEqual(['a', 'b', 'c'])
+  expect(b.controller.view.getSnapshot().error).toBeNull()
+  await b.ctx.fiber.dispose()
+  expect(b.sources.size).toBe(0)
+})
 
 it('waits for readiness and binds operation receipts to the exact frame and native document', async () => {
   const b = await bench()
