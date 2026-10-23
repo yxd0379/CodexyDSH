@@ -5,7 +5,7 @@
  */
 
 import {
-  existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync,
+  existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
@@ -19,6 +19,7 @@ import {
   initProfile,
   loadProfile,
   loadProfileDirectory,
+  OPTIONAL_BUNDLES,
   PROFILE_COMPATIBILITY_FILENAME,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
@@ -392,6 +393,67 @@ describe('loadProfile', () => {
       dependencies: { 'custom-bundle': '^1.0.0' },
       dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'custom-bundle'] } },
     })
+  })
+
+  it('does not ship the retired upstream auto-review as a product optional bundle', () => {
+    const retired = '@deepseek-ai/dsh-experimental-auto-review'
+    expect(OPTIONAL_BUNDLES).not.toContain(retired)
+    for (const app of ['cli', 'web']) {
+      const manifest = JSON.parse(readFileSync(new URL(`../../../../apps/${app}/package.json`, import.meta.url), 'utf8')) as {
+        dependencies?: Record<string, string>
+        devDependencies?: Record<string, string>
+      }
+      expect(manifest.dependencies ?? {}).not.toHaveProperty(retired)
+      expect(manifest.devDependencies ?? {}).not.toHaveProperty(retired)
+    }
+    const base = JSON.parse(readFileSync(new URL('../../../bundle/codexy-base/package.json', import.meta.url), 'utf8')) as {
+      dependencies: Record<string, string>
+    }
+    expect(base.dependencies).toHaveProperty('@codexydsh/auto-review')
+  })
+
+  it.each(['named', 'application-owned'])('retires only the exact upstream auto-review selection from a %s profile', (kind) => {
+    const retired = '@deepseek-ai/dsh-experimental-auto-review'
+    const custom = `${retired}-custom`
+    const basePatch = readFileSync(new URL('../../../bundle/codexy-base/cordis.patch.yml', import.meta.url), 'utf8')
+    const anchor = stageInstallation({
+      '@codexydsh/base': { patch: basePatch },
+      [retired]: { patch: '- insert: [{ id: legacy-auto-review, name: legacy-review }]\n' },
+      [custom]: { patch: '- insert: [{ id: custom-review, name: custom-review }]\n' },
+    })
+    const home = tmp()
+    const dir = kind === 'named' ? resolveProfileDir('review-fixture', home) : join(home, 'app-profile')
+    initProfile(dir, ['@codexydsh/base', retired, custom, retired])
+    const before = {
+      ...readProfileManifest('test', dir),
+      dependencies: { [retired]: '^0.2.0', [custom]: '^1.0.0' },
+      dsh: { profile: { bundles: ['@codexydsh/base', retired, custom, retired] } },
+    }
+    writeProfileManifest(dir, before)
+    const patchPath = join(dir, PROFILE_PATCH_FILENAME)
+    const userPatch = '- id: codexy-auto-review\n  config: { mode: codexful }\n'
+    writeFileSync(patchPath, userPatch)
+    const load = (): Profile => kind === 'named'
+      ? loadProfile('test', 'review-fixture', anchor, home)
+      : loadProfileDirectory('test', dir, anchor)
+
+    const profile = load()
+    expect(profile.skippedBundles).toEqual([])
+    expect(profile.layers.map(layer => layer.packageName)).toEqual(['@codexydsh/base', custom])
+    const entries = composeEntries(profile.layers.map(layer => layer.patches))
+    expect(entries.find(entry => entry.id === 'codexy-auto-review')?.name).toBe('@codexydsh/auto-review')
+    expect(entries.some(entry => entry.id === 'legacy-auto-review')).toBe(false)
+    expect(entries.some(entry => entry.id === 'custom-review')).toBe(true)
+    expect(readProfileManifest('test', dir)).toEqual({
+      ...before, dsh: { profile: { bundles: ['@codexydsh/base', custom] } },
+    })
+    expect(readFileSync(patchPath, 'utf8')).toBe(userPatch)
+
+    const manifestPath = join(dir, 'package.json')
+    const unchangedTime = new Date('2000-01-01T00:00:00Z')
+    utimesSync(manifestPath, unchangedTime, unchangedTime)
+    expect(load().skippedBundles).toEqual([])
+    expect(statSync(manifestPath).mtimeMs).toBe(unchangedTime.getTime())
   })
 
   it.each(['missing package', 'invalid manifest', 'not a bundle', 'missing patch', 'invalid patch'])(

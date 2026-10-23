@@ -11,6 +11,25 @@ const definitions = [{ id, defaults: {
   'web:linux': { code: 'Slash', modifiers: ['primary'] as const },
 } }]
 
+it('keeps deployment shortcut reads, writes and storage events in one namespace', async () => {
+  const base = vi.spyOn(document, 'baseURI', 'get').mockReturnValue('https://app.example/codexy-remote/alpha/')
+  localStorage.setItem(SHORTCUT_STORAGE_KEY, JSON.stringify({ schemaVersion: 1, profiles: { 'web:macos': { [id]: null } } }))
+  const publish = vi.fn()
+  const adapter = webShortcutStorage(window, 'macos', publish)
+  try {
+    const initial = await adapter.get(definitions)
+    expect(initial.document.profiles['web:macos']?.[id]).toBeUndefined()
+    expect((await adapter.edit({ type: 'set', id, binding: null }, initial.revision)).status).toBe('saved')
+    expect(localStorage.getItem(`/codexy-remote/alpha/${SHORTCUT_STORAGE_KEY}`)).not.toBeNull()
+    publish.mockClear()
+    base.mockReturnValue('https://app.example/')
+    window.dispatchEvent(new StorageEvent('storage', { key: SHORTCUT_STORAGE_KEY }))
+    await Promise.resolve()
+    expect(publish).not.toHaveBeenCalled()
+    expect(JSON.parse(localStorage.getItem(SHORTCUT_STORAGE_KEY)!)).toMatchObject({ profiles: { 'web:macos': { [id]: null } } })
+  } finally { adapter.dispose() }
+})
+
 it('syncs same-origin updates, rejects stale drafts, and releases the storage listener', async () => {
   let latest!: ShortcutConfigSnapshot
   const publish = vi.fn((value: ShortcutConfigSnapshot) => { latest = value })

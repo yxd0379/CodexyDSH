@@ -1,0 +1,11 @@
+.section { display: flex; flex-direction: column; gap: 16px; }
+.description { margin: 0; color: var(--dsw-alias-label-secondary); line-height: 1.6; }
+.heading { margin: 0; font-size: 15px; font-weight: 600; }
+.row { display: flex; align-items: center; gap: 16px; padding-bottom: 12px; border-bottom: 0.5px solid var(--dsw-alias-border-l2); }
+.workspace { display: flex; flex: 1; min-width: 0; align-items: center; gap: 12px; cursor: pointer; }
+.workspace input { flex: none; accent-color: var(--dsw-alias-state-business-primary); }
+.name { min-width: 0; overflow-wrap: anywhere; }
+.path { display: block; margin-top: 4px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.details { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 20px; }
+.details dt { color: var(--dsw-alias-label-secondary); }
+.details dd { margin: 0; overflow-wrap: anywhere; }

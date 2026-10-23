@@ -28,6 +28,9 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-fs": "workspace:*"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-fs": "workspace:*",
     "@deepseek-ai/dsh-fs-local": "workspace:*",

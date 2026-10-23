@@ -11,7 +11,6 @@ import {
 import { createQuestionDraftStore } from '../src/client/draft-store.ts'
 import { QuestionComposer } from '../src/client/QuestionComposer.tsx'
 import { en, zh } from '../src/client/locales.ts'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 
 // Every session-scope fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
@@ -384,7 +383,7 @@ describe('PlanReviewPanel', () => {
 
   it('carries the same decision surface in English', () => {
     const { carrier } = wait()
-    render(<QuestionComposer matched={carrier} {...kit} t={seatOver(en, commonEn)} />)
+    render(<QuestionComposer matched={carrier} {...kit} t={seatOver(en, commonZh)} />)
 
     expect(screen.getByText('Plan review')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy()

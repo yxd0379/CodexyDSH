@@ -9,7 +9,7 @@ import type { MenuItemConstructorOptions, MessageBoxOptions } from 'electron'
 import { DESKTOP_IPC, type DesktopUpdateState } from '../src/ipc.ts'
 import { MANDATORY_IPC } from '../src/mandatory-update-ipc.ts'
 import { DesktopHostFatalError, DesktopHostUncleanExitError } from '../src/host-process.ts'
-import { en, zh } from '../src/locale.ts'
+import { zh } from '../src/locale.ts'
 import { DesktopUpdatePreparationError } from '../src/update-error.ts'
 import { writeCrashReport } from '../src/crash-report.ts'
 
@@ -159,9 +159,12 @@ const harness = await vi.hoisted(async () => {
     getVersion: () => '1.0.0',
     getAppPath: (): string => 'desktop-test-app',
     setAppLogsPath: vi.fn(),
+    setName: vi.fn(),
+    setPath: vi.fn(),
+    commandLine: { getSwitchValue: () => '' },
     getPath: vi.fn<(name: string) => string>(),
     setAboutPanelOptions: vi.fn<(options: Electron.AboutPanelOptionsOptions) => void>(),
-    requestSingleInstanceLock: () => true,
+    requestSingleInstanceLock: vi.fn(() => true),
     setAsDefaultProtocolClient: vi.fn(),
     exit: vi.fn(),
     relaunch: vi.fn(),
@@ -307,7 +310,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:fs/promises')>()
   return { ...original, readFile: vi.fn((path: Parameters<typeof original.readFile>[0], encoding?: 'utf8') => {
     if (path === join('desktop-test-app', 'package.json')) {
-      return Promise.resolve(JSON.stringify({ dshDesktopAppId: 'com.deepseek.dsh', dshMandatoryUpdatePolicy: harness.embeddedPolicy }))
+      return Promise.resolve(JSON.stringify({ dshDesktopAppId: 'io.codexydsh.desktop', dshMandatoryUpdatePolicy: harness.embeddedPolicy }))
     }
     return encoding === undefined ? original.readFile(path) : original.readFile(path, encoding)
   }) }
@@ -317,7 +320,10 @@ vi.mock('../src/login-shell-environment.ts', async importOriginal => ({
   readDesktopLoginShellEnvironment: harness.loginShell,
 }))
 vi.mock('../src/runtime-tree.ts', () => ({ readDesktopRuntime: () => ({ release: { version: '1.0.0' } }) }))
-vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: 'desktop-test-profile' }) }))
+vi.mock('../src/paths.ts', () => ({
+  resolveDesktopPaths: () => ({ profile: 'desktop-test-profile' }),
+  resolveDesktopUserData: () => harness.app.getPath('userData'),
+}))
 vi.mock('../src/project-manager.ts', () => ({
   DesktopProjectManager: class {
     readonly applyRelease = harness.applyRelease
@@ -364,7 +370,6 @@ vi.mock('../src/welcome-backend.ts', () => ({
   connectDesktopWelcome: async () => ({
     analyticsEnabled: async () => harness.analyticsEnabled,
     report: harness.analytics,
-    readLocalePreference: async () => null,
     read: async (): Promise<unknown> => (await harness.hosts.at(-1)!.fetch()).json() as Promise<unknown>,
     save: async () => ({ ok: true }),
     account: { watch: harness.watchAccount, state: async () => ({ status: 'signed-out', attempt: null }) },
@@ -408,7 +413,7 @@ beforeEach(() => {
   onTestFinished(() => { rmSync(userData, { recursive: true, force: true }) })
   harness.app.getPath.mockImplementation(name => name === 'userData' ? userData : `desktop-test-${name}`)
   harness.dialog.showMessageBox.mockImplementation((options: { title?: string }) => {
-    if (options.title !== en.startupFailed) return Promise.resolve({ response: 1 })
+    if (options.title !== zh.startupFailed) return Promise.resolve({ response: 1 })
     harness.dialogShown.resolve()
     return new Promise(() => {})
   })
@@ -446,6 +451,9 @@ describe('desktop main startup', () => {
   it.each([true, false])('selects the package manager before Host startup (packaged=%s)', async (packaged) => {
     harness.app.isPackaged = packaged
     await readyForUpdate()
+    expect(harness.app.setName).toHaveBeenCalledWith(zh.welcomeTaglineBrand)
+    expect(harness.app.setPath).toHaveBeenCalledWith('userData', harness.app.getPath('userData'))
+    expect(harness.app.setPath.mock.invocationCallOrder[0]!).toBeLessThan(harness.app.requestSingleInstanceLock.mock.invocationCallOrder[0]!)
     const host = harness.hosts[0]!
     expect(host.node).toBe(process.execPath)
     expect(host.primaryRuntime).toBe(packaged
@@ -467,7 +475,7 @@ describe('desktop main startup', () => {
     expect(harness.hosts).toHaveLength(1)
     expect(testAuth.login).not.toHaveBeenCalled()
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining(path), expect.any(Error))
-    expect(harness.dialog.showMessageBox).not.toHaveBeenCalledWith(expect.objectContaining({ title: en.startupFailed }))
+    expect(harness.dialog.showMessageBox).not.toHaveBeenCalledWith(expect.objectContaining({ title: zh.startupFailed }))
     expect(readFileSync(path, 'utf8')).toBe(raw)
   })
 
@@ -529,15 +537,14 @@ describe('desktop main startup', () => {
   })
 
   it.each([
-    ['darwin', true, 'en-US'],
+    ['darwin', true, 'zh-CN'],
     ['darwin', false, 'zh-CN'],
     ['win32', true, 'zh-CN'],
-    ['win32', false, 'en-US'],
+    ['win32', false, 'zh-CN'],
   ] as const)('offers the About command before other commands on %s (packaged=%s, locale=%s)', async (platform, packaged, locale) => {
     vi.stubGlobal('process', { ...process, platform })
     harness.app.isPackaged = packaged
     vi.spyOn(harness.app, 'getLocale').mockReturnValue(locale)
-    vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue([locale])
     vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue([locale])
     await readyForUpdate()
     const submenu = applicationMenuItems()
@@ -553,10 +560,9 @@ describe('desktop main startup', () => {
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
     ;(about!.click as () => void)()
     await vi.advanceTimersByTimeAsync(0)
-    const zh = locale === 'zh-CN'
     expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: 'info', title: zh ? '关于 DeepSeek Harness' : 'About DeepSeek Harness', message: 'DeepSeek Harness',
-      detail: zh ? '版本 V1.0.0' : 'Version V1.0.0', buttons: [zh ? '确定' : 'OK'], cancelId: 0,
+      type: 'info', title: '关于 CodexyDSH', message: zh.welcomeTaglineBrand,
+      detail: '版本 V1.0.0', buttons: ['确定'], cancelId: 0,
     }))
     // A dialog that cannot open is logged, not surfaced as an unhandled rejection.
     harness.dialog.showMessageBox.mockRejectedValueOnce(new Error('overlay unavailable'))
@@ -590,7 +596,7 @@ describe('desktop main startup', () => {
     expect(testAuth.login).not.toHaveBeenCalled()
     expect(testAuth.focus).not.toHaveBeenCalled()
     const messages = harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message)
-    const expected = JSON.parse(readFileSync(new URL('./expected/policy-login-en.json', import.meta.url), 'utf8')) as Record<string, string[]>
+    const expected = JSON.parse(readFileSync(new URL('./expected/policy-login-zh.json', import.meta.url), 'utf8')) as Record<string, string[]>
     expect(messages).toEqual(expected.disabled)
     expect(harness.updateDownload).not.toHaveBeenCalled()
   })
@@ -606,14 +612,14 @@ describe('desktop main startup', () => {
     await vi.advanceTimersByTimeAsync(0)
     request.mockClear()
     harness.updateCheck.mockClear()
-    const checkUpdates = applicationMenuItems().find(item => item.label === en.checkUpdatesMenu)!.click as () => void
+    const checkUpdates = applicationMenuItems().find(item => item.label === zh.checkUpdatesMenu)!.click as () => void
     checkUpdates()
     await vi.advanceTimersByTimeAsync(10_000)
     expect(request).toHaveBeenCalled()
     expect(harness.updateCheck).toHaveBeenCalledWith(true)
     expect(testAuth.login).not.toHaveBeenCalled()
     expect(harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message))
-      .not.toContain(en.policyLoginRequired)
+      .not.toContain(zh.policyLoginRequired)
   })
 
   it.each([false, true])('retains anonymous production checks with popup permission %s', async (allow) => {
@@ -628,7 +634,7 @@ describe('desktop main startup', () => {
     expect(request).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ credentials: 'omit' }))
     expect(testAuth.login).not.toHaveBeenCalled()
     expect(harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message))
-      .not.toContain(en.policyLoginRequired)
+      .not.toContain(zh.policyLoginRequired)
   })
 
   it('keeps a received mandatory decision when test cookies expire with popups disabled', async () => {
@@ -674,7 +680,7 @@ describe('desktop main startup', () => {
       expect(harness.hosts).toHaveLength(0)
       expect(harness.dialog.showMessageBox).toHaveBeenCalledOnce()
       expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
-        message: en.policyLoginRequired, buttons: [en.policyLogin, en.later], cancelId: 1,
+        message: zh.policyLoginRequired, buttons: [zh.policyLogin, zh.later], cancelId: 1,
       }))
       checks.push(Promise.resolve(invoke(DESKTOP_IPC.updatesOpen, 'app')))
       expect(harness.dialog.showMessageBox).toHaveBeenCalledOnce()
@@ -690,8 +696,8 @@ describe('desktop main startup', () => {
       await vi.advanceTimersByTimeAsync(10_000)
       expect(testAuth.login).toHaveBeenCalledOnce()
       const messages = harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message)
-      expect(messages.filter(message => message === en.policyLoginRequired)).toHaveLength(1)
-      expect(messages).toContain('You’re up to date!')
+      expect(messages.filter(message => message === zh.policyLoginRequired)).toHaveLength(1)
+      expect(messages).toContain(zh.updateCurrent)
     } finally {
       explanation.resolve({ response: 1 })
       login.resolve('cancelled')
@@ -708,7 +714,7 @@ describe('desktop main startup', () => {
     await readyForUpdate()
     await vi.advanceTimersByTimeAsync(0)
     expect(testAuth.login).not.toHaveBeenCalled()
-    expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ message: en.policyLoginRequired }))
+    expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ message: zh.policyLoginRequired }))
     harness.dialog.showMessageBox.mockClear()
     testAuth.login.mockImplementationOnce(async () => {
       request.mockImplementation(async () => Response.json({ code: 0, data: { biz_code: 0, biz_data: null } }))
@@ -718,12 +724,12 @@ describe('desktop main startup', () => {
     await invoke(DESKTOP_IPC.updatesOpen, 'app')
     expect(testAuth.login).toHaveBeenCalledOnce()
     expect(harness.dialog.showMessageBox.mock.calls.map(call => call.at(-1) as unknown)).toContainEqual(expect.objectContaining({
-      message: en.policyLoginRequired, buttons: [en.policyLogin, en.later],
+      message: zh.policyLoginRequired, buttons: [zh.policyLogin, zh.later],
     }))
     expect(harness.updateDownload).not.toHaveBeenCalled()
     expect(harness.updateInstall).not.toHaveBeenCalled()
     const messages = harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message)
-    const expected = JSON.parse(readFileSync(new URL('./expected/policy-login-en.json', import.meta.url), 'utf8')) as Record<string, string[]>
+    const expected = JSON.parse(readFileSync(new URL('./expected/policy-login-zh.json', import.meta.url), 'utf8')) as Record<string, string[]>
     expect(messages).toEqual(expected[outcome])
   })
 
@@ -783,7 +789,7 @@ describe('desktop main startup', () => {
       vi.stubEnv('DSH_DESKTOP_UPDATE_JOURNAL_DIR', directory)
       await readyForUpdate()
       harness.publishUpdate({ phase: 'error', failedOperation: 'download', version: '1.2.3', message: 'ENOSPC secret-url' })
-      const checkUpdates = applicationMenuItems().find(item => item.label === en.checkUpdatesMenu)!.click as () => void
+      const checkUpdates = applicationMenuItems().find(item => item.label === zh.checkUpdatesMenu)!.click as () => void
       checkUpdates()
       await vi.advanceTimersByTimeAsync(0)
       for (const host of harness.hosts) host.exited.resolve()
@@ -930,7 +936,7 @@ describe('desktop main startup', () => {
     expect(window.setBackgroundColor).not.toHaveBeenCalled()
   })
 
-  it('follows the Windows primary document language and palette without trusting other frames', async () => {
+  it('follows the Windows primary document palette without trusting other frames', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     await import('../src/main.ts')
     await harness.preparing.promise
@@ -945,7 +951,7 @@ describe('desktop main startup', () => {
     expect(harness.menu.buildFromTemplate).toHaveBeenLastCalledWith([{ role: 'copy', enabled: true, label: '复制', accelerator: '' }])
     listener(event, 'en', '#1b1b1c', '#f9fafb')
     window.webContents.emit('context-menu', {}, { isEditable: false, selectionText: 'text', editFlags: { canCopy: true } })
-    expect(harness.menu.buildFromTemplate).toHaveBeenLastCalledWith([{ role: 'copy', enabled: true, label: 'Copy', accelerator: '' }])
+    expect(harness.menu.buildFromTemplate).toHaveBeenLastCalledWith([{ role: 'copy', enabled: true, label: zh.copy, accelerator: '' }])
     window.setTitleBarOverlay.mockClear()
     listener(event, 'en', 'url(file:///bad)', '#fff')
     expect(window.setTitleBarOverlay).not.toHaveBeenCalled()
@@ -973,7 +979,7 @@ describe('desktop main startup', () => {
     expect(() => handler(event, 'application', NaN, 34)).toThrow('invalid popup request')
     const application = handler(event, 'application', 48, 34)
     expect(harness.menu.buildFromTemplate.mock.lastCall![0].map(item => item.label ?? item.type)).toEqual([
-      '关于 DeepSeek Harness', 'separator', '检查更新…', '管理 dsh 命令…', 'separator', '退出',
+      '关于 CodexyDSH', 'separator', '检查更新…', '管理 codexydsh 命令…', 'separator', '退出',
     ])
     expect(harness.popup.mock.lastCall![0]).toMatchObject({ window, x: 48, y: 34 })
     expect(harness.popup.mock.lastCall![0].callback).toBeTypeOf('function')
@@ -1006,19 +1012,17 @@ describe('desktop main startup', () => {
       .find(items => items.some(item => item.role === 'editMenu'))
     if (template === undefined) throw new Error('application menu missing')
     expect(template.map(describeItem)).toEqual(platform === 'darwin'
-      ? ['Desktop test', en.fileMenu, 'editMenu', 'windowMenu']
-      : ['Application', 'editMenu'])
+      ? ['Desktop test', zh.fileMenu, 'editMenu', 'windowMenu']
+      : ['应用', 'editMenu'])
     const application = template[0]!.submenu as MenuItemConstructorOptions[]
     expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(platform === 'darwin'
-      ? ['about', 'separator', en.checkUpdatesMenu, en.cliCommandMenu, 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
-      : ['about', 'separator', en.checkUpdatesMenu, 'separator', 'quit'])
+      ? ['about', 'separator', zh.checkUpdatesMenu, zh.cliCommandMenu, 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
+      : ['about', 'separator', zh.checkUpdatesMenu, 'separator', 'quit'])
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
   })
 
-  it.each(['en-US', 'zh-CN'])('localizes macOS application commands without changing the application name (%s)', async (locale) => {
+  it('shows Chinese macOS application commands without changing the application name', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
-    vi.spyOn(harness.app, 'getLocale').mockReturnValue(locale)
-    vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue([locale])
     const originalName = harness.app.name
     harness.app.name = '@deepseek-ai/dsh-desktop'
     try {
@@ -1026,10 +1030,9 @@ describe('desktop main startup', () => {
       await harness.preparing.promise
       const commands = applicationMenuItems().filter(item =>
         item.role === 'hide' || item.role === 'hideOthers' || item.role === 'unhide' || item.role === 'quit'
-        || item.label === en.checkUpdatesMenu || item.label === zh.checkUpdatesMenu
-        || item.label === en.cliCommandMenu || item.label === zh.cliCommandMenu)
+        || item.label === zh.checkUpdatesMenu || item.label === zh.cliCommandMenu)
       await expect(JSON.stringify(commands, null, 2) + '\n')
-        .toMatchFileSnapshot(`./expected/application-menu-${locale}.json`)
+        .toMatchFileSnapshot('./expected/application-menu-zh-CN.json')
       expect(harness.app.name).toBe('@deepseek-ai/dsh-desktop')
     } finally { harness.app.name = originalName }
   })
@@ -1215,18 +1218,15 @@ describe('desktop main startup', () => {
     expect(replacement.setAlwaysOnTop).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['win32', 'zh-CN'], ['win32', 'en-US'], ['darwin', 'zh-CN'], ['darwin', 'en-US'],
-  ] as const)('records the restart confirmation on %s in %s', async (platform, language) => {
+  it.each(['win32', 'darwin'] as const)('records the restart confirmation on %s', async (platform) => {
     vi.stubGlobal('process', { ...process, platform })
-    vi.spyOn(harness.app, 'getPreferredSystemLanguages').mockReturnValue([language])
     await readyForUpdate()
     harness.updateState = { phase: 'ready', version: '0.1.7-alpha.2' }
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 })
     await expect(harness.prepareUpdate()).resolves.toBe(false)
     const { message, detail, buttons } = harness.dialog.showMessageBox.mock.lastCall![0] as MessageBoxOptions
     await expect(JSON.stringify({ message, detail, buttons }, null, 2) + '\n')
-      .toMatchFileSnapshot(`./expected/update-restart-${platform}-${language}.json`)
+      .toMatchFileSnapshot(`./expected/update-restart-${platform}-zh-CN.json`)
   })
 
   /** Like readyForUpdate, but past backend readiness and the workspace reveal, so the Host answers quit inspections. */
@@ -1274,10 +1274,7 @@ describe('desktop main startup', () => {
     expect(window.focus).toHaveBeenCalled()
     harness.app.emit('second-instance')
     expect(window.show).toHaveBeenCalledTimes(2)
-    // Locale changes relabel the tray together with the application menu.
-    const relabels = harness.trays[0]!.setContextMenu.mock.calls.length
-    harness.ipcOn.mock.calls.find(call => call[0] === DESKTOP_IPC.localeChanged)![1]({ sender: window.webContents, senderFrame: window.webContents.mainFrame }, 'zh')
-    expect(harness.trays[0]!.setContextMenu.mock.calls.length).toBe(relabels + 1)
+
   })
 
   it('keeps the workspace visible while acknowledgement is pending and ignores a destroyed window', async () => {
@@ -1351,7 +1348,7 @@ describe('desktop main startup', () => {
     host.inspectQuit.mockReturnValue(inspected.promise)
     harness.app.quit()
     await vi.advanceTimersByTimeAsync(0)
-    const restart = applicationMenuItems().find(item => item.label === en.restartAppHostMenu)!
+    const restart = applicationMenuItems().find(item => item.label === zh.restartAppHostMenu)!
     ;(restart as { click: () => void }).click()
     await vi.advanceTimersByTimeAsync(0)
     inspected.resolve({ activeTasks: true, scheduledTasks: true })
@@ -1370,7 +1367,7 @@ describe('desktop main startup', () => {
     harness.app.quit()
     await vi.advanceTimersByTimeAsync(0)
     expect(harness.dialog.showMessageBox).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      message: en.quitTitle, detail: en.quitActiveAndScheduledTasks, buttons: [en.quit, en.cancel], defaultId: 0, cancelId: 1,
+      message: zh.quitTitle, detail: zh.quitActiveAndScheduledTasks, buttons: [zh.quit, zh.cancel], defaultId: 0, cancelId: 1,
     }))
     expect(window.hide).not.toHaveBeenCalled()
     expect(host.stop).not.toHaveBeenCalled()
@@ -1399,9 +1396,9 @@ describe('desktop main startup', () => {
     harness.dialog.showMessageBox.mockResolvedValue({ response: 1, checkboxChecked: false })
     harness.app.quit()
     await vi.advanceTimersByTimeAsync(0)
-    expect(harness.dialog.showMessageBox).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ detail: en.quitActiveTasks }))
+    expect(harness.dialog.showMessageBox).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ detail: zh.quitActiveTasks }))
     expect(host.stop).not.toHaveBeenCalled()
-    const restart = applicationMenuItems().find(item => item.label === en.restartAppHostMenu)!
+    const restart = applicationMenuItems().find(item => item.label === zh.restartAppHostMenu)!
     harness.dialog.showMessageBox.mockClear()
     ;(restart as { click: () => void }).click()
     await vi.advanceTimersByTimeAsync(0)
@@ -1568,7 +1565,7 @@ describe('desktop main startup', () => {
     expect(request.mock.calls[0]![1]!.headers).toMatchObject({
       'x-client-bundle-id': '', 'x-client-platform': 'desktop-win', 'x-client-version': '1.2.3',
       'x-client-arch': 'x64', 'x-client-update-channel': 'nightly', 'x-client-bundled-dsh-version': '1.0.0',
-      'x-client-locale': 'en_US', 'x-client-timezone-offset': String(-new Date().getTimezoneOffset() * 60),
+      'x-client-locale': 'zh_CN', 'x-client-timezone-offset': String(-new Date().getTimezoneOffset() * 60),
     })
   })
 
@@ -1586,7 +1583,7 @@ describe('desktop main startup', () => {
       return Promise.resolve({ response: 0 })
     })
     const submenu = applicationMenuItems()
-    const action = submenu.find(item => item.label === 'Check for Updates…')
+    const action = submenu.find(item => item.label === zh.checkUpdatesMenu)
     expect(action?.click).toBeTypeOf('function')
     // Electron supplies menu arguments that this callback does not consume.
     Reflect.apply(action!.click!, undefined, [])
@@ -1600,7 +1597,7 @@ describe('desktop main startup', () => {
     await prompt
     expect(signal.aborted).toBe(true)
     expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      message: 'You’re up to date!', detail: 'Current version: 1.0.0',
+      message: zh.updateCurrent, detail: '当前版本：1.0.0',
     }))
   })
 
@@ -1611,7 +1608,7 @@ describe('desktop main startup', () => {
     await invoke(DESKTOP_IPC.updatesOpen, 'app')
     expect(harness.dialog.showMessageBox).toHaveBeenCalledTimes(2)
     expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'error',
-      message: 'Could not check for updates. Please try again later.', technicalDetails: 'Feed unavailable' }))
+      message: zh.updateCheckFailed, technicalDetails: 'Feed unavailable' }))
     expect(harness.updateDownload).not.toHaveBeenCalled()
   })
 
@@ -1621,7 +1618,7 @@ describe('desktop main startup', () => {
     harness.updateDownload.mockRejectedValueOnce(new Error('desktop update: download confirmation is stale'))
     await invoke(DESKTOP_IPC.updatesOpen, 'app')
     expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'error',
-      message: en.updateDownloadFailed, technicalDetails: 'desktop update: download confirmation is stale' }))
+      message: zh.updateDownloadFailed, technicalDetails: 'desktop update: download confirmation is stale' }))
   })
 
   it('keeps policy failures silent while an ordinary update proceeds', async () => {
@@ -1635,7 +1632,7 @@ describe('desktop main startup', () => {
     harness.updateCheck.mockResolvedValueOnce({ phase: 'available', version: '1.0.1-nightly.1' })
     await invoke(DESKTOP_IPC.updatesOpen, 'app')
     const messages = harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message)
-    expect(messages).not.toContain(en.mandatoryUnavailable)
+    expect(messages).not.toContain(zh.mandatoryUnavailable)
     expect(harness.updateDownload).toHaveBeenCalledExactlyOnceWith('1.0.1-nightly.1')
   })
 
@@ -1665,13 +1662,13 @@ describe('desktop main startup', () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(() => policy.promise))
     harness.updateCheck.mockResolvedValue({ phase: 'available', version: '1.0.1-nightly.1' })
     harness.dialog.showMessageBox.mockImplementation(({ signal, message }: { signal?: AbortSignal; message: string }) => {
-      if (message !== en.updateAvailable.replace('{version}', '1.0.1-nightly.1') || signal === undefined) return Promise.resolve({ response: 1 })
+      if (message !== zh.updateAvailable.replace('{version}', '1.0.1-nightly.1') || signal === undefined) return Promise.resolve({ response: 1 })
       available.resolve(signal)
       return new Promise((resolve) => { signal.addEventListener('abort', () => { resolve({ response: 0 }) }, { once: true }) })
     })
     await readyForUpdate()
     const submenu = applicationMenuItems()
-    const action = submenu.find(item => item.label === 'Check for Updates…')
+    const action = submenu.find(item => item.label === zh.checkUpdatesMenu)
     Reflect.apply(action!.click!, undefined, [])
     const operation = Promise.resolve(invoke(DESKTOP_IPC.updatesOpen, 'app'))
     try {
@@ -1703,23 +1700,23 @@ describe('desktop main startup', () => {
     const ordinaryShown = Promise.withResolvers<undefined>()
     const policyShown = Promise.withResolvers<undefined>()
     harness.dialog.showMessageBox.mockImplementation(({ message }: { message: string }) => {
-      if (message === en.updateCurrent) {
+      if (message === zh.updateCurrent) {
         ordinaryShown.resolve(undefined)
         return ordinaryResult.promise
       }
-      if (message === en.policyLoginRequired) policyShown.resolve(undefined)
+      if (message === zh.policyLoginRequired) policyShown.resolve(undefined)
       return Promise.resolve({ response: 1 })
     })
     const operation = Promise.resolve(invoke(DESKTOP_IPC.updatesOpen, 'app'))
     await ordinaryShown.promise
     expect(harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message))
-      .not.toContain(en.policyLoginRequired)
+      .not.toContain(zh.policyLoginRequired)
     ordinaryResult.resolve({ response: 0 })
     await operation
     await vi.advanceTimersByTimeAsync(0)
     if (allow) await policyShown.promise
     else expect(harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message))
-      .not.toContain(en.policyLoginRequired)
+      .not.toContain(zh.policyLoginRequired)
     expect(testAuth.login).not.toHaveBeenCalled()
   })
 
@@ -1758,7 +1755,7 @@ describe('desktop main startup', () => {
     const host = await readyForUpdate()
     host.updateTasks.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
-    await expect(harness.prepareUpdate()).rejects.toThrow(/New tasks/u)
+    await expect(harness.prepareUpdate()).rejects.toThrow(zh.updateTasksChanged)
     expect(host.updateTasks.mock.calls).toEqual([['inspect'], ['lock'], ['unlock']])
     expect(host.stop).not.toHaveBeenCalled()
   })
@@ -1770,7 +1767,7 @@ describe('desktop main startup', () => {
     const preparing = harness.prepareUpdate()
     await host.stopping.promise
     expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'Tasks are still in progress', buttons: ['Stop tasks and update', 'Update later'],
+      message: zh.updateActiveTasks, buttons: [zh.updateStopTasks, zh.updateLater],
     }))
     expect(host.stop).toHaveBeenCalledWith(true)
     host.exited.resolve()
@@ -1914,7 +1911,7 @@ describe('desktop main startup', () => {
     if (mandatory) await harness.policyBlocked.promise
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
     const preparing = harness.prepareUpdate()
-    const rejected = expect(preparing).rejects.toMatchObject(new DesktopUpdatePreparationError('stop-failed', en.updateStopFailed, 'Task teardown failed after child exit'))
+    const rejected = expect(preparing).rejects.toMatchObject(new DesktopUpdatePreparationError('stop-failed', zh.updateStopFailed, 'Task teardown failed after child exit'))
     if (mandatory) await answerMandatory('install')
     await host.stopping.promise
     host.exited.reject(new DesktopHostUncleanExitError('Task teardown failed after child exit'))
@@ -1950,7 +1947,7 @@ describe('desktop main startup', () => {
     await rejected
     harness.dialog.showMessageBox.mockResolvedValue({ response: 1 })
     harness.publishUpdate({ phase: 'error', version: '1.0.1-nightly.1', failedOperation: 'install', message: 'child did not exit' })
-    await expect(harness.prepareUpdate()).rejects.toThrow('Task status is unavailable')
+    await expect(harness.prepareUpdate()).rejects.toThrow(zh.updateTasksUnavailable)
     expect(harness.hosts).toHaveLength(1)
     expect(host.updateTasks.mock.calls).toEqual([['inspect'], ['lock'], ['unlock']])
   })
@@ -1959,7 +1956,7 @@ describe('desktop main startup', () => {
     const host = await readyForUpdate()
     harness.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 })
     const preparing = harness.prepareUpdate()
-    const rejected = expect(preparing).rejects.toMatchObject(new DesktopUpdatePreparationError('stop-failed', en.updateStopFailed, 'Task teardown failed after child exit'))
+    const rejected = expect(preparing).rejects.toMatchObject(new DesktopUpdatePreparationError('stop-failed', zh.updateStopFailed, 'Task teardown failed after child exit'))
     await host.stopping.promise
     host.exited.reject(new DesktopHostUncleanExitError('Task teardown failed after child exit'))
     await rejected
@@ -2052,7 +2049,7 @@ describe('desktop main startup', () => {
     harness.prepared.reject(new Error('runtime resources missing'))
     await harness.dialogShown.promise
     expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('runtime resources missing')
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).toEqual(['Exit', 'Restart', 'Disable third-party plugins, back up profile patch, and restart'])
+    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).toEqual([zh.exitApplication, zh.restartApplication, zh.disableThirdPartyPlugins])
     expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
   })
 
@@ -2140,7 +2137,7 @@ describe('desktop main startup', () => {
     expect(report.error).toBeInstanceOf(Error)
     expect((report.error as Error).message).toContain('fatal uncaught exception: ENOENT')
     expect(report.rendererConsole).toEqual(['dsh-app://app/assets/entry.js:12 client-modules: bundle script plugins/??a/client.js&rev=1 failed to load'])
-    expect(report.app).toMatchObject({ name: 'Desktop test', version: '1.0.0', platform: process.platform, locale: 'en' })
+    expect(report.app).toMatchObject({ name: 'Desktop test', version: '1.0.0', platform: process.platform, locale: 'zh-CN' })
     expect(report.time).toBeInstanceOf(Date)
     host.exited.resolve()
     await harness.quitCompleted.promise
@@ -2296,6 +2293,25 @@ it.each(['failed', 'expired'] as const)('focuses DSH once when browser authoriza
   harness.publishAccount(state)
   harness.publishAccount(state)
   expect(window.focus).toHaveBeenCalledTimes(1)
+})
+
+it('reactivates its own workspace once after OAuth succeeds without a browser protocol return', async () => {
+  await import('../src/main.ts')
+  await harness.preparing.promise
+  harness.prepared.resolve()
+  await harness.hostStarted.promise
+  harness.hosts[0]!.ready.resolve()
+  await Promise.resolve(invoke(DESKTOP_IPC.boot))
+  const window = harness.windows[0]!
+  window.focus.mockClear()
+  const state: AccountView = {
+    status: 'credential-stored', links: { usageUrl: 'https://platform.deepseek.com/usage', topUpUrl: 'https://platform.deepseek.com/top_up' },
+    attempt: { id: 'test-successful-attempt' as NonNullable<AccountView['attempt']>['id'], phase: 'succeeded' },
+  }
+  harness.publishAccount(state)
+  harness.publishAccount(state)
+  expect(window.focus).toHaveBeenCalledTimes(1)
+  expect(harness.openExternal).not.toHaveBeenCalled()
 })
 
 it.each([['light', false], ['dark', true]] as const)('opens Platform authorization in the effective %s palette', async (theme, shouldUseDarkColors) => {

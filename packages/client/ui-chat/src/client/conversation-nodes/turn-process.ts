@@ -117,7 +117,7 @@ function isFinalAssistant(
 function latestAnswer(turn: TurnLocation): Readonly<FinalAssistantChatData> | null {
   const latestStep = turn.steps.at(-1)
   const data: Readonly<AssistantChatData> | undefined = latestStep?.data.get('assistant-step')
-  if (!isFinalAssistant(data) || !hasAssistantReplyContent(data.blocks)) return null
+  if (!isFinalAssistant(data) || data.finalNode.interrupted === true || !hasAssistantReplyContent(data.blocks)) return null
   return data.blocks.some(block => block.kind === 'tool-call') ? null : data
 }
 

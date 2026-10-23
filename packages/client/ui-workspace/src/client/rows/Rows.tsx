@@ -3,7 +3,7 @@
  * all data and callbacks arrive via props. Hover swaps (folder->chevron,
  * time->ellipsis, action buttons) are CSS-only, and a session row's clipped
  * title marquees programmatically while the row is hovered. Workspace row
- * menus are visual-only except Rename/Delete. A Session row's "..." menu and
+ * menus dispatch explicit owner callbacks. A local Session row's "..." menu and
  * its hover buttons are the `sidebar.workspaces.session.menu.item` and
  * `sidebar.workspaces.session.row.action` lists, rendered through the
  * browser's `renderSlot` with the menu's open state as the occurrence's hook
@@ -17,7 +17,7 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   HoverCard, IconArchiveOutlineRegular, IconEditOutlineRegular,
   IconEllipsisOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
-  IconNewChatOutlineRegular, IconPinFillRegular, IconTrashOutlineRegular,
+  IconInfoOutlineRegular, IconNewChatOutlineRegular, IconPinFillRegular, IconTrashOutlineRegular,
   IconTriangleRightFillRegular, IconUnarchiveOutlineRegular, Menu, relativeTime, StateDot, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
@@ -25,6 +25,7 @@ import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
+import type { WorkspaceSourceActions } from '../sources.ts'
 import css from './Rows.module.css'
 
 /** The standard locale seat, prop-passed from the browser root. */
@@ -216,14 +217,18 @@ function rowHalf(e: { clientY: number; currentTarget: HTMLElement }): 'before' |
  * @param props.t - the browser root's locale seat.
  * @returns the row element.
  */
-export function ProjectRowItem({ group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, t }: {
+export function ProjectRowItem({ group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, hostBadge, rowKey, t }: {
   group: GroupNode
   newShortcut?: ShortcutCatalogEntry | undefined
   containsCurrentDescendant?: boolean
   onToggle: () => void
   onCreate: () => void
   /** Real-Workspace actions; absent for the ungrouped bucket (no menu shown). */
-  actions?: { rename: () => void; delete: () => void } | undefined
+  actions?: { rename: () => void; delete?: () => void; archive?: () => void; details?: () => void } | undefined
+  /** Source label shares a stable trailing cell with the hover actions. */
+  hostBadge?: string | undefined
+  /** Source-qualified identity when the row belongs to another Host. */
+  rowKey?: string | undefined
   /** Present only for real Workspace rows in the grouped view. */
   drag?: WorkspaceRowDragProps | undefined
   /** Host account home; POSIX home-rooted hover paths display as `~`. */
@@ -237,12 +242,14 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   const [menuOpen, setMenuOpen] = useState(false)
   const workspaceMenuItems = [
     { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
-    { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true },
+    ...(actions?.details === undefined ? [] : [{ id: 'details', label: t('workspace.details'), icon: <IconInfoOutlineRegular /> }]),
+    ...(actions?.archive === undefined ? [] : [{ id: 'archive', label: t('workspace.archive'), icon: <IconArchiveOutlineRegular /> }]),
+    ...(actions?.delete === undefined ? [] : [{ id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true }]),
   ]
   const ownRow = (
     <div
-      className={clsx(css.projectRow, menuOpen && css.menuOpen)}
-      data-row-key={`workspace:${group.key}`}
+      className={clsx(css.projectRow, menuOpen && css.menuOpen, hostBadge !== undefined && css.sourcedProject)}
+      data-row-key={rowKey ?? `workspace:${group.key}`}
       role="treeitem"
       aria-expanded={row.expanded}
       onClick={onToggle}
@@ -265,6 +272,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
       <span className={css.projectText}>
         <span className={css.title}>{label}</span>
       </span>
+      {hostBadge !== undefined && <span className={css.hostBadge} title={hostBadge}>{hostBadge}</span>}
       <span className={css.rowActions}>
         {actions !== undefined && (
           <Menu
@@ -273,12 +281,11 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
             items={workspaceMenuItems}
             onSelect={(id) => {
               setMenuOpen(false)
-              // Unknown ids leave before the dispatch: a future menu row must
-              // not inherit the destructive branch as an else fallback.
-              /* v8 ignore next -- Menu can emit only the rename and delete rows supplied above. */
-              if (id !== 'rename' && id !== 'delete') return
+              // Only the supplied verb dispatches; unknown ids never inherit another action.
               if (id === 'rename') actions.rename()
-              else actions.delete()
+              else if (id === 'delete') actions.delete?.()
+              else if (id === 'archive') actions.archive?.()
+              else if (id === 'details') actions.details?.()
             }}
             portal
             closeOnPointerLeave
@@ -314,7 +321,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
     <HoverCard
       anchor={ownRow}
       content={<WorkspaceHoverContent
-        label={row.label}
+        label={hostBadge === undefined ? row.label : `${row.label} · ${hostBadge}`}
         cwd={row.cwd === undefined ? undefined : abbreviateHomePath(row.cwd, home)}
         createdAt={row.createdAt}
         t={t}
@@ -424,10 +431,11 @@ function PinnedIndicator({ t }: { t: RowTranslate }) {
  * section, and every relevant live status. The task section sits above the
  * status lines so they stay the card's trailing status line.
  */
-function SessionHoverContent({ node, now, renderSlot, t }: {
+function SessionHoverContent({ node, now, renderSlot, external, t }: {
   node: SessionNode
   now: number
   renderSlot: RowRenderSlots
+  external: boolean
   t: RowTranslate
 }) {
   // On archived rows the archived line already says the session is inactive,
@@ -440,7 +448,7 @@ function SessionHoverContent({ node, now, renderSlot, t }: {
       {/* Same placeholder rule as the row's trailing cell: no timestamp
           before the first prompt. */}
       {!node.blank && <div className={css.hoverTime}>{hoverTimeLabel(node.updatedAt, now, t)}</div>}
-      {renderSlot('sidebar.session.row.hover', { sessionId: node.id })}
+      {!external && renderSlot('sidebar.session.row.hover', { sessionId: node.id })}
       {statuses.map(status => (
         <div className={css.hoverStatus} key={status.label}>
           <StateDot state={status.state} />
@@ -543,7 +551,7 @@ export function SearchResultItem({ result, currentId, onOpen, onUnarchive, t }: 
  * @returns the session row.
  */
 export function SessionNodeItem({
-  node, currentId, now, onOpen, onRenameRequest, renderSlot, onReveal, drag, t,
+  node, currentId, now, onOpen, onRenameRequest, renderSlot, onReveal, drag, externalActions, rowKey, t,
 }: {
   node: SessionNode
   currentId: string | undefined
@@ -555,6 +563,9 @@ export function SessionNodeItem({
   onReveal?: (() => void) | undefined
   /** Present on reorderable-list rows so every row can remain a drop target. */
   drag?: RowDragProps | undefined
+  /** Source-owned actions bypass every local Session action/decorative slot. */
+  externalActions?: Pick<WorkspaceSourceActions, 'renameSession' | 'archiveSession' | 'unarchiveSession'> | undefined
+  rowKey?: string | undefined
   t: RowTranslate
 } & PropsRenderSlots<
   | 'sidebar.workspaces.session.menu.item'
@@ -587,7 +598,7 @@ export function SessionNodeItem({
   const ownRow = (
     <div
       ref={rowRef}
-      data-row-key={`session:${node.id}`}
+      data-row-key={rowKey ?? `session:${node.id}`}
       className={clsx(
         css.sessionRow, selected && css.selected, menuOpen && css.menuOpen,
         row.archived && css.archived,
@@ -632,7 +643,7 @@ export function SessionNodeItem({
       <span className={css.slot}>
         {!row.archived && !row.blank && (showStatus
           ? <SessionStatusDots statuses={statuses} />
-          : renderSlot('sidebar.session.row.leading', { sessionId: node.id }))}
+          : externalActions === undefined ? renderSlot('sidebar.session.row.leading', { sessionId: node.id }) : null)}
       </span>
       <span
         ref={titleRef}
@@ -663,7 +674,7 @@ export function SessionNodeItem({
           button needs no propagation handling of its own. */}
       {!row.blank && (
         <span className={css.rowActions} onClick={(e) => { e.stopPropagation() }}>
-          <Menu
+          {externalActions === undefined ? <Menu
             open={menuOpen}
             onClose={() => { setMenuOpen(false) }}
             portal
@@ -684,8 +695,29 @@ export function SessionNodeItem({
               { sessionId: node.id, displayTitle: row.title },
               { hookContext: menuOpenState },
             )}
-          </Menu>
-          {renderSlot('sidebar.workspaces.session.row.action', { sessionId: node.id, displayTitle: row.title })}
+          </Menu> : <Menu
+            open={menuOpen}
+            onClose={() => { setMenuOpen(false) }}
+            portal
+            closeOnPointerLeave
+            items={[
+              { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
+              { id: 'archive', label: t(row.archived ? 'menu.unarchiveSession' : 'menu.archiveSession'),
+                icon: row.archived ? <IconUnarchiveOutlineRegular /> : <IconArchiveOutlineRegular /> },
+            ]}
+            onSelect={id => {
+              setMenuOpen(false)
+              if (id === 'rename') externalActions.renameSession(node.id, row.title)
+              else if (id === 'archive') {
+                if (row.archived) externalActions.unarchiveSession(node.id)
+                else externalActions.archiveSession(node.id)
+              }
+            }}
+            anchor={<button type="button" className={css.iconButton}
+              aria-label={t('actions.session.aria', { name: title })}
+              onClick={() => { setMenuOpen(value => !value) }}><IconEllipsisOutlineRegular /></button>}
+          />}
+          {externalActions === undefined && renderSlot('sidebar.workspaces.session.row.action', { sessionId: node.id, displayTitle: row.title })}
         </span>
       )}
     </div>
@@ -693,7 +725,7 @@ export function SessionNodeItem({
   return (
     <HoverCard
       anchor={ownRow}
-      content={<SessionHoverContent node={node} now={now} renderSlot={renderSlot} t={t} />}
+      content={<SessionHoverContent node={node} now={now} renderSlot={renderSlot} external={externalActions !== undefined} t={t} />}
       openDelayMs={800}
       grouped
       disabled={menuOpen || drag?.active === true}

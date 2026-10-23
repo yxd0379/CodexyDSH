@@ -25,8 +25,8 @@ export type DesktopPublishConfig = z.infer<typeof schema>
 export async function readDesktopPublishConfig(configRoot: string, preset: 'test' | 'production'): Promise<DesktopPublishConfig> {
   if (!isAbsolute(configRoot)) throw new Error('desktop publish: configuration root must be absolute')
   const config = schema.parse(JSON.parse(await readFile(join(configRoot, 'publishing', `${preset}.json`), 'utf8')))
-  if (preset === 'production' && (config.origin !== 'https://download.deepseek.com' || !config.githubApp)) {
-    throw new Error('desktop publish: production requires its fixed origin and GitHub App configuration')
+  if (preset === 'production' && !config.githubApp) {
+    throw new Error('desktop publish: production requires GitHub App configuration')
   }
   return config
 }

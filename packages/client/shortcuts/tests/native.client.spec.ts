@@ -101,6 +101,37 @@ it('rejects old configuration and iframe identities, consumes repeats, and invok
   expect(release).toHaveBeenCalledTimes(1)
 })
 
+it('routes a focused Remote menu action to its own registry and never dispatches delayed keys locally', () => {
+  const registry = new ShortcutRegistry('desktop', 'macos')
+  const run = vi.fn()
+  registry.register({ id: 'page.close' as ShortcutCommandId, label: () => 'Close', aliases: [], defaults: {},
+    regions: ['page'], modals: [], resolve: () => ({ status: 'handled', run }) })
+  let deliver: (input: DesktopShortcutInput) => void = () => {}
+  const off = installNativeKeyboard(window, { subscribe: (listener) => { deliver = listener; return () => {} }, closeWindow: vi.fn() },
+    registry, () => registry.config.getSnapshot())
+  const frame = document.createElement('iframe')
+  frame.name = 'codexydsh-remote-ascend'
+  frame.dataset.codexydshRemoteFrame = 'ascend'
+  frame.src = '/codexy-remote/ascend/?codexydsh-embedded=1'
+  document.body.append(frame); frame.focus()
+  const post = vi.spyOn(frame.contentWindow!, 'postMessage')
+  const revision = registry.config.getSnapshot().revision
+  try {
+    deliver({ kind: 'menu', revision, commandId: 'page.close' as ShortcutCommandId })
+    expect(post).toHaveBeenCalledExactlyOnceWith({ source: 'codexydsh-native-shortcut', commandId: 'page.close' }, window.location.origin)
+    deliver({ kind: 'keyboard', revision, frameName: '', code: 'KeyW', control: false, alt: false,
+      shift: false, meta: true, repeat: false })
+    expect(run).not.toHaveBeenCalled()
+    frame.name = 'stale'
+    deliver({ kind: 'menu', revision, commandId: 'page.close' as ShortcutCommandId })
+    expect(post).toHaveBeenCalledOnce()
+    expect(run).not.toHaveBeenCalled()
+    frame.remove()
+    deliver({ kind: 'menu', revision, commandId: 'page.close' as ShortcutCommandId })
+    expect(run).toHaveBeenCalledOnce()
+  } finally { post.mockRestore(); off() }
+})
+
 it.each(['macos', 'windows'] as const)('runs a custom %s chord across text fields and verified embedded pages, once per press', (platform) => {
   const registry = new ShortcutRegistry('desktop', platform)
   const run = vi.fn()

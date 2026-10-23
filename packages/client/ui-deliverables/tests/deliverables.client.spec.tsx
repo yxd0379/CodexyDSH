@@ -877,7 +877,7 @@ describe('plugin registration', () => {
     )
     const service = (ctx as { get(name: string): ChatFileMentions | undefined }).get('chatFileMentions')
     const mentions = service?.forClosing(owner, SessionId('viewed-session'))
-    expect(mentions?.resolve('report.html')?.label).toBe('Open site/report.html in sidebar')
+    expect(mentions?.resolve('report.html')?.label).toBe('在侧边栏打开 site/report.html')
     mentions?.resolve('report.html')?.open()
     expect(opened).toEqual(['site/report.html'])
     const canonical = '/project/child/out/report.txt'
@@ -895,7 +895,7 @@ describe('plugin registration', () => {
       const mentions = service?.forClosing(delivered, SessionId('child-session'))
       for (const text of ['report.docx', 'out/report.docx']) {
         const mention = mentions?.resolve(text)
-        expect(mention?.label).toBe('Open out/report.docx in sidebar')
+        expect(mention?.label).toBe('在侧边栏打开 out/report.docx')
         mention?.open()
       }
     }
@@ -918,7 +918,7 @@ describe('plugin registration', () => {
     expect(face.hooks.presentedOpen.getSnapshot()['api/changes.open?sessionId=child-session&seq=5&index=0']).toBe('opened')
     face.openChangesReview({ sessionId: SessionId('child-session'), seq: 5, turn: 3 }, 1)
     expect(openResource).toHaveBeenCalledWith('dsh-resource://changes-review/session/child-session/5/3', { params: { index: 1 } })
-    expect((registered as { title(address: string): string }).title('dsh-resource://changes-review/session/child-session/5/3')).toBe('Review · turn 3')
+    expect((registered as { title(address: string): string }).title('dsh-resource://changes-review/session/child-session/5/3')).toBe('第 3 轮改动')
     const tabFace = tabEntry!.inject!(SessionId('child-session') as never) as unknown as ReviewInjected
     fetcher.mockResolvedValueOnce(Response.json({ turn: 3, files: [], total: 0, added: 0, deleted: 0 }))
     await tabFace.loadChangesSummary(SessionId('child-session'), 6)

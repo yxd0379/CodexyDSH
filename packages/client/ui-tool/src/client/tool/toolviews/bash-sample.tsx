@@ -43,11 +43,12 @@ function stateStatus(state: ToolRowState, t: BashRowProps['t']): string | null {
  * @param props - tool call, Session sources, locale, and inspection callback.
  * @returns the Bash output row.
  */
-export const BashRow = memo(function BashRow({ toolName, block, sessionId, useSessions, inspect, useDisclosure, t }: BashRowProps) {
+export const BashRow = memo(function BashRow({ toolName, block, cwd, inspect, useDisclosure, t }: BashRowProps) {
   const model = useMemo(() => toolRowModel(toolName, block), [toolName, block])
+  const titleKey = toolName === 'write_stdin' && (block.args.textPrefix('chars', 1) ?? '') !== ''
+    ? 'tool.title.sendTerminalInput' : model.titleKey
   // An omitted shell workdir is the session workspace; relative values resolve
   // against it before reaching the terminal primitive.
-  const cwd = useSessions(list => list.byId[sessionId]?.cwd)
   const terminalModel = useMemo(() => terminalCardModel(block, cwd), [block, cwd])
   const terminal = useMemo(() => terminalModel === null ? null : localizeTerminalCardModel(terminalModel, t), [terminalModel, t])
   const labels = useMemo(() => terminalBlockLabels(t), [t])
@@ -61,7 +62,8 @@ export const BashRow = memo(function BashRow({ toolName, block, sessionId, useSe
   // Failed or interrupted background launches retain raw input/output, as do
   // other execution failures, persistent results, and spill previews.
   const genericBody = terminal === null
-    && (model.state === 'error' || isSettledPersistentShellCall(block) || isSpilledShellCall(block) || background)
+    && (model.state === 'error' || model.state === 'stopped' || isSettledPersistentShellCall(block)
+      || isSpilledShellCall(block) || background || toolName === 'exec_command' || toolName === 'write_stdin')
     && (model.bodyRaw !== null || model.output !== null)
   const expandable = terminal !== null || genericBody
   const open = expanded && expandable
@@ -109,7 +111,7 @@ export const BashRow = memo(function BashRow({ toolName, block, sessionId, useSe
         <span className={css.leading}>{leading}</span>
         {status !== null && <span className={css.visuallyHidden}>{status}</span>}
         <TextShimmer active={running}>
-          <TextShimmer className={css.title}>{t(model.titleKey)}</TextShimmer>
+          <TextShimmer className={css.title}>{t(titleKey)}</TextShimmer>
           <span className={css.sep} data-shimmer-decoration aria-hidden />
           <span className={clsx(
             css.summary,
@@ -167,12 +169,15 @@ export const BashRow = memo(function BashRow({ toolName, block, sessionId, useSe
   )
 })
 
-/** Registers the standalone Bash conversation-row sample. */
+/** Registers Bash and unified-exec rows through the existing terminal presentation. */
 export const bashToolviewSample = {
   name: 'bash-toolview-sample',
   inject: ['slots'],
   apply(ctx: Context): void {
-    ctx.slots.inject('tool.call.toolview', () =>
-      ctx.slots.register({ name: 'tool.call.toolview', key: 'bash', locale: NS }, BashRow))
+    ctx.slots.inject('tool.call.toolview', function* () {
+      for (const key of ['bash', 'exec_command', 'write_stdin']) {
+        yield ctx.slots.register({ name: 'tool.call.toolview', key, locale: NS }, BashRow)
+      }
+    })
   },
 }

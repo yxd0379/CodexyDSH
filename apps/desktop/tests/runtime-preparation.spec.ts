@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createRequire } from 'node:module'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
@@ -13,6 +14,7 @@ const state = vi.hoisted(() => ({
   failure: undefined as 'electron' | 'primary' | 'cli' | undefined,
   preparePrimary: vi.fn(),
   commandLink: vi.fn(),
+  download: vi.fn(async () => 'electron.zip'),
 }))
 vi.mock('../scripts/desktop-build-paths.mjs', async importOriginal => ({
   ...await importOriginal<typeof import('../scripts/desktop-build-paths.mjs')>(),
@@ -21,7 +23,7 @@ vi.mock('../scripts/desktop-build-paths.mjs', async importOriginal => ({
     runtime: join(state.root, 'runtime'), electron: join(state.root, 'electron'), downloads: join(state.root, 'downloads'),
   }),
 }))
-vi.mock('@electron/get', () => ({ downloadArtifact: async () => 'electron.zip' }))
+vi.mock('@electron/get', () => ({ downloadArtifact: state.download }))
 vi.mock('extract-zip', () => ({ default: async () => {
   if (state.failure === 'electron') throw new Error('Electron extraction failed')
 } }))
@@ -81,10 +83,19 @@ it.each(['mac-arm64', 'mac-x64', 'win-x64'] as const)('prepares %s with one pnpm
   const runtime = join(state.root, 'runtime')
   mkdirSync(join(runtime, 'pnpm'), { recursive: true })
   await import('../scripts/prepare-runtime.ts')
+  const { version } = createRequire(import.meta.url)('electron/package.json') as { version: string }
+  const platform = windows ? 'win32' : 'darwin'
+  const arch = target === 'mac-arm64' ? 'arm64' : 'x64'
+  expect(state.download).toHaveBeenCalledWith(expect.objectContaining({
+    artifactName: 'electron', platform, arch,
+    checksums: expect.objectContaining({
+      [`electron-v${version}-${platform}-${arch}.zip`]: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    }),
+  }))
   expect(existsSync(join(runtime, 'pnpm'))).toBe(false)
   expect(existsSync(join(runtime, 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'))).toBe(true)
   expect(existsSync(join(runtime, 'bin', 'node'))).toBe(true)
-  expect(existsSync(join(runtime, 'cli', 'bin', windows ? 'dsh.cmd' : 'dsh'))).toBe(true)
+  expect(existsSync(join(runtime, 'cli', 'bin', windows ? 'codexydsh.cmd' : 'codexydsh'))).toBe(true)
   expect(readFileSync(join(runtime, 'cli', 'command-manager.js'), 'utf8')).toBe('command manager fixture')
   expect(existsSync(join(runtime, 'cli', 'command-path.ps1'))).toBe(true)
   expect(JSON.parse(readFileSync(join(runtime, 'versions.json'), 'utf8'))).toEqual({

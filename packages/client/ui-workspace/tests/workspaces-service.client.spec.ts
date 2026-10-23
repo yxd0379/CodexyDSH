@@ -18,11 +18,13 @@ import { LayoutController } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { DraftInitializationOptions, SessionInputResolver } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { ComposerBlockRegistry } from '../../ui-conversation/src/client/input/blocks.ts'
 import type { RowToast } from '../src/client/contract/slots.ts'
 import { DirectoryBrowseError, UiWorkspaceService } from '../src/client/navigation.ts'
 import { en, zh } from '../src/client/locales.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
+import type { WorkspaceSourceActions, WorkspaceSourceSnapshot } from '../src/client/sources.ts'
 
 const sid = (id: string): SessionId => SessionId(id)
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -282,11 +284,12 @@ function bench(options: BenchOptions = {}) {
   const ctx = new Context()
   contexts.push(ctx)
   const locale = new LocaleRuntime(ctx)
-  locale.setLocale('en')
+
   ctx.effect(() => locale.register('workspace', { en, zh }))
   ctx.provide('locale', locale)
   const requestDraftInitialization = vi.fn<SessionInputResolver['requestDraftInitialization']>(() => 'applied')
-  if (options.conversation !== false) ctx.provide('conversation', { input: { requestDraftInitialization } })
+  const composerBlocks = new ComposerBlockRegistry()
+  if (options.conversation !== false) ctx.provide('conversation', { input: { requestDraftInitialization }, blocks: composerBlocks })
   const layout = new LayoutController({
     selectPanel: vi.fn(), retainMainPanels: vi.fn(),
     setSidebar: vi.fn(), toggleSidebar: vi.fn(), setViewportWidth: vi.fn(),
@@ -310,7 +313,7 @@ function bench(options: BenchOptions = {}) {
     view.actions,
     notify,
   )
-  return { ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, selectPanel, view, notify, requestDraftInitialization }
+  return { ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, selectPanel, view, notify, requestDraftInitialization, composerBlocks }
 }
 
 function lastOpening(open: MockInstance<UiWorkspaceService['openWorkspace']>): Promise<void> {
@@ -320,6 +323,143 @@ function lastOpening(open: MockInstance<UiWorkspaceService['openWorkspace']>): P
 }
 
 describe('UiWorkspaceService', () => {
+  it('新建会话等待期间原输入框同步只读，成功后解除且不初始化或搬运草稿', async () => {
+    const b = bench({ workspaces: workspaceState([workspace('a')]) })
+    b.uiWorkspace.openSession(sid('current'))
+    const created = Promise.withResolvers<SessionId>()
+    b.sessions.create.mockReturnValueOnce(created.promise)
+    b.uiWorkspace.startSession(wid('a'))
+    const previousInput = b.composerBlocks.storeFor(sid('current'))
+    expect(previousInput.getSnapshot()).toEqual({ reason: '正在创建新会话…' })
+    expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
+    created.resolve(sid('new'))
+    await vi.waitFor(() => { expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('new'), { source: 'mainView' }) })
+    expect(previousInput.getSnapshot()).toBeUndefined()
+    expect(b.composerBlocks.storeFor(sid('new')).getSnapshot()).toBeUndefined()
+    expect(b.requestDraftInitialization).not.toHaveBeenCalled()
+  })
+
+  it('新建失败恢复原先输入状态与选择，不清除已有的功能阻塞提示', async () => {
+    const b = bench({ workspaces: workspaceState([workspace('a')]) })
+    b.uiWorkspace.openSession(sid('current'))
+    b.composerBlocks.set(sid('current'), { reason: '请选择可用模型' })
+    const created = Promise.withResolvers<SessionId>()
+    b.sessions.create.mockReturnValueOnce(created.promise)
+    const opening = b.uiWorkspace.openWorkspace(wid('a'))
+    expect(b.composerBlocks.storeFor(sid('current')).getSnapshot()?.reason).toBe('正在创建新会话…')
+    created.reject(new Error('create failed'))
+    await expect(opening).rejects.toThrow('create failed')
+    expect(b.composerBlocks.storeFor(sid('current')).getSnapshot()).toEqual({ reason: '请选择可用模型' })
+    expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
+    expect(b.sessions.retain).toHaveBeenCalledOnce()
+    expect(b.requestDraftInitialization).not.toHaveBeenCalled()
+  })
+
+  it('切换或取消导航立即解除临时只读，旧请求结束不会解除新请求的只读', async () => {
+    const b = bench({ workspaces: workspaceState([workspace('a'), workspace('b')]) })
+    b.uiWorkspace.openSession(sid('current'))
+    const first = Promise.withResolvers<SessionId>()
+    const second = Promise.withResolvers<SessionId>()
+    b.sessions.create.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const openingA = b.uiWorkspace.openWorkspace(wid('a'))
+    b.layout.selectPanel('other-panel' as MainPanelId)
+    expect(b.composerBlocks.storeFor(sid('current')).getSnapshot()).toBeUndefined()
+    const openingB = b.uiWorkspace.openWorkspace(wid('b'))
+    first.resolve(sid('older'))
+    await openingA
+    expect(b.composerBlocks.storeFor(sid('current')).getSnapshot()?.reason).toBe('正在创建新会话…')
+    b.uiWorkspace.openSession(sid('chosen'))
+    expect(b.composerBlocks.storeFor(sid('current')).getSnapshot()).toBeUndefined()
+    second.resolve(sid('newer'))
+    await openingB
+    expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('chosen'), { source: 'mainView' })
+  })
+
+  it('routes unscoped New Session to the selected source even when its Session id equals the local selection', () => {
+    const current = summary('same-id', { cwd: '/w/local' })
+    const b = bench({ sessions: sessionState([current], 'pending'), workspaces: workspaceState([workspace('local', [current.id])]) })
+    b.uiWorkspace.openSession(current.id)
+    const state = createSnapshotStore<WorkspaceSourceSnapshot>({ groups: [], selectedSessionId: current.id })
+    const actions: WorkspaceSourceActions = {
+      toggleWorkspace: vi.fn(), openSession: vi.fn(), startSession: vi.fn(), renameWorkspace: vi.fn(),
+      archiveWorkspace: vi.fn(), showWorkspaceDetails: vi.fn(), renameSession: vi.fn(),
+      archiveSession: vi.fn(), unarchiveSession: vi.fn(),
+    }
+    b.uiWorkspace.registerSource({ id: 'another-host', label: 'Another Host', state, actions })
+    b.uiWorkspace.startSession()
+    expect(actions.startSession).toHaveBeenCalledExactlyOnceWith(undefined)
+    expect(b.sessions.create).not.toHaveBeenCalled()
+    const options = { prompt: 'keep this prompt', clearPreviousDraft: false, agentPreset: 'custom' }
+    b.uiWorkspace.startSession(undefined, options)
+    expect(actions.startSession).toHaveBeenLastCalledWith(undefined, options)
+    expect(b.requestDraftInitialization).not.toHaveBeenCalled()
+    expect(b.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it('keeps explicit local Workspaces and an unscoped request after leaving another source on the local path', async () => {
+    const current = summary('same-id', { cwd: '/w/local' })
+    const b = bench({ sessions: sessionState([current], 'pending'), workspaces: workspaceState([workspace('local', [current.id])]) })
+    b.uiWorkspace.openSession(current.id)
+    const state = createSnapshotStore<WorkspaceSourceSnapshot>({ groups: [], selectedSessionId: current.id })
+    const actions: WorkspaceSourceActions = {
+      toggleWorkspace: vi.fn(), openSession: vi.fn(), startSession: vi.fn(), renameWorkspace: vi.fn(),
+      archiveWorkspace: vi.fn(), showWorkspaceDetails: vi.fn(), renameSession: vi.fn(),
+      archiveSession: vi.fn(), unarchiveSession: vi.fn(),
+    }
+    b.uiWorkspace.registerSource({ id: 'another-host', label: 'Another Host', state, actions })
+    b.uiWorkspace.startSession(wid('local'))
+    await vi.waitFor(() => { expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('local') }) })
+    expect(actions.startSession).not.toHaveBeenCalled()
+    b.sessions.create.mockClear()
+    state.set({ groups: [] })
+    b.uiWorkspace.openSession(current.id)
+    b.uiWorkspace.startSession()
+    await vi.waitFor(() => { expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('local') }) })
+    expect(actions.startSession).not.toHaveBeenCalled()
+  })
+
+  it('publishes source snapshots independently and releases the subscription with its registration', () => {
+    const b = bench()
+    const state = new MutableSource<WorkspaceSourceSnapshot>({ groups: [] })
+    const actions: WorkspaceSourceActions = {
+      toggleWorkspace: vi.fn(), openSession: vi.fn(), startSession: vi.fn(), renameWorkspace: vi.fn(),
+      archiveWorkspace: vi.fn(), showWorkspaceDetails: vi.fn(), renameSession: vi.fn(),
+      archiveSession: vi.fn(), unarchiveSession: vi.fn(),
+    }
+    const localSessions = b.sessions.list.getSnapshot()
+    const localWorkspaces = b.workspaces.list.getSnapshot()
+    const unregister = b.uiWorkspace.registerSource({ id: 'ascend', label: 'Ascend', state, actions })
+    expect(b.uiWorkspace.sources.getSnapshot()).toEqual([{ id: 'ascend', label: 'Ascend', groups: [] }])
+    state.set({ groups: [], selectedSessionId: sid('remote-only') })
+    expect(b.uiWorkspace.sources.getSnapshot()[0]?.selectedSessionId).toBe('remote-only')
+    expect(b.sessions.list.getSnapshot()).toBe(localSessions)
+    expect(b.workspaces.list.getSnapshot()).toBe(localWorkspaces)
+    expect(b.uiWorkspace.sourceActions('ascend')).toBe(actions)
+    unregister()
+    expect(b.uiWorkspace.sources.getSnapshot()).toEqual([])
+    expect(state.listenersSnapshot()).toEqual([])
+    expect(b.uiWorkspace.sourceActions('ascend')).toBeUndefined()
+  })
+
+  it('removes another source when its contributing plugin is disposed', async () => {
+    const b = bench()
+    const state = new MutableSource<WorkspaceSourceSnapshot>({ groups: [] })
+    const actions: WorkspaceSourceActions = {
+      toggleWorkspace: vi.fn(), openSession: vi.fn(), startSession: vi.fn(), renameWorkspace: vi.fn(),
+      archiveWorkspace: vi.fn(), showWorkspaceDetails: vi.fn(), renameSession: vi.fn(),
+      archiveSession: vi.fn(), unarchiveSession: vi.fn(),
+    }
+    const feature = b.ctx.plugin({
+      inject: ['uiWorkspace'],
+      apply(ctx) { ctx.uiWorkspace.registerSource({ id: 'ascend', label: 'Ascend', state, actions }) },
+    })
+    await feature.await()
+    expect(b.uiWorkspace.sources.getSnapshot()).toHaveLength(1)
+    await feature.dispose()
+    expect(b.uiWorkspace.sources.getSnapshot()).toEqual([])
+    expect(state.listenersSnapshot()).toEqual([])
+  })
+
   it('prepares and selects the default Workspace after both startup baselines', async () => {
     const b = bench({ configureWorkspaces: (workspaces) => {
       workspaces.initializeDefault.mockImplementation(async () => {
@@ -926,10 +1066,10 @@ describe('UiWorkspaceService', () => {
         if (failure === 'missing binding') b.sessions.binding.mockReturnValueOnce(undefined)
 
         b.uiWorkspace.startSession(wid('a'), { prompt: 'unsent' })
-        await expect(lastOpening(opening)).rejects.toThrow('Could not fill the draft. Please try again shortly.')
+        await expect(lastOpening(opening)).rejects.toThrow('暂时无法填入草稿，请稍后重试')
 
         expect(b.notify).toHaveBeenCalledExactlyOnceWith({
-          kind: 'createFailed', message: 'Could not fill the draft. Please try again shortly.',
+          kind: 'createFailed', message: '暂时无法填入草稿，请稍后重试',
         })
         expect(warning).toHaveBeenCalledExactlyOnceWith('new session failed:', expect.any(Error))
         expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
@@ -949,7 +1089,7 @@ describe('UiWorkspaceService', () => {
 
       b.uiWorkspace.startSession(undefined, { prompt: 'unsent' })
 
-      expect(b.notify).toHaveBeenCalledExactlyOnceWith({ kind: 'createFailed', message: 'Choose a workspace first.' })
+      expect(b.notify).toHaveBeenCalledExactlyOnceWith({ kind: 'createFailed', message: '请先选择工作区' })
       expect(b.sessions.create).not.toHaveBeenCalled()
       expect(b.requestDraftInitialization).not.toHaveBeenCalled()
       expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()

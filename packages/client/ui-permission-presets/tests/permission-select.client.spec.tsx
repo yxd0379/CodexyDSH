@@ -111,6 +111,23 @@ describe('PermissionSelect', () => {
     expect(select).not.toHaveBeenCalled()
   })
 
+  it('显示自动审批的图标、Host 中文名称和说明，提交仍使用模式标识', async () => {
+    const option = {
+      value: 'approve-for-me', name: '自动审批',
+      description: '保留工作区沙箱，需要额外权限时由模型审查授权请求。',
+    }
+    const { select, selection } = setup({ catalog: { ...CATALOG, options: [...CATALOG.options, option] } })
+    fireEvent.click(trigger())
+    const automaticApproval = screen.getByRole('menuitem', { name: '自动审批' })
+    expect(automaticApproval.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+    fireEvent.click(automaticApproval)
+    expect(select).toHaveBeenCalledExactlyOnceWith('approve-for-me')
+    await act(async () => { selection.set({ value: { currentValue: 'approve-for-me' } }) })
+    expect(trigger().textContent).toBe('自动审批')
+    expect(trigger().title).toBe(option.description)
+    expect(trigger().querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2)
+  })
+
   it('closes an open menu on an outside pointer', () => {
     setup()
     fireEvent.click(trigger())

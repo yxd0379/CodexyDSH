@@ -1,0 +1,79 @@
+{
+  "name": "@codexydsh/auto-review",
+  "description": "Per-tool LLM authorization review for the DeepSeek Harness Auto permission preset",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@codexydsh/instructions": "workspace:*",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-scope": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-fs": "workspace:*",
+    "@deepseek-ai/dsh-commands": "workspace:*",
+    "@deepseek-ai/dsh": "workspace:*",
+    "@codexydsh/approval": "workspace:*",
+    "@codexydsh/permissions": "workspace:*",
+    "@codexydsh/filesystem": "workspace:*",
+    "@deepseek-ai/dsh-util-values": "workspace:*"
+  },
+  "dependencies": {
+    "@codexydsh/delegation": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@codexydsh/instructions": "workspace:*",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
+    "@deepseek-ai/dsh-bash-sandbox": "workspace:*",
+    "@deepseek-ai/dsh-compaction": "workspace:*",
+    "@deepseek-ai/dsh-fs-local": "workspace:*",
+    "@deepseek-ai/dsh-fs-observation-policy": "workspace:*",
+    "@deepseek-ai/dsh-fs-sandbox": "workspace:*",
+    "@codexydsh/deepseek": "workspace:*",
+    "@deepseek-ai/dsh-ptc-runtime-node": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "workspace:*",
+    "@deepseek-ai/dsh-sandbox-policy": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-projection": "workspace:*",
+    "@deepseek-ai/dsh-shell": "workspace:*",
+    "@deepseek-ai/dsh-shell-env": "workspace:*",
+    "@deepseek-ai/dsh-subagent": "workspace:*",
+    "@deepseek-ai/dsh-subprocess-local": "workspace:*",
+    "@codexydsh/exec": "workspace:*",
+    "@codexydsh/files": "workspace:*",
+    "@codexydsh/subagents": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-scope": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-fs": "workspace:*",
+    "@deepseek-ai/dsh-commands": "workspace:*",
+    "@codexydsh/approval": "workspace:*",
+    "@codexydsh/permissions": "workspace:*",
+    "@codexydsh/filesystem": "workspace:*",
+    "@codexydsh/filesystem-local": "workspace:*",
+    "@codexydsh/bridges": "workspace:*",
+    "@codexydsh/runtime-testkit": "workspace:*",
+    "@deepseek-ai/dsh-typert-registry": "workspace:*",
+    "@deepseek-ai/dsh": "workspace:*",
+    "@deepseek-ai/dsh-util-values": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -79,7 +79,7 @@ describe('desktop welcome window', () => {
     const loaded = Promise.withResolvers<undefined>()
     window.loadFile.mockReturnValue(loaded.promise)
     electron.create.mockReturnValue(window)
-    const opening = openWelcomeWindow(resolveDesktopLocale('en'), operations)
+    const opening = openWelcomeWindow(resolveDesktopLocale('zh-CN'), operations)
     expect(window.show).not.toHaveBeenCalled()
     expect(window.loadFile).toHaveBeenCalledWith(join(electron.root, 'renderer', 'welcome.html'))
     expect(window.webContents.setWindowOpenHandler.mock.calls[0]![0]()).toEqual({ action: 'deny' })
@@ -95,7 +95,7 @@ describe('desktop welcome window', () => {
     const window = createWindow()
     window.loadFile.mockRejectedValue(new Error('missing welcome document'))
     electron.create.mockReturnValue(window)
-    await expect(openWelcomeWindow(resolveDesktopLocale('en'), operations)).rejects.toThrow('missing welcome document')
+    await expect(openWelcomeWindow(resolveDesktopLocale('zh-CN'), operations)).rejects.toThrow('missing welcome document')
     expect(window.destroy).toHaveBeenCalledOnce()
     expect(electron.handlers.size).toBe(0)
     expect(window.show).not.toHaveBeenCalled()
@@ -105,7 +105,7 @@ describe('desktop welcome window', () => {
     const window = createWindow()
     window.isDestroyed.mockReturnValue(true)
     electron.create.mockReturnValue(window)
-    await openWelcomeWindow(resolveDesktopLocale('en'), operations)
+    await openWelcomeWindow(resolveDesktopLocale('zh-CN'), operations)
     expect(window.show).not.toHaveBeenCalled()
     expect(window.destroy).not.toHaveBeenCalled()
   })
@@ -117,7 +117,7 @@ describe('desktop welcome window', () => {
     const skip = vi.fn(operations.skip)
     const copySignInLink = vi.fn(operations.copySignInLink)
     const takeNotice = vi.fn(async () => 'session-expired' as const)
-    await openWelcomeWindow(resolveDesktopLocale('en'), { ...operations, saveApiKey, skip, copySignInLink, takeNotice })
+    await openWelcomeWindow(resolveDesktopLocale('zh-CN'), { ...operations, saveApiKey, skip, copySignInLink, takeNotice })
     const own = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
     const take = electron.handlers.get(WELCOME_IPC.takeNotice)!
     await expect(take({ ...own, senderFrame: {} })).rejects.toThrow('unowned frame')
@@ -147,8 +147,8 @@ describe('desktop welcome window', () => {
     const loaded = Promise.withResolvers<undefined>()
     previous.loadFile.mockReturnValue(loaded.promise)
     electron.create.mockReturnValueOnce(previous).mockReturnValueOnce(current)
-    const opening = openWelcomeWindow(resolveDesktopLocale('en'), operations)
-    await openWelcomeWindow(resolveDesktopLocale('en'), operations)
+    const opening = openWelcomeWindow(resolveDesktopLocale('zh-CN'), operations)
+    await openWelcomeWindow(resolveDesktopLocale('zh-CN'), operations)
     loaded.resolve(undefined)
     await opening
     expect(previous.show).not.toHaveBeenCalled()
@@ -163,10 +163,10 @@ describe('desktop welcome window', () => {
     electron.create.mockReturnValueOnce(previous).mockReturnValueOnce(current)
     const previousStart = vi.fn(operations.startSignIn)
     const currentStart = vi.fn(operations.startSignIn)
-    await openWelcomeWindow(resolveDesktopLocale('en'), { ...operations, startSignIn: previousStart })
+    await openWelcomeWindow(resolveDesktopLocale('zh-CN'), { ...operations, startSignIn: previousStart })
     const previousHandler = electron.handlers.get(WELCOME_IPC.start)!
     const previousSender = { sender: previous.webContents, senderFrame: previous.webContents.mainFrame }
-    await openWelcomeWindow(resolveDesktopLocale('en'), { ...operations, startSignIn: currentStart })
+    await openWelcomeWindow(resolveDesktopLocale('zh-CN'), { ...operations, startSignIn: currentStart })
     const currentHandler = electron.handlers.get(WELCOME_IPC.start)!
     await expect(previousHandler(previousSender)).rejects.toThrow('unowned frame')
     await expect(currentHandler(previousSender)).rejects.toThrow('unowned frame')

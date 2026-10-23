@@ -62,6 +62,18 @@
   border-right: 0.5px solid var(--dsw-alias-border-l3);
 }
 
+.frame[data-sidebar-hidden] .sidebarCol {
+  border: none;
+}
+
+.sidebarContent {
+  height: 100%;
+}
+
+.sidebarContent[hidden] {
+  display: none;
+}
+
 .centerCol {
   min-width: 0;
   display: flex;
@@ -175,7 +187,7 @@
    the frame's left edge — traffic lights to x 68, controls at x 88
    (28 + 8 + 28), then 8px of air. Main panels whose content reaches the
    top-left corner pad by this. */
-:global([data-platform='darwin']) .frame[data-sidebar-collapsed] {
+:global([data-platform='darwin']) .frame[data-sidebar-collapsed]:not([data-sidebar-hidden]) {
   --dsh-frame-leading-clearance: 160px;
 }
 
@@ -184,7 +196,7 @@
    only the controls (12 + 28 + 8 + 28 + 8). The 12px start matches the
    expanded sidebar strip's inline padding (ui-sidebar .topStrip), so
    collapsing never shifts the toggle. */
-:global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-collapsed] {
+:global([data-platform='darwin'][data-fullscreen]) .frame[data-sidebar-collapsed]:not([data-sidebar-hidden]) {
   --dsh-frame-leading-clearance: 84px;
 }
 

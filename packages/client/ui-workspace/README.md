@@ -1,115 +1,115 @@
 ---
-description: "Shared Workspace browser and picker plugin for the dsh web client: grouped or flat session rows, management actions, the slot-composed Session row actions, and directory picking."
+description: "dsh Web 客户端的共享 Workspace 浏览器与选择器插件：分组或扁平的会话行、管理操作、由 slot 组合的 Session 行 action 与目录选择。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-client-ui-workspace
 
-English | [中文](README.zh.md)
+桌面端产品事件使用可选的[产品埋点服务](../product-analytics/README.zh.md)，不包含普通 Web 交互。
 
-Desktop product events use the optional [product analytics service](../product-analytics/README.md); ordinary Web interactions are excluded.
+## 概述
 
-## Summary
+本包让用户浏览分组或扁平的 Session 列表、为新 Session 选择 Workspace，并通过添加、重命名、重排序、搜索、fork、归档和删除 Workspace 来管理 Workspace 与 Session；Session 行菜单及其悬停按钮是可由客户端插件扩展的 slot 列表。待处理交互显示为警告点，subagent 来源的 Session 则保持隐藏。处于空闲状态且未归档、其 Session 有活动定时任务的 Session 行会显示时钟标记，其悬浮卡片会列出这些任务。规范化后仍有差异的文件夹路径会保留为独立 Workspace。添加 Workspace 需要组合目录选择器；没有目录选择器时，添加操作不可用。
 
-This package lets users browse grouped or flat Session lists, choose a Workspace for a new Session, and manage Workspaces and Sessions through add, rename, reorder, search, fork, archive, and Workspace deletion; the Session row menu and its hover buttons are slot lists that client plugins extend. Pending interactions appear as warning dots, and subagent-origin Sessions remain hidden. An idle, unarchived Session row with active scheduled tasks shows a clock mark, and its hover card lists those tasks. Canonically distinct folder paths remain separate Workspaces. Adding a Workspace requires a composed directory picker; without one, adding is unavailable.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Use the sidebar to browse Workspaces and their Sessions, reorder them, and start new ones; use the picker in the Session Intent hero to choose a Workspace for a new session. An open Workspace shows its first non-blank Sessions in list order up to a per-Workspace watermark, initially five. The watermark rises to cover the last Session within the first 50 that is running, has a running child, awaits the user, has an unread completion, or is open in the main view; a Session opened from search raises it to that Session at any position. The watermark is a row count that never falls on its own, so the rows stay visible after a run or notification ends; a reorder that moves a Session past the watermark hides it. Each **Show more** click raises it by five, without the 50-row limit, and reveals the rest when five or fewer remain; after the final batch, **Show less** resets it. Folding a Workspace resets its watermark and those of its nested Workspaces; a reset watermark still covers the qualifying Sessions. The selected blank **New Session** is an extra row outside the watermark until its first prompt. Watermarks are not persisted; any unmount of the grouped tree resets them.
+用侧边栏浏览 Workspace 及其 Session、重排它们并新建会话；在 Session Intent 主视觉区用选择器为新会话选择 Workspace。打开的 Workspace 按列表顺序显示前面的非空白 Session，直到该 Workspace 自己的水位线，水位线初始为五。水位线会升高，以覆盖前 50 条中最后一条正在运行、有子会话正在运行、等待用户、有未读完成提醒或在主视图中打开的 Session；从搜索打开的 Session 会把水位线升高到该 Session，无论其位置。水位线是一个行数，不会自行回落，因此运行或通知结束后这些行仍保持可见；重排若把某个 Session 移到水位线之后，该 Session 会被隐藏。每次点击**展开其余**将水位线升高五条，不受 50 行限制；剩余五条或更少时显示全部；最后一批显示后，**收起**重置水位线。折叠 Workspace 会重置其水位线及其嵌套 Workspace 的水位线；重置后的水位线仍覆盖符合条件的 Session。当前选中的空白**新会话**在首条提示词落地前是水位线之外的额外行。水位线不持久化；分组树的任何卸载都会重置水位线。
 
-History rows without a stored title use the localized unnamed label (未命名 / Untitled), rather than a directory name. The current blank row remains New Session; other blank rows remain hidden. Rename drafts use the stored title, or start empty when unnamed; unnamed rows do not offer title copying.
+未保存标题的历史会话显示本地化名称「未命名 / Untitled」，不使用目录名兜底。当前空会话仍显示「新会话」，其他空会话仍隐藏。重命名草稿使用已保存标题，无标题时留空；无标题行不提供标题复制。
 
-### Reordering and view options
+其他 Host 可通过 `ctx.uiWorkspace.registerSource({ id, label, state, actions })` 贡献原生侧栏行；注册与观察随调用插件一起释放。`state` 是 `WorkspaceSourceSnapshot` 的稳定 observable（`groups`，以及可选的 `selectedSessionId` 与 `home`），不是第二个本地 Controller。其 `GroupNode`、`SessionNode` 复用既有列表、滚动、悬浮卡片、归档筛选与标题搜索。带来源身份的动画 key 将不同 Host 上相同的 Session id 隔离。细框 Host 标签和悬停操作占用同一个固定行尾区域，标题不会位移。工作区属性、重命名、归档、分组展开、显式新建按钮，以及会话打开、重命名、归档、取消归档均调用所属来源的 callback；本地 Session action 与装饰 slot 从不收到外部 id。来源负责工作区归档的显示策略及设置中的恢复；从可见 `groups` 移除工作区不代表归档其会话或删除数据。
 
-Pinned Sessions lead ordinary Sessions in both grouped and flat views. **Last updated** sorts each partition strictly by the latest user prompt or steer time, newest first; pin time does not affect it. **Manual** uses the relative positions in one complete Session sequence, including hidden archives. Returning to Last updated discards the manual layout, and entering Manual again freezes the then-current chronological order. The browser defaults to Last updated and remembers the selected mode across reloads.
+### 重排序与视图选项
 
-Pinning moves the Session to the front of its complete saved sequence without changing the selected mode. It leads the pinned partition in Manual but need not lead it in Last updated. Unpinning leaves the saved position unchanged. Dragging either a pinned or ordinary row edits that same complete sequence and selects Manual; hidden archived members are retained. Missing pinned members prepend in pin-array order. New ordinary forks precede their sources in the complete sequence without inheriting pin membership; visible pins still lead ordinary rows. Other missing members append by recency with missing archives last. Supplementation stays in memory until a Session-order write records the complete result. Archive filtering alone changes neither saved positions nor account membership.
+分组和平铺视图都先显示置顶 Session，再显示普通 Session。**最近更新**在各分区内严格按最近一次用户提示词或 steering（中途引导）时间降序排列，置顶时间不影响它。**手动排序**使用同一条完整 Session 序列中的相对位置，包括隐藏的归档项。返回最近更新会丢弃手动布局，再次进入手动排序时冻结当时的时间顺序。浏览器默认采用最近更新，并在重新加载后记住所选模式。
 
-The selected blank **New Session** retains its provisional first slot and cannot be dragged; after its first prompt it becomes an ordinary draggable row, retaining that position in Manual or following its current timestamp in Last updated. A collapsed-group drag uses the target Session identity and keeps the source visible. Session display orders for real Workspaces, Ungrouped, and the flat list are browser-local; Workspace group drag order remains Host-durable.
+置顶把 Session 移到完整保存序列的首位，但不切换所选模式。它在手动模式下排在置顶区最前，在最近更新模式下则不一定。取消置顶不改变保存的位置。拖拽置顶行或普通行都修改同一条完整序列并选择手动模式，隐藏的归档成员始终保留。缺失的置顶成员按置顶数组顺序补到头部。新增的普通 fork 在完整序列中插在来源之前，不继承置顶成员关系；可见置顶行仍排在普通行之前。其他缺失成员按最近更新时间追加，缺失归档项放在最后。补齐仅在内存中完成，直到一次 Session 顺序写入保存完整结果。单纯切换归档筛选既不改变保存的位置，也不改变成员关系。
 
-### Workspace hierarchy
+当前选中的空白**新会话**保留临时首位且无法拖拽；首条提示词落地后，它成为可拖拽的普通行，在手动排序中保留该位置，在最近更新中按当前时间戳排列。折叠分组的拖拽使用目标 Session 身份，并保持来源行可见。真实 Workspace、Ungrouped 与单列表的 Session 显示顺序都保留在浏览器本地；Workspace 分组的拖拽顺序仍由 Host 持久化。
 
-Choose **Add workspace** and select a directory to register it and open a Session. **View options → Group by** defaults to **WorkSpace**, which lists Workspaces as sibling sections. Select **Workspace Tree** to nest each Workspace under its nearest registered ancestor, including Workspaces added later. Each Workspace keeps its own Sessions and row actions. Child Workspaces appear before the parent's own Sessions. Ancestors start expanded unless a saved collapsed state exists. A saved collapse also hides the current Session; ancestor folder icons stay highlighted when a descendant Workspace contains it. Row fills and hit targets span the same width at every level; only the contents indent. Workspace dragging reorders siblings; dropping on a descendant targets the nearest compatible ancestor, so an expanded parent can be moved past without collapsing it. Search-result navigation expands every ancestor. Grouping and expansion are saved in the current browser; switching modes preserves each Workspace's expansion preference, and the single-list view stays flat.
+### 工作区层级
 
-Hierarchy uses registered canonical paths only. It does not scan for projects or resolve symlink aliases. Nesting does not change Session working directories, logs, or Workspace membership. Deleting a parent Workspace leaves its child Workspaces registered and places them under their next registered ancestor, or at the root.
+选择**添加工作区**并选取目录，即可注册工作区并打开 Session。**视图选项 → 分组方式**默认为**按工作区**，将工作区作为同级分组显示。选择**按工作区树**后，每个 Workspace 会位于最近的已注册祖先之下，之后添加的 Workspace 也会自动归入。每个 Workspace 保留自己的 Session 和行操作，子 Workspace 显示在父级自己的 Session 之前。祖先默认展开，已有的折叠偏好除外。保存的折叠状态也会隐藏当前 Session；如果后代 Workspace 包含当前 Session，祖先文件夹图标仍保持高亮。各层级的高亮和点击区域保持整行同宽，仅内容缩进。拖拽 Workspace 仅重排同级项目；落在后代行上时，由最近的兼容祖先接收，因此无需先折叠父级就能将其他工作区拖到其后。选择搜索结果会展开全部祖先。分组方式和展开状态保存在当前浏览器中；切换模式会保留各 Workspace 的展开偏好，单列表视图保持平铺。
 
-### Search
+层级仅使用已注册的规范路径，不扫描项目，也不解析符号链接别名。嵌套不会改变 Session 的工作目录、日志或 Workspace 归属。删除父 Workspace 后，子 Workspace 仍保持注册，并归入下一个已注册祖先；没有祖先时显示在根层级。
 
-Collapsed search is one header action beside the view and add actions: activating it expands the field across the header. A non-blank query replaces either browsing mode with one flat result list — case-insensitive title and Workspace substring matches appear immediately, while a 250 ms debounced Host request adds ranked current-conversation content matches and snippets. Each new query aborts the preceding request; a failed content search leaves metadata matches visible without an additional warning. The list is capped at 20. Choosing an unarchived result clears and collapses search, opens the Session, and scrolls its row into view in the configured browsing mode; grouped browsing also expands its Workspace and the full Session list when required. Archived results offer Unarchive; attempting to open one explains that restriction without clearing the query or navigating.
+### 搜索
 
-### Managing sessions
+折叠搜索是视图和添加操作旁的一枚区头按钮：激活后输入框会扩展并占据区头。非空白查询会以单一扁平结果列表替代任一浏览模式——不区分大小写的标题和 Workspace 子串匹配项会立即显示，经 250 ms 防抖的 Host 请求则会加入经过排序的当前对话内容匹配项及其摘要片段。每次新查询都会中止前一个请求；内容搜索失败时，元数据匹配项仍会显示，不另给警告。列表最多显示 20 条结果。选择未归档结果会清空并收起搜索、打开 Session，并在当前浏览模式中将其行滚动到可见区域；分组浏览还会按需展开所属 Workspace 和完整 Session 列表。已归档结果提供取消归档操作；尝试打开时会说明限制，不清空查询，也不导航。
 
-The final built-in item in a Session row's "..." menu is Copy Session ID. It closes the menu and copies the complete ID directly, without opening a dialog. Clipboard success or failure appears in the global toast; a failed copy can be retried from the menu. Copying does not retain the Session, load its history, or call the Host.
+### 管理会话
 
-The Session row's Rename action opens a dialog prefilled with the row's display title; confirming an unchanged title is deliberately allowed — it pins the current automatic title against regeneration. Double-clicking a title also opens Rename; for an unarchived Session, the preceding clicks open its conversation. Rename uses a temporary `workspaceOperation` reference and awaits its initial history opening. The row's Fork action reads ordinary cold history normally. When the Host reports that source migration is required, an app-wide Toast offers to open that Session; the action only navigates and does not retry fork. A successful fork uses the source's last completed turn and increments the inherited persisted title through Session Controller without retaining the child, opening its history, or changing selection. Workspace Delete opens a confirmation that states the retention boundary; success removes the group while its Sessions remain under Ungrouped. Pin, Rename, Fork, Archive, and Copy Session ID are themselves entries of the `sidebar.workspaces.session.menu.item` list (pin and archive also of `sidebar.workspaces.session.row.action`), so a client plugin's action takes whatever position its `order` gives it.
+Session 行“...”菜单的最后一个内置项为“复制 Session ID”。点击后关闭菜单并直接复制完整 ID，不打开对话框。复制成功或失败通过全局提示反馈；失败时可从菜单重试。复制不会 retain 会话、加载历史或调用 Host。
 
-Archive commits without a confirmation dialog for a quiet Session and retains the Session's account position. A Session with running work is the one case that asks first: the Host refuses the plain archive and names that work, and the sidebar opens a stop-and-archive dialog listing it by family — the turn in progress, running subagents, background jobs, scheduled reminders, each with its labels — with the restore path stated; confirming asks the Host to stop the work the way the stop button does and archives once the archive set is durable, while the stops settle in the background, and cancelling leaves the Session running and visible. View options control visibility through one explicit three-way choice: Hide archived (the default) hides archived Sessions, All conversations (show archived) includes them, and Archived only hides ordinary Sessions and drops Workspaces without an archived Session; in tree grouping, children of a dropped Workspace nest under the nearest shown ancestor. Visible archived rows are grayed and carry an accessible explanation that they cannot be opened until restored; Rename, Fork, and Unarchive remain available. A successful archive shows a notice with an undo action and — while archived rows are hidden — a "filter archived sessions" action that switches the filter to All conversations (show archived); a stop-and-archive shows the same notice under its own wording, and undo restores the Session without resuming the stopped work. Unarchive removes the archive mark without restoring a pin or changing the saved position. An empty list shows a centered glyph-over-text placeholder; the Archived-only view names its own emptiness (No archived sessions yet) and adds a View other sessions text action that switches the filter back to Hide archived.
+Session 行内的 Rename 操作打开一个以该行显示标题预填的对话框；确认未修改的标题是有意允许的——这正是把当前自动标题钉住、不再被重新生成覆盖的手势。双击标题也会打开 Rename；对于未归档 Session，先发生的点击会打开其对话。Rename 使用临时 `workspaceOperation` reference，并等待首次历史打开。行内 Fork 正常读取普通冷历史。Host 报告源会话需要迁移时，应用级 Toast 提供打开该会话的操作；该操作仅导航，不重试 fork。成功的 fork 在源会话最后一个已完成轮次处创建分支，通过 Session Controller 递增继承的持久化标题，不 retain 子会话、不打开其历史，也不改变选择。Workspace 行内的 Delete 操作会打开确认框，说明保留边界；成功后该分组被移除，其 Session 则留在 Ungrouped 下。Pin、Rename、Fork、Archive 和复制 Session ID 本身就是 `sidebar.workspaces.session.menu.item` 列表的条目（pin 与 archive 同时也是 `sidebar.workspaces.session.row.action` 的条目），因此客户端插件的 action 由其 `order` 决定落在哪个位置。
 
-Session update times use the tertiary label color, including on archived rows. A Session title wider than its row is clipped with an ellipsis at rest. Hovering the row scrolls the title to its far edge — the incremented title of a fork, for example — and reveals it without the ellipsis; leaving the row returns the title to its start.
+对静止的 Session，Archive 不经确认对话框直接提交，并保留 Session 的记账位置。仍有工作在跑的 Session 是唯一会先询问的情形：Host 拒绝普通归档并列出这些工作，侧栏随即打开"停止并归档"对话框，按族列出——进行中的回合、运行中的子代理、后台任务、定时提醒，各带名称——并写明恢复路径；确认后请 Host 按停止按钮同样的方式停止这些工作，归档集合持久化后即完成归档，停止在后台收敛；取消则让 Session 继续运行并保持可见。视图选项以一组显式三选一控制显隐：隐藏已归档（默认项）隐藏已归档 Session，全部对话（显示已归档）将其纳入列表，仅显示已归档则隐藏普通 Session，并丢弃没有归档 Session 的 Workspace；树形分组下，被丢弃 Workspace 的子级挂到最近一个仍显示的祖先下。可见的归档行置灰，并提供无障碍说明，告知取消归档后才能打开；Rename、Fork 与取消归档仍然可用。归档成功后的提示提供"撤销"动作，并在归档行仍被隐藏时附带"筛选已归档会话"动作，后者直接把筛选切到全部对话（显示已归档）；停止并归档显示同样的提示但措辞不同，撤销只恢复 Session，不会让被停止的工作继续。取消归档移除归档标记，但不恢复置顶，也不改变保存的位置。列表为空时显示居中的"图标在上、文字在下"占位；仅显示已归档视图用自己的文案（暂无已归档会话），并附"查看其他会话"文字按钮，点击把筛选切回隐藏已归档。
 
-The keyboard reference exposes New Session, Search sessions, Add workspace, Rename session, Fork session, and Archive session. Desktop defaults use the platform's primary modifier, with Mod+K for search; Windows and macOS Web use the [shortcut service’s platform defaults](../shortcuts/README.md); Linux Web leaves these commands unbound until configured. Button tooltips and Session row menus display the effective bindings. Clicking a menu item targets that row; pressing its shortcut targets the main Session. Desktop and Windows/macOS Web rename use Mod+Alt+G, leaving Mod+Shift+R to browser reload. Rename requires a nonblank main Conversation with no modal obscuring it; a retained Session behind another main panel is unavailable. Other Windows and macOS Desktop bindings also execute from terminal input and modal dialogs; other environments follow the command's region and modal restrictions. Search and rename requests belong to this package; input drafts remain in the browser. The directory picker rejects another open while selection or Workspace adoption is pending. Fork captures the retained main-view Session, for which navigation has requested history opening, and keeps automatic migration. It uses the row action's Host operation to select its last completed turn, without loading older Client history. Missing or blank Sessions are unavailable; the Host rejects a source with no completed turn. A rejected shortcut fork preserves the current selection, displays a localized notification, and can be retried; unexpected failures also retain diagnostic logging. Its notification shares the frame-wide Workspace notice channel: only the latest notice remains visible, and removing the browsing region does not dismiss it.
+会话更新时间使用 tertiary 文本色，包括已归档行。标题宽于所在行时，静止状态以省略号裁切。把指针停在行上，标题会滚动到远端——例如 fork 递增后的标题——并在揭示时不显示省略号；指针离开后标题回到开头。
 
-### Pending interactions
+快捷键速查提供新建会话、搜索会话、添加工作区、重命名会话、分叉会话和归档会话。桌面默认使用平台的主修饰键，搜索为 Mod+K；Windows 和 macOS Web 使用[快捷键服务的平台默认值](../shortcuts/README.md)；Linux Web 在用户配置前不绑定这些命令。按钮提示和会话行菜单显示当前有效绑定。点击菜单项操作该行，按快捷键操作主会话。Desktop 和 Windows/macOS Web 的重命名均使用 Mod+Alt+G，将 Mod+Shift+R 留给浏览器刷新。重命名要求主区域正在显示非空会话，且没有模态对话框遮挡；切换到其他主面板后，后台保留的会话不可作为重命名目标。其他 Windows 和 macOS Desktop 绑定也可从终端输入区域和模态对话框中执行；其他环境遵循命令的区域和模态限制。搜索和重命名的打开请求归本包管理，输入草稿保留在浏览器中。目录选择或工作区接纳尚未结束时，目录选择器拒绝重复打开。分叉捕获主视图已持有并发起历史打开的会话，保留自动迁移；它使用与行菜单相同的 Host 操作选择最近已完成轮次，不读取更早的 Client 历史。没有会话或会话为空时不可用；没有已完成轮次的源会话由 Host 拒绝。快捷键分叉被拒绝时保留当前选择、显示本地化提示，并允许重试；非预期失败还会保留诊断日志。该提示共用应用级 Workspace 通知通道：只显示最新提示，移除浏览区域不会关闭它。
 
-Session rows render the runtime's live `pendingInteraction` classification: approvals report **Waiting for approval**, plan reviews report **Plan awaiting review**, and ordinary questions report **Waiting for answer**. While an interaction is pending, the row uses the shared warning dot and replaces its trailing update time with **Approval**, **Plan review**, or **Answer**; the full status and relative time remain in hover details. Pending interaction takes precedence over the shared ongoing loader; a finished-but-unviewed Session uses done, while idle remains dot-free in the row and uses the shared idle dot in its hover details. The leading seat renders only while the row's primary status is idle — no pending interaction, no own or descendant activity, and no unviewed completion — so an occupant there never appears beside the row's own status dot. An archived row keeps that cell blank: it shows neither a status dot nor the seat, and its live status appears on the hover card only.
+### 待处理交互
 
-### Active Schedule markers
+Session 行渲染运行时的实时 `pendingInteraction` 分类：审批显示**等待审批**，计划审阅显示**计划待审**，普通问题显示**等待回答**。交互待处理期间，该行使用共享 warning 橙点，并以**待批准**、**计划待审**或**待回答**替换尾部更新时间；悬停详情仍保留完整状态和相对时间。待处理交互的优先级高于共享 ongoing loading；已完成但未查看的 Session 使用 done，idle 在行内不显示点，在悬停详情中使用共享 idle 灰点。 行首 seat 仅在该行的主状态为 idle 时渲染——没有待处理交互、没有自身或后代活动、也没有未查看的完成提醒——因此该处的占用方不会与行自身的状态点同时出现。归档行该格整体留空：既不显示状态点也不挂 seat，其活动状态只出现在悬浮卡片上。
 
-Grouped and flat Session rows show a clock mark when the Session has active scheduled tasks. It is an occupant of the row's `sidebar.session.row.leading` seat, so it renders only on a row whose primary status is idle and never beside the row's own status dot; an archived row keeps that cell blank, and a search result has no leading seat and shows no mark. It is not a button, has no tab stop, and a press on its area does not open the row. The mark's own read and the meaning of its active-task condition belong to [ui-schedule](../ui-schedule/README.md).
+### 活动 Schedule 标识
+
+当成组的与平铺的 Session 行所对应的 Session 存在活动定时任务时，该行显示时钟标记。它是行首 `sidebar.session.row.leading` seat 的占用方，因此仅在该行主状态为 idle 时渲染，绝不与行自身的状态点同时出现；归档行该格同样留空，搜索结果没有该 seat，也不显示标记。它不是按钮，没有 Tab stop，点击其所在区域不会打开整行。标记自身的读取及其「活动」条件的确切含义由 [ui-schedule](../ui-schedule/README.zh.md) 负责。
 
 -----
 
-`ctx.uiWorkspace.openSession(target)` synchronously replaces the owned `mainView` reference and returns the main area to Conversation without waiting for `reference.ready`, so history loading renders inside the selected Session view. The target may be a known Session id or a durable direct-parent subagent address; an explicit address does not require a preloaded parent catalog. `openWorkspace(id, beforeOpen?, options?)` opens a Workspace blank only if no later navigation has superseded the request; an explicit New Session creates a fresh Session. `forkSession(id)` creates the child without navigating or superseding a pending navigation. The optional synchronous preparation callback runs after the target is retained and only for a current Workspace request, so superseded requests do not move composer drafts. Navigation or owner disposal suppresses the late UI commit, not the underlying Session creation. Startup restoration retains its main reference without changing the selected panel or cancelling a later navigation. Archiving the main Session releases its reference and clears the main selection. Selection failure leaves a global panel visible. Session rows read `usePanelInfo` to suppress their selected appearance while a global panel is active; search and directory-picker focus alone do not leave that panel.
+`ctx.uiWorkspace.openSession(target)` 会同步替换其拥有的 `mainView` reference，并让主区域返回 Conversation，而不等待 `reference.ready`，因此历史加载会显示在已经选中的 Session 视图内。目标可以是已知 Session id，也可以是持久的直接父子 subagent 地址；显式地址不要求预先加载 parent catalog。`openWorkspace(id, beforeOpen?, options?)` 仅在请求未被后续导航替代时打开工作区空白 Session；显式新会话操作会创建新的 Session。`forkSession(id)` 创建子会话，不导航，也不替代尚未完成的导航。可选的同步准备回调在目标被 retain 后执行，并且仅对仍有效的 Workspace 请求执行，因此过期请求不会搬移 composer 草稿。后续导航或 owner 释放会阻止晚到的 UI 提交，但不取消底层 Session 创建。启动恢复会 retain 主 reference，不改变已选面板，也不取消后续导航。归档主 Session 会释放其 reference 并清除主选择。选择失败时保留当前全局面板。Session 行读取 `usePanelInfo`，在全局面板活跃时不显示 Session 选中样式；仅把焦点移到搜索框或目录选择器不会离开该面板。
 
-Navigation and startup restoration obtain the selected Session's projections from its `follow`; neither issues a separate projection refresh for that Session or its parent, except that restoring a saved blank first reloads that Session's projections, because listed values are cached hints that can lag its log after an unclean Host exit.
+导航和启动恢复通过所选 Session 的 `follow` 获取投影，不会另行刷新该 Session 或其父会话的投影；例外是恢复已保存的空白会话时先重新加载该 Session 的投影，因为列表中的值是缓存提示，Host 非正常退出后可能落后于其日志。
 
-Workspace reopening and explicit draft preparation name the first eligible blank in catalog order when they ask the Host for a Session; startup restoration names the saved blank. The Host reuses the named blank under the requested preset, or under its default when the request names none, and creates another Session when the blank has started, left the Workspace, or is held by another writer; navigation opens the returned Session without trying other blanks. `startSession` with draft options, `openWorkspace`, and `connectWorkspace` accept `{ agentPreset }` for a flow that knows its preset before it starts, such as the creator entry; a connection joins the latest in-flight connection to its Workspace only when both request the same preset, so the latest request always reaches the Host. Startup restoration passes the preset the saved blank's log recorded, so the draft keeps that preset; when the Host reports the preset as missing (`agent-preset/not-found`) or failing to activate (`agent-preset/invalid`), restoration asks again without a preset and the draft continues under the Host default. Other failures abort the request: an explicit New Session or hero Workspace pick shows the failure as a transient notice quoting the Host's code and message (for example a preset that fails to mount) or, for a failure that is not a Host refusal, that failure's own message; a request a later navigation or owner disposal superseded raises no notice, and startup restoration reports only to the console. Released blanks retain their slash-command state when reused. Later navigation cancels a pending startup selection.
+重新打开工作区和显式准备草稿向 Host 请求 Session 时指明列表中第一个符合条件的空白会话；启动恢复指明已保存的空白会话。Host 以请求的 preset 复用该空白会话，请求未指明 preset 时使用其默认 preset；若该空白会话已开始、已离开该工作区或写锁被其他写者占用，Host 改为新建 Session；导航打开 Host 返回的 Session，不再尝试其他空白会话。带草稿选项的 `startSession`、`openWorkspace` 和 `connectWorkspace` 接受 `{ agentPreset }`，供开始前已确定 preset 的流程使用，例如创造模式入口；一次连接仅在与该工作区最近一次进行中的连接请求相同 preset 时与之合并，因此最新的请求总会到达 Host。启动恢复传入已保存空白会话日志记录的 preset，使草稿保留该 preset；当 Host 报告该 preset 不存在（`agent-preset/not-found`）或无法激活（`agent-preset/invalid`）时，启动恢复改为不带 preset 再请求一次，草稿在 Host 默认 preset 下继续。其他错误会中止请求：显式新建会话或在 hero 中选择工作区时，失败以短暂提示展示，引用 Host 的错误码和消息（例如 preset 挂载失败），非 Host 拒绝的失败则显示其自身消息；已被后续导航或 owner 销毁取代的请求不弹提示，启动恢复仍只报告到控制台。已释放的空白会话被复用时保留 slash 命令状态。后续导航会取消尚未完成的启动选择。
 
-Once both Workspace and Session startup baselines are ready, an empty installation calls `workspaces.initializeDefault` and creates or reuses its blank Session. The composer becomes editable when that Session is selected; no message is submitted automatically. Later navigation or owner disposal prevents startup from selecting its result. Ineligible first use leaves the folder picker available without an error. Default Workspace creation failure shows a transient notice directing the user to Choose workspace, and is not retried until the next startup. Session creation failures use the ordinary restoration error handling. The registered Workspace remains available if Session creation or later submission fails.
+Workspace 和 Session 的启动基线均就绪后，空安装环境调用 `workspaces.initializeDefault`，创建或复用其空白 Session。选中该 Session 后输入框才可编辑，不会自动提交消息。后续导航或所属上下文销毁会阻止启动流程选中其结果。不符合首次使用条件时仍可选择文件夹，不显示错误。默认工作区创建失败时显示短暂提示，引导用户通过“选择工作区”选择文件夹，直到下次启动才重试。Session 创建失败沿用普通的恢复错误处理。登记成功的工作区在 Session 创建或后续提交失败时仍然保留。
 
-The first-use directory name and its stored title are fixed, so neither follows the reader's language: `workspaces.initializeDefault` carries no names, and one installation keeps one on-disk path and one stored title across language switches. A Workspace still carrying that automatic title is labeled with the localized default name wherever this package shows it — sidebar rows and their hover card, search result meta, the hero picker menu, and the rename and delete dialogs — through the controller's `workspaceDisplayTitle`. The rename dialog is seeded with the label on screen while the stored title decides whether confirming saves, so confirming the untouched prefill on such a Workspace pins that name and the row stops following the language; the duplicate-title check excludes the target by Workspace identity rather than by title.
+首次使用的目录名与其存储标题都是固定的，都不跟随读者语言：`workspaces.initializeDefault` 不携带任何名称，同一安装环境在切换语言后仍只有一个磁盘路径和一个存储标题。仍保留该自动标题的工作区，在本包展示它的所有位置——侧栏行及其悬浮卡片、搜索结果元信息、hero 选择器菜单、重命名与删除对话框——都通过控制器的 `workspaceDisplayTitle` 显示为本地化的默认名称。重命名对话框以屏幕上的标签作为初值，而判断确认是否需要保存用的是存储标题，因此对这类工作区直接确认未改动的初值即可固定该名称，该行不再跟随语言；重名检查按工作区身份而非标题排除目标自身。
 
-The package injects the Client `remoteAccess` service and provides the root standard Hook `useWorkspaceAccess(workspaceId, action)`, which answers whether the current Peer may call `action` on one Workspace resource; its snapshot semantics belong to [`dsh-api-remote-access`](../../api/remote-access/README.md#client-face).
+本包注入 Client `remoteAccess` 服务，并提供根作用域标准 Hook `useWorkspaceAccess(workspaceId, action)`，回答当前 Peer 能否在某个 Workspace 资源上调用 `action`；其快照语义归 [`dsh-api-remote-access`](../../api/remote-access/README.zh.md#client-face)。
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The package is one composition: both target slots are declared by other plugins, so `apply` uses `slots.inject()` to register for each declaration lifetime and re-register after a declaring slot is restored.
+本包是一条组合：两个目标 slot 都由其他插件声明，因此 `apply` 使用 `slots.inject()` 在各自的声明生命周期内完成注册，并在目标 slot 的声明恢复后重新注册。
 
-The browser entry also declares two root-scoped `list` child seats on each Session row: `sidebar.session.row.leading`, rendered only while that row's primary status is idle and left blank on an archived row, and `sidebar.session.row.hover`, mounted only while that row's hover card is open. Both take the row's Session identity and nothing else, so an occupant reads its own data by that id; a Session-scoped seat would force a Session binding, which would activate and retain every listed Session.
+浏览器入口还为每个 Session 行声明两个 root 作用域的 `list` 子 slot：`sidebar.session.row.leading` 仅在该行主状态为 idle 时渲染、归档行留空，`sidebar.session.row.hover` 仅在该行的悬浮卡片打开时挂载。两者只接收行的 Session 身份，占用方据此读取自己的数据；Session 作用域的 slot 会强制建立 Session 绑定，从而激活并保留列表中每个 Session。
 
-Client callers can pass `prompt` and `clearPreviousDraft` in the second argument to `uiWorkspace.startSession`. A prompt is plain text; structured drafts are handled internally during restoration and Workspace transfer. Without clearing, existing text or attachments are preserved; explicit clearing replaces only the target Session's text and inline references, leaving attachments intact. Option values are captured before asynchronous creation and applied to the exact retained binding before navigation commits. Superseded navigation does not write content; a submission-blocked input refuses preparation and keeps the previous selection. Calls without options create a fresh Session using the current Agent preset definition. Workspace reconnection and explicit draft preparation may reuse an existing blank Session. The [draft initialization decision](../../../.agents/notes/implemented/architecture/2026-09-30-structured-draft-initialization.md) describes the input owner's data flow.
+客户端调用方可以在 `uiWorkspace.startSession` 的第二参数中传入 `prompt` 与 `clearPreviousDraft`。提示词仅接受普通文字；结构化草稿由内部恢复和工作区携带流程处理。不清空时保留已有文字或附件；显式清空只替换目标 Session 的文字和内联引用，不删除附件。在异步创建前捕获选项值，在导航提交前应用到准确保留的 binding。已被后续操作取代的导航不写内容；输入处于提交阻塞状态时拒绝准备并保留原选择。不传选项时按当前 Agent 预设定义创建新的 Session。工作区重连和显式草稿准备仍可复用已有空 Session。[草稿初始化决策](../../../.agents/notes/implemented/architecture/2026-09-30-structured-draft-initialization.zh.md)说明输入 owner 的数据流。
 
-### The directory-flow hole
+### 目录流子 slot
 
-Each registration declares a **directory-flow child hole** (`single` kind: `conversation.hero.workspace.directoryFlow` / `sidebar.workspaces.directoryFlow`) that the composed picker package's client half fills with its picking interaction — the `-native` backend's renderless OS-chooser driver, an in-app browsing dialog under a `-browse` composition. The flat **Add workspace...** action renders only while the surface's hole is occupied; an empty hole means the composition has no picking affordance. The sidebar Add workspace action preserves an existing blank Session and its draft. This package owns the trigger and the adoption: the occupant reports one picked path per open through the hole's owner conversation (`open`/`busy`/`onPicked`/`onCancel`/`onError`), and the owner adopts it through the object layer, selecting the committed Workspace only after its list projection has refreshed.
+每个注册各自声明一个**目录流子 slot**（`single` kind：`conversation.hero.workspace.directoryFlow`／`sidebar.workspaces.directoryFlow`），由组合的选择器包 client half 填入其选取交互——`-native` 后端的无渲染 OS 选择器驱动，`-browse` 组合下则是应用内浏览对话框。平铺显示的**添加工作区…** 操作仅在当前界面的 slot 被占用时渲染；slot 为空意味着该组合没有目录选择能力。侧栏的添加工作区操作保留已有空白 Session 及其草稿。本包持有触发与接纳：占用方通过 slot 的属主交互约定（`open`/`busy`/`onPicked`/`onCancel`/`onError`）每次打开上报一个所选路径，owner 通过对象层接纳它，并等待 Workspace 列表投影刷新后才选中已提交的 Workspace。
 
-### Session row actions
+### Session 行 action
 
-The Session row's "..." menu and its hover buttons are two `list` slots declared by the WorkspaceBrowser entry: `sidebar.workspaces.session.menu.item` and `sidebar.workspaces.session.row.action`. Every menu row and every hover button is an entry, this package's own actions included: `apply` registers `pin` (menu 100, button 200), `rename` (200), `fork` (300), `archive` (menu 400, button 100), and `session-id` (450) the way a client plugin registers its actions, so a plugin action lands wherever its `order` says, and reusing a shipped id at another `priority` shadows that action.
+Session 行的 "..." 菜单和行尾悬停按钮是 WorkspaceBrowser 注册项声明的两个 `list` slot：`sidebar.workspaces.session.menu.item` 与 `sidebar.workspaces.session.row.action`。每一个菜单行、每一个悬停按钮都是条目，本包自己的 action 也不例外：`apply` 以客户端插件注册自己 action 的同一方式注册 `pin`（菜单 100、按钮 200）、`rename`（200）、`fork`（300）、`archive`（菜单 400、按钮 100）和 `session-id`（450），因此插件 action 落在其 `order` 所指的位置，以另一个 `priority` 复用内置 id 则遮蔽该 action。
 
-An entry receives only the row identity (`sessionId`, `displayTitle`) and owns everything else. It reads the Host state it cares about through its own injected hooks (the pin and archive sets, as Sets derived once per Workspace snapshot), decides its own visibility (pin renders nothing on an archived row, because the Host keeps the two sets exclusive, and fork renders nothing when `useSessionAccess(sessionId, 'session/fork')` is false), carries its whole behavior in its registration's `inject` face (a pin also fronts the Session in its saved orders; an archive raises the notice), and raises its own surfaces: the rename dialog, the stop-and-archive dialog, and the row-action notice are this package's `shell.overlay` entries, fed by the requests the actions inject. A menu entry renders one `role="menuitem"` button (this package's rows use `MenuItemButton` from ui-primitives, which adds the host styling and `separatorBefore` for a group start; the hairline comes and goes with the row) and dismisses the menu through the slot-level `useMenuOpenState` hook, the menu's own open state bound from the row's render occurrence; a hover button entry renders one icon button, and the strip keeps its clicks from opening the row. The browser passes no action callbacks to its rows; its remaining verbs are the search results' restore button and the title double-click, which raises the same rename request.
+条目只接收行身份（`sessionId`、`displayTitle`），其余一切自己负责：用自己注入的 hook 读自己关心的 Host 状态（置顶与归档集合，以每次 Workspace 快照只派生一次的 Set 形式），自己决定是否显示（Host 规定归档与置顶互斥，所以 pin 在归档行上不渲染；`useSessionAccess(sessionId, 'session/fork')` 为 false 时 fork 不渲染），整套行为放在注册项自己的 `inject` face 里（置顶成功后顺带把会话推到保存顺序最前，归档成功后发提示），浮层也自己带——重命名对话框、停止并归档对话框和行 action 的提示是本包注册在 `shell.overlay` 的条目，由 action 注入的请求驱动。菜单条目渲染一个 `role="menuitem"` 的按钮（本包自己的行用 ui-primitives 的 `MenuItemButton`，它带宿主样式，开启新分组的行加 `separatorBefore`，分隔线随行一起出现和消失），并通过 slot 级 `useMenuOpenState` hook（菜单自身的打开状态，从该行的渲染出现处绑定）关闭菜单；悬停按钮条目渲染一个图标按钮，按钮条会拦住点击、不让它打开该行。browser 不再向行传任何 action 回调，它剩下的动作只有搜索结果里的恢复按钮和标题双击，后者发出的是同一个重命名请求。
 
-The existing notice overlay dispatches `workspace.toast` by notice kind. Keyed registrations inject localized display mappings and their own actions; only archive notices subscribe to the viewing filter. They render the package-local `workspace.toast.content` Factory, which reuses the Toast primitive once for all presentations. The existing notice state, display sequence, latest-notice replacement, and dismissal remain shared; locale or filter changes do not restart the same notice's timer.
+现有通知浮层按通知 kind 分派 `workspace.toast`。各 keyed 注册注入本地化展示映射与自己的操作，只有归档通知订阅查看筛选状态。它们渲染包内的 `workspace.toast.content` Factory，所有展示共用一处 Toast primitive。现有通知状态、显示序号、最新提示替换及关闭逻辑仍共享；语言或筛选变化不会重新启动同一条提示的计时。
 
-#### Packaged client plugin
+#### 打包客户端插件
 
-Declare `ui-workspace`, `ui-slots`, `ui-renderer`, `client-locale`, and `ui-primitives` as browser/type development dependencies according to the Client dependency policy. The type-only `ui-workspace/client` import loads this package's `SlotMap` declaration; without it, an independently compiled plugin does not know the slot keys. Keep the Component at module scope and own visible copy in the contributing package's locale namespace.
+按照 Client 依赖规则，将 `ui-workspace`、`ui-slots`、`ui-renderer`、`client-locale` 与 `ui-primitives` 声明为浏览器／类型开发依赖。纯类型的 `ui-workspace/client` import 会加载本包的 `SlotMap` 声明；缺少该 import 时，独立编译的插件不会知道这些 slot key。Component 保持模块级稳定身份；用户可见文案由贡献包自己的 locale namespace 持有。
 
 ```tsx
 import type { Context } from '@deepseek-ai/cordis'
@@ -168,67 +168,67 @@ export function apply(ctx: Context): void {
 }
 ```
 
-`ctx.slots.inject()` is required even if the owner is normally present: it waits for the declaration, removes the contribution when that declaration collapses, and registers it again after restoration. The registration's `inject` factory may close over the plugin's declared Cordis services; the Component receives only the projected data and callbacks. A hover button registers into `sidebar.workspaces.session.row.action` the same way and renders one icon button.
+即使 owner 通常已经存在，也必须使用 `ctx.slots.inject()`：它等待声明，在声明折叠时移除贡献项，并在声明恢复后重新注册。注册项的 `inject` factory 可以闭包使用插件已声明的 Cordis service；Component 只接收投影后的数据和 callback。悬停按钮以同样方式注册到 `sidebar.workspaces.session.row.action`，渲染一个图标按钮。
 
-#### Dynamic client package
+#### 动态客户端包
 
-A dynamically loaded browser half follows the same component contract; which modules it can reach depends on its lane. A Module Loader package (`factory(require)`, as in the real Loader/Web fixture) gets `@deepseek-ai/dsh-client-ui-primitives` as an implicit baseline external: resolve `MenuItemButton` through the loader's `require`, do not list the primitive as a runtime dependency or bundle another copy, and declare a development dependency only when source compilation needs its types. A `cordis-client-runner` closure (the audience of the generated Client Slot catalog) cannot import anything: it renders its own `role="menuitem"` `<button>` with `React.createElement`, styles it through `styles.insert`, and dismisses the menu through the same `useMenuOpenState` hook, as the catalog's example shows.
+动态加载的 browser half 采用同一套组件协议，能拿到哪些模块取决于它走哪条 lane。Module Loader 包（`factory(require)`，即真实 Loader/Web fixture 那种）把 `@deepseek-ai/dsh-client-ui-primitives` 当作隐式 baseline external：通过 loader 的 `require` 解析 `MenuItemButton`，不要把 primitive 列为运行时依赖或打包另一份副本，仅在源码编译需要其类型时声明开发依赖。`cordis-client-runner` 闭包（生成的 Client Slot catalog 面向的读者）无法 import 任何东西：它用 `React.createElement` 渲染自己的 `role="menuitem"` `<button>`，样式经 `styles.insert` 注入，并通过同一个 `useMenuOpenState` hook 关闭菜单，catalog 里的示例就是这个写法。
 
-### View state
+### 视图状态
 
-Once the Workspace baseline is ready, browser-persisted expansion and Session-order records retain only current Workspace ids plus Ungrouped and the flat-list account. `WorkspaceView.sessionIds` supplies real-Workspace membership, not Session display order. View actions receive complete account orders, never filtered rows. A new member without a Session summary waits for that summary, while a saved position survives a temporarily missing summary. Archive visibility is applied only when deriving rows. Pin and drag writes save complete orders; ordinary derivation does not write them. The selected blank Session remains an explicit position write, including during Workspace reconnection, when other saved members are retained until the baseline establishes membership. Ordering remains mounted while the sidebar is a rail or search replaces its body. Last updated derives from current summaries without reading saved positions; equal timestamps use Session ids as a stable tie-break.
+Workspace 基线就绪后，浏览器持久化的展开状态和 Session 顺序记录只保留当前 Workspace id、Ungrouped 和单列表记账。`WorkspaceView.sessionIds` 提供真实 Workspace 的成员关系，而不提供 Session 显示顺序。视图操作接收完整记账顺序，而不是筛选后的行。尚无 Session 摘要的新成员会等待摘要，已保存的位置则在摘要暂时缺失时保留。归档显隐仅在派生行时应用。置顶和拖拽写入完整顺序，普通派生不执行写入。当前选中的空白 Session 仍是一次显式位置写入；Workspace 重连时同样如此，此时保留其他已保存成员，直到基线确定成员关系。侧边栏收成窄栏或搜索替代列表主体时，排序仍保持挂载。最近更新从当前摘要派生，不读取已保存位置；时间相同时按 Session id 稳定排序。
 
-The sidebar hides durable summaries with `origin: 'subagent'`. A visible ordinary row shows the shared ongoing loader from running direct children in its loaded parent catalog, never from summary lineage. Child activity uses the latest UI status, falling back to the Session summary until that status is known.
+侧边栏隐藏持久化摘要中带有 `origin: 'subagent'` 的行。可见普通行的共享 ongoing loading 来自其已加载 parent 目录中正在运行的直接 child，绝不来自摘要谱系。Child 活动状态使用最新 UI status，尚无该状态时使用 Session 摘要。
 
-Row motion belongs to [AnimatedRows](src/client/rows/AnimatedRows.tsx). It measures keyed rows before and after React commits that change their membership or order, and uses native movement and opacity animations. Removed rows fade as inert copies outside the scrolling list; they do not delay React unmounting or extend its scroll range. Initial loading, drag commits, overflow expansion, and view-option changes settle immediately. The animator has no layout observers or polling and does not measure content-only updates or scrolling.
+行动画由 [AnimatedRows](src/client/rows/AnimatedRows.tsx) 负责。它仅在 React 提交改变行成员或顺序时读取更新前后的位置，并使用浏览器原生位移与透明度动画。被移除的行以不可交互的副本在滚动列表外淡出，不会延迟 React 卸载，也不会扩大列表的滚动范围。初始加载、拖拽提交、展开其余会话和视图选项变化直接完成。动画组件不使用布局观察器或轮询，也不会因仅内容更新或滚动而测量位置。
 
-### Hover cards
+### 悬浮卡片
 
-Workspace and Session hover cards copy the value their row clips: activating a Workspace card writes its full directory path, while activating a non-blank Session card writes its full display title. A provisional blank New Session card remains read-only because its localized label is a placeholder rather than session content. A Session card also renders its `sidebar.session.row.hover` seat between the relative time and the trailing status lines whenever the card is open, independent of the row's own state. The first Workspace or Session card in a physical list waits 800ms; after a card is displayed, moving to another Workspace or Session in the same list replaces it immediately. The list and its active portaled card form one pointer interaction: entering the card to read or copy preserves immediate handoff to a neighboring Workspace or Session. After the pointer leaves both, the shared dwell resets when the active card closes through its existing pointer-grace and close lifecycle, with no separate group timer. Leaving a list with no active card resets the dwell immediately. Small action tooltips coexist with the right-side hover card; pin, archive, Workspace new-session, and search-result unarchive tooltips use portals to stay above it. Hovering actions, including More, preserves the card; opening the More menu or starting a Session drag dismisses it.
+Workspace 与 Session 悬浮卡片会复制对应行被截断的值：激活 Workspace 卡片会写入其完整目录路径，激活非空白 Session 卡片则会写入其完整显示标题。临时的空白「新会话」卡片保持只读，因为其本地化标签是占位文案，并非会话内容。 Session 卡片在卡片打开期间还会在相对时间与行尾状态行之间渲染 `sidebar.session.row.hover` seat，与行自身状态无关。同一物理列表中的首张 Workspace 或 Session 卡片等待 800ms；实际显示一张后，移到该列表的其他 Workspace 或 Session 会立即替换卡片。列表与其当前活动的 portal 卡片构成一次指针交互：进入卡片阅读或复制后，移到相邻 Workspace 或 Session 仍会立即切换。指针离开两者后，共享等待在活动卡片通过原有指针宽限及关闭生命周期关闭时重置，不另设分组计时器。列表没有活动卡片时，指针离开便立即重置等待。小型操作提示与右侧悬浮卡片同时显示；置顶、归档、Workspace 新建会话及搜索结果取消归档的提示通过 portal 保持在卡片上层。悬停操作按钮（包括「更多」）保留卡片；打开「更多」菜单或开始拖拽 Session 会关闭卡片。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-These pages cover the sidebar host, the hero surface, and the picking backends.
+以下页面覆盖侧边栏宿主、主视觉区界面与选取后端。
 
-- [ui-sidebar](../ui-sidebar/README.md) — the sidebar shell hosting the `sidebar.workspaces` hole.
-- [ui-conversation](../ui-conversation/README.md) — the chat surface hosting the Session Intent hero's picker hole.
-- [directory-picker-native](../../host/directory-picker-native/README.md) — the OS-chooser backend filling the directory-flow hole.
-- [Workspace Controller](../../api/workspace-controller/README.md) — the Host mutations and framework-neutral Client projection that own Workspaces, membership, and Workspace group order.
+- [ui-sidebar](../ui-sidebar/README.zh.md)——承载 `sidebar.workspaces` 子 slot 的侧边栏外壳。
+- [ui-conversation](../ui-conversation/README.zh.md)——承载 Session Intent 主视觉区选择器子 slot 的聊天界面。
+- [directory-picker-native](../../host/directory-picker-native/README.zh.md)——填充目录流子 slot 的 OS 选择器后端。
+- [Workspace Controller](../../api/workspace-controller/README.md)——负责 Workspace、成员关系与 Workspace 分组顺序的 Host 变更和框架无关 Client 投影。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as the package is a browser-side UI plugin layer that registers nothing model-facing.
+无。该包是浏览器端 UI 插件层，不注册任何面向模型的内容。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None; this package neither assembles nor sends a provider request.
+无；该包既不组装也不发送提供方请求。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define the search depth, the archive surface, and the picking carrier; they are current package constraints.
+这些限制定义搜索深度、归档界面与选取载体；它们是当前包约束。
 
-- **No fuzzy content search or event deep links** — the content backend uses literal token/phrase matching, and selecting a result opens the Session rather than the matching event.
-- **No Session deletion** — sessions can be archived but never deleted; archived rows stay recoverable in place through the archived view filter and the search results' unarchive action, and Workspace registration deletion does not delete Sessions.
-- **Pending user interaction is not aggregated into collapsed groups** — a waiting row inside a collapsed group lights no group-header indicator and becomes visible only after that group is expanded.
-- **Native folder selection depends on the local Host carrier** — under the `-native` composition, in-process or remote browser deployments cannot open a local operating-system dialog; remote-capable picking is the `-browse` composition's in-app flow.
+- **没有模糊内容搜索或事件深链接**：内容后端采用字面 token/短语匹配，选择结果会打开 Session，而不是匹配的事件。
+- **没有 Session 删除**：会话可以归档但绝不会被删除；已归档的行通过「已归档会话」视图筛选与搜索结果中的取消归档操作原位恢复，删除 Workspace 注册记录不会删除 Session。
+- **待处理的用户交互不会聚合到折叠的分组上**：折叠分组内正在等待的行不会点亮分组头指示，只有展开该分组后才可见。
+- **原生文件夹选择依赖本地 Host 载体**：在 `-native` 组合下，进程内部署或远程浏览器部署无法打开本地操作系统对话框；可远程的选取是 `-browse` 组合的应用内流程。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

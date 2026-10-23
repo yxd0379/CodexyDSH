@@ -29,35 +29,35 @@ afterEach(cleanup)
 
 describe('reasoning Content Factory', () => {
   it('renders without a Session Provider and uses the current Chat labels by default', async () => {
-    const b = await createReasoningRenderFixture('en')
+    const b = await createReasoningRenderFixture()
     const view = b.render(b.renderFactorySlot('conversation.chat.reasoning.content', { text: CODE, running: false }))
-    expect(view.getByRole('button', { name: 'Copy' })).toBeTruthy()
-    expect(view.getByRole('button', { name: 'Wrap lines' })).toBeTruthy()
+    expect(view.getByRole('button', { name: '复制' })).toBeTruthy()
+    expect(view.getByRole('button', { name: '自动换行' })).toBeTruthy()
     expect(view.container.querySelector('[data-markdown-variant="compact"]')).not.toBeNull()
     expect(b.runtime.factoryOf('conversation.chat.reasoning.content').scope).toBe('root')
   })
 
   it('uses complete caller labels unchanged and returns to defaults when they are omitted', async () => {
-    const b = await createReasoningRenderFixture('en')
+    const b = await createReasoningRenderFixture()
     const view = b.render(b.renderFactorySlot('conversation.chat.reasoning.content', { text: CODE, running: false, labels }))
     const markdown = view.container.querySelector('[data-markdown-variant="compact"]')
     expect(view.getByRole('button', { name: 'Copy snippet' })).toBeTruthy()
     expect(view.getByRole('button', { name: 'Wrap snippet' })).toBeTruthy()
-    expect(view.queryByRole('button', { name: 'Copy' })).toBeNull()
+    expect(view.queryByRole('button', { name: '复制' })).toBeNull()
     view.rerender(b.renderFactorySlot('conversation.chat.reasoning.content', { text: CODE, running: false }))
-    expect(view.getByRole('button', { name: 'Copy' })).toBeTruthy()
+    expect(view.getByRole('button', { name: '复制' })).toBeTruthy()
     expect(view.queryByRole('button', { name: 'Copy snippet' })).toBeNull()
     expect(view.container.querySelector('[data-markdown-variant="compact"]')).toBe(markdown)
   })
 
   it('keeps code wrapping state independent between two Factory occurrences', async () => {
-    const b = await createReasoningRenderFixture('en')
+    const b = await createReasoningRenderFixture()
     const view = b.render(<>
       <section data-testid="first">{b.renderFactorySlot('conversation.chat.reasoning.content', { text: CODE, running: false })}</section>
       <section data-testid="second">{b.renderFactorySlot('conversation.chat.reasoning.content', { text: CODE, running: false })}</section>
     </>)
-    const first = within(view.getByTestId('first')).getByRole('button', { name: 'Wrap lines' })
-    const second = within(view.getByTestId('second')).getByRole('button', { name: 'Wrap lines' })
+    const first = within(view.getByTestId('first')).getByRole('button', { name: '自动换行' })
+    const second = within(view.getByTestId('second')).getByRole('button', { name: '自动换行' })
     expect(first.getAttribute('aria-pressed')).toBe('true')
     expect(second.getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(first)
@@ -66,7 +66,7 @@ describe('reasoning Content Factory', () => {
   })
 
   it('restores the registered default after a wrapping plugin unloads and removes the Factory with its owner', async () => {
-    const b = await createReasoningRenderFixture('en')
+    const b = await createReasoningRenderFixture()
     const view = b.render(b.renderSlot('conversation.chat.reasoning.body', { text: 'Original thought', running: false }))
     expect(view.getByText('Original thought')).toBeTruthy()
     expect(b.runtime.slots.entries('conversation.chat.reasoning.body')[0]?.options.priority).toBe(100)

@@ -9,7 +9,7 @@ import type { DesktopKeyboardApi, DesktopShortcutsApi, ShortcutSaveResult } from
 import { desktopShortcutStorage, webShortcutStorage } from './storage.ts'
 import type { Shortcuts } from './types.ts'
 import type { ShortcutFixedInput } from './types.ts'
-import { installNativeKeyboard } from './native.ts'
+import { focusedShortcutContext, installNativeKeyboard } from './native.ts'
 import { Config } from '../config.ts'
 
 export type { ShortcutCatalogEntry, ShortcutCommand, ShortcutContext, ShortcutGesture, Shortcuts } from './types.ts'
@@ -78,6 +78,11 @@ export default class ShortcutsService extends Service implements Shortcuts {
     const off = this.registry.register(command)
     this.syncDefinitions()
     return () => { off(); this.syncDefinitions() }
+  }
+
+  invoke(id: Parameters<Shortcuts['invoke']>[0]): void {
+    this.fixedInput({ type: 'reset' })
+    this.registry.invoke(id, focusedShortcutContext(window))
   }
 
   registerFixed(command: Parameters<Shortcuts['registerFixed']>[0]): () => void {

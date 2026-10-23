@@ -1,0 +1,42 @@
+{
+  "name": "@codexydsh/remote",
+  "version": "0.1.0",
+  "description": "Standalone Remote server deployment, OpenSSH authentication and local tunnel ownership",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./types": { "types": "./lib/types/types.d.ts", "default": "./lib/types.js" },
+    "./typert": { "types": "./lib/typert.host.d.ts", "default": "./lib/typert.host.js" },
+    "./remote": { "types": "./lib/typert.remote-client.d.ts", "default": "./lib/typert.remote-client.js" },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib", "server", "server-launcher.sh",
+    "lib/typert.host.js", "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js", "lib/typert.remote-client.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": { "zod": "^4.4.3" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-host-webserver": "workspace:*",
+    "@deepseek-ai/dsh-settings": "workspace:*",
+    "@deepseek-ai/dsh-typert-protocol": "workspace:*"
+  },
+  "peerDependenciesMeta": { "@deepseek-ai/dsh-settings": { "optional": true } },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-host-webserver": "workspace:*",
+    "@deepseek-ai/dsh-settings": "workspace:*",
+    "@deepseek-ai/dsh-typert-protocol": "workspace:*",
+    "@deepseek-ai/dsh-typert-registry": "workspace:*"
+  }
+}

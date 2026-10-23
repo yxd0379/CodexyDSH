@@ -23,7 +23,7 @@ async function bench() {
   onTestFinished(() => runtime.dispose())
   const locale = new LocaleRuntime(runtime.ctx)
   locale.register('conversation', { en, zh })
-  locale.setLocale('en')
+
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
   new UiConversation(runtime.ctx, runtime.sessions)

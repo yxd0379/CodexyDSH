@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
@@ -582,19 +582,22 @@ describe('WorkspaceController follow', () => {
 })
 
 describe('first-use Remote', () => {
-  it('reuses an initialized Workspace without looking up system Documents', async () => {
+  it('已有旧路径的工作区原样返回，不查询系统目录或迁移数据', async () => {
     const { controller, ctx, root } = await harness({ systemDocuments: true })
-    const workspace = await ctx.workspaceRegistry.initializeDefault(async () => root)
+    const existingPath = join(root, 'deepseek-harness', DEFAULT_WORKSPACE_DIRECTORY)
+    const workspace = await ctx.workspaceRegistry.initializeDefault(async () => existingPath)
     const signal = AbortSignal.abort()
     await expect(controller.initializeDefault(signal))
-      .resolves.toMatchObject({ workspace: { workspaceId: workspace!.id, path: root, title: basename(root) } })
+      .resolves.toMatchObject({ workspace: { workspaceId: workspace!.id, path: existingPath, title: DEFAULT_WORKSPACE_DIRECTORY } })
+    expect(existsSync(existingPath)).toBe(true)
+    expect(existsSync(join(root, 'CodexyDSH'))).toBe(false)
   })
 
   it('returns a durable Workspace named after its fixed directory without allocating a Session', async () => {
     const { controller, ctx, root } = await harness()
     const signal = new AbortController().signal
     const result = await controller.initializeDefault(signal)
-    expect(result!.workspace.path).toBe(join(root, 'deepseek-harness', DEFAULT_WORKSPACE_DIRECTORY))
+    expect(result!.workspace.path).toBe(join(root, 'CodexyDSH', DEFAULT_WORKSPACE_DIRECTORY))
     expect(result!.workspace.title).toBe(DEFAULT_WORKSPACE_DIRECTORY)
     expect(existsSync(result!.workspace.path)).toBe(true)
     expect(ctx.sessions.list()).toEqual([])

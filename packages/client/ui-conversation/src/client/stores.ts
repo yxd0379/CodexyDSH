@@ -1,5 +1,5 @@
 /** Per-session Conversation store shared by the shell body and header. */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
+import { defineStore, storageKey, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ConversationStoreState } from './contract/views.ts'
 import type { DraftInput, DraftSnapshot } from './contract/draft-editor.ts'
@@ -44,7 +44,8 @@ export function readConversationDraft(sessionId: SessionId): DraftSnapshot {
   const empty: DraftSnapshot = { text: '', references: [] }
   if (typeof localStorage === 'undefined') return empty
   try {
-    const raw = localStorage.getItem(`${CONVERSATION_STORE_KEY}.${sessionId}`)
+    const raw = localStorage.getItem(storageKey(`${CONVERSATION_STORE_KEY}.${sessionId}`,
+      typeof document === 'undefined' ? undefined : document.baseURI))
     if (raw === null) return empty
     const stored: unknown = JSON.parse(raw)
     if (typeof stored !== 'object' || stored === null || !('draft' in stored)) return empty
@@ -63,7 +64,8 @@ export function readConversationDraft(sessionId: SessionId): DraftSnapshot {
 export function readConversationViewPreference(sessionId: SessionId): string | null {
   if (typeof localStorage === 'undefined') return null
   try {
-    const raw = localStorage.getItem(`${CONVERSATION_STORE_KEY}.${sessionId}`)
+    const raw = localStorage.getItem(storageKey(`${CONVERSATION_STORE_KEY}.${sessionId}`,
+      typeof document === 'undefined' ? undefined : document.baseURI))
     if (raw === null) return null
     const stored: unknown = JSON.parse(raw)
     if (typeof stored !== 'object' || stored === null || !('view' in stored)) return null

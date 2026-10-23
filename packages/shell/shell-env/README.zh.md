@@ -105,7 +105,7 @@ contributor 必须声明它返回的每个键；返回未声明或非字符串�
 - [Bash 执行器子系统](../../../docs/subsystems/shell.zh.md)——工具执行所经由的 `ctx.shell` seam。
 - [tool-bash](../tool-bash/README.zh.md)——消费本环境的 bash 工具。
 - [tool-pwsh](../tool-pwsh/README.zh.md)——消费本环境的 pwsh 工具。
-- [home paths 包](../../util/home-paths/README.zh.md)——`DSH_HOME` 如何解析。
+- [home paths 包](../../util/home-paths/README.md)——`DSH_HOME` 如何解析。
 - [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-shell-env)——每个受支持配置字段及其源声明。
 
 -----

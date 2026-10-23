@@ -8,6 +8,7 @@ import {
   SubagentReadOnlyComposer, type SubagentReadOnlyMatch,
 } from './SubagentReadOnlyComposer.tsx'
 import { registerSidebarChat, subagentChatAddress } from './sidebar-chat/index.tsx'
+import { registerSubagentActivity } from './activity.tsx'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -31,7 +32,7 @@ export type {
 } from './SubagentReadOnlyComposer.tsx'
 
 /** Required services for subagent presentation and navigation. */
-export const inject = ['sessions', 'uiWorkspace', 'slots', 'locale', 'sidebarRight']
+export const inject = ['sessions', 'uiWorkspace', 'slots', 'locale', 'sidebarRight', 'uiConversation']
 
 /** Claim the composer for one-shot history or an unavailable continuation owner. */
 function selectReadOnlySubagent(owner: ComposerChainProps): SubagentReadOnlyMatch | null {
@@ -57,7 +58,7 @@ export function apply(ctx: ClientContext): void {
   ctx.inject(['resources', 'sidebarRightTabs'], (scope) => {
     registerSidebarChat(scope, ctx.locale.bind(NS))
   })
-  const catalogActions = (_parentSessionId: SessionId): SubagentCatalogInjected => ({
+  const catalogActions = (): SubagentCatalogInjected => ({
     openChild(address: SubagentAddress) {
       ctx.uiWorkspace.openSession(address)
     },
@@ -71,6 +72,7 @@ export function apply(ctx: ClientContext): void {
       void ctx.sessions.refreshProjections(parentSessionId)
     },
   })
+  registerSubagentActivity(ctx, catalogActions)
   ctx.slots.inject(
     'conversation.session.header.lineage',
     () => ctx.slots.register({

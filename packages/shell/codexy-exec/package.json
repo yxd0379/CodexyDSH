@@ -1,0 +1,81 @@
+{
+  "name": "@codexydsh/exec",
+  "description": "Model-facing bash tool with optional generic background-job and sandbox-escalation support",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-commands": "workspace:*",
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@codexydsh/prompt": "workspace:*",
+    "@deepseek-ai/dsh-fs": "workspace:*",
+    "@codexydsh/files": "workspace:*",
+    "@deepseek-ai/dsh-shell": "workspace:*",
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-shell-env": "workspace:*",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "workspace:*",
+    "@deepseek-ai/dsh-sandbox-policy": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh": "workspace:*",
+    "@codexydsh/approval": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-llm": "workspace:*"
+  },
+  "dependencies": {
+    "@codexydsh/bridges": "workspace:*",
+    "@codexydsh/processes": "workspace:*",
+    "@codexydsh/tool-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-commands": "workspace:*",
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@codexydsh/prompt": "workspace:*",
+    "@deepseek-ai/dsh-fs": "workspace:*",
+    "@deepseek-ai/dsh-fs-local": "workspace:*",
+    "@deepseek-ai/dsh-fs-sandbox": "workspace:*",
+    "@codexydsh/files": "workspace:*",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
+    "@deepseek-ai/dsh-shell": "workspace:*",
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-shell-env": "workspace:*",
+    "@deepseek-ai/dsh-bash-local": "workspace:*",
+    "@deepseek-ai/dsh-subprocess-local": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "workspace:*",
+    "@deepseek-ai/dsh-sandbox-policy": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/dsh-jobs-local": "workspace:*",
+    "@deepseek-ai/dsh-tool-jobs": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-session-projection": "workspace:*",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@codexydsh/approval": "workspace:*",
+    "@codexydsh/test-support": "workspace:*",
+    "@codexydsh/filesystem-local": "workspace:*",
+    "@codexydsh/runtime-testkit": "workspace:*",
+    "@codexydsh/filesystem-sandbox": "workspace:*",
+    "@deepseek-ai/dsh": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~",
+    "@deepseek-ai/dsh-llm": "workspace:*"
+  }
+}

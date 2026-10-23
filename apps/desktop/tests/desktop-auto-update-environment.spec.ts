@@ -3,6 +3,7 @@ import {
   desktopBuildRecordFilename,
   desktopUpdateMetadataFilename,
   resolveDesktopAutoUpdateConfig,
+  resolveConfiguredDesktopAutoUpdateConfig,
   resolveDesktopAutoUpdateEnvironment,
   resolveDesktopAutoUpdateTarget,
   resolveDesktopUploadConfig,
@@ -11,6 +12,13 @@ import {
 const RELEASE_ID = '0123456789abcdef0123456789abcdef'
 
 describe('desktop auto-update environment', () => {
+  it('leaves both deployments unconfigured without an explicit product origin', () => {
+    expect(resolveConfiguredDesktopAutoUpdateConfig({}, 'darwin', 'arm64')).toBeUndefined()
+    expect(resolveConfiguredDesktopAutoUpdateConfig({ DSH_DESKTOP_AUTO_UPDATE_ENV: 'production' }, 'win32', 'x64')).toBeUndefined()
+    expect(() => resolveDesktopAutoUpdateConfig({ DSH_DESKTOP_AUTO_UPDATE_ENV: 'production' }, 'win32', 'x64'))
+      .toThrow(/DOWNLOAD_PROD_ORIGIN/u)
+  })
+
   it.each([undefined, 'test'])('requires a release ID for deployment %s', (deployment) => {
     const environment = { DSH_DESKTOP_AUTO_UPDATE_ENV: deployment, DOWNLOAD_TEST_ORIGIN: 'https://updates.example.com',
       DOWNLOAD_TEST_COS_BUCKET: 'test-bucket' }
@@ -61,15 +69,17 @@ describe('desktop auto-update environment', () => {
   it.each([undefined, RELEASE_ID, 'unused-test-value'])('keeps production paths independent of test release ID %s', (id) => {
     expect(resolveDesktopAutoUpdateConfig({
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+      DOWNLOAD_PROD_ORIGIN: 'https://download.example.com',
       DOWNLOAD_TEST_RELEASE_ID: id,
     }, 'win32', 'x64')).toMatchObject({
       environment: 'production',
       target: 'win-x64',
-      publicUrl: 'https://download.deepseek.com/dsh-desk/feeds/win-x64/',
+      publicUrl: 'https://download.example.com/dsh-desk/feeds/win-x64/',
       binaryKeyPrefix: 'dsh-desk/bin/win-x64',
     })
     expect(resolveDesktopUploadConfig({
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+      DOWNLOAD_PROD_ORIGIN: 'https://download.example.com',
       DOWNLOAD_PROD_COS_BUCKET: 'production-download-bucket',
     }, 'win32', 'x64')).toMatchObject({
       bucket: 'production-download-bucket',
@@ -91,6 +101,7 @@ describe('desktop auto-update environment', () => {
     }, 'darwin', 'arm64')).toThrow(/DOWNLOAD_TEST_COS_BUCKET/u)
     expect(() => resolveDesktopUploadConfig({
       DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+      DOWNLOAD_PROD_ORIGIN: 'https://download.example.com',
     }, 'win32', 'x64')).toThrow(/DOWNLOAD_PROD_COS_BUCKET/u)
   })
 

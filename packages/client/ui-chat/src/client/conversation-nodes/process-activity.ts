@@ -15,7 +15,8 @@ function activity(name: string): ProcessActivity {
   if (name === 'run_code') return 'code'
   if (name === 'web_search') return 'webSearch'
   if (name === 'web_fetch') return 'webFetch'
-  if (name === 'subagent' || name.startsWith('subagent_')) return 'subagents'
+  if (name === 'subagent' || name.startsWith('subagent_') || name.startsWith('multi_agent_v1__')
+    || ['spawn_agent', 'followup_task', 'send_message', 'list_agents', 'wait_agent', 'interrupt_agent'].includes(name)) return 'subagents'
   if (['todo_write', 'create_goal', 'update_goal', 'get_goal'].includes(name)) return 'plan'
   if (name === 'ask_user_question' || name === 'request_user_input') return 'questions'
   return 'tools'

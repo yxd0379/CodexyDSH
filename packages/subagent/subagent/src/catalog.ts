@@ -15,35 +15,12 @@ import type {
   SessionLogOffset,
 } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-import type { SubagentCatalogEntry } from './projection-types.ts'
+import type { SubagentCatalogEntry, SubagentCatalogEvent } from './projection-types.ts'
+
+export type { SubagentCatalogEvent } from './projection-types.ts'
 
 /** Catalog payload version emitted by local child creation. */
 export const SUBAGENT_CATALOG_VERSION = 0
-
-type KnownCatalogMode =
-  | { readonly mode: 'one-shot'; readonly label?: string }
-  | { readonly mode: 'continuable'; readonly label: string }
-
-/** Parent catalog v0 records local modes, v1 adds unknown children, and v2 records external executions. */
-export type SubagentCatalogEvent =
-  & {
-    readonly childId: SessionId
-    readonly childCreatedAt: number
-  } & (
-    | ({ readonly version: 0 } & KnownCatalogMode)
-    | ({ readonly version: 1 } & (KnownCatalogMode | { readonly mode: 'unknown'; readonly label?: string }))
-    | { readonly version: 2; readonly mode: 'external'; readonly label?: string }
-  )
-
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    /**
-     * A direct child's identity and available discovery fields.
-     * @param data - versioned parent-owned catalog entry.
-     */
-    'subagent/catalog': SubagentCatalogEvent
-  }
-}
 
 /** Host fold state for one parent catalog. */
 export interface SubagentCatalogState {

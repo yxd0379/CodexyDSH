@@ -433,6 +433,7 @@ export function chatSnapshotFixture(input: {
     const answer = assistants.findLast((candidate): candidate is FinalAssistantChatData =>
       candidate.step === latestStep
       && candidate.finalNode !== undefined
+      && candidate.finalNode.interrupted !== true
       && hasAssistantReplyContent(candidate.blocks)
       && !candidate.blocks.some(block => block.kind === 'tool-call'))
     const controlAnchor = inTurn.find(candidate => candidate.kind === 'assistant-step'

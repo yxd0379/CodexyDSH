@@ -93,7 +93,7 @@ const userId = getOrCreateAnonymousUserId() // stable for the process lifetime
 当包级约定不够用时阅读以下页面。它们从 identity 组映射逐步进入本包所依赖的 home 路径解析，以及使用该 id 的功能。
 
 - [identity 组映射](../README.zh.md)——兄弟包与组范围。
-- [dsh-home-paths](../../util/home-paths/README.zh.md)——负责 `$DSH_HOME` 与 `~/.dsh` 的解析。
+- [dsh-home-paths](../../util/home-paths/README.md)——负责 `$DSH_HOME` 与 `~/.dsh` 的解析。
 - [dsh-session-telemetry-otel](../../session/session-telemetry-otel/README.zh.md)——将该 id 作为 OTel Resource `user.id` 上报。
 - [dsh-command-feedback](../../feedback/command-feedback/README.zh.md)——将 id 嵌入反馈确认。
 - [dsh-llm-deepseek](../../llm/llm-deepseek/README.zh.md)——在提供方请求中发送 `x-deepseek-harness-user-id`。

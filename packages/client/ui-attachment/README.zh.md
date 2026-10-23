@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-与 [`ui-conversation`](../ui-conversation/README.zh.md) 一起挂载本插件，工具结果需要图片图库时也要挂载 [`ui-tool`](../ui-tool/README.zh.md)。插件等待这些 slot 的声明，并把组件注册进去。用户会看到混合草稿附件栏、带上传控件的 DeepSeek Web 文件卡、带限制说明的拖放遮罩、按数量定尺寸的消息图片、工具卡片图库，以及支持 Escape、遮罩和关闭按钮的灯箱。
+与 [`ui-conversation`](../ui-conversation/README.zh.md) 一起挂载本插件，工具结果需要图片图库时也要挂载 [`ui-tool`](../ui-tool/README.md)。插件等待这些 slot 的声明，并把组件注册进去。用户会看到混合草稿附件栏、带上传控件的 DeepSeek Web 文件卡、带限制说明的拖放遮罩、按数量定尺寸的消息图片、工具卡片图库，以及支持 Escape、遮罩和关闭按钮的灯箱。
 
 ### 草稿附件
 

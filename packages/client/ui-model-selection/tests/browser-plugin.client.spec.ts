@@ -65,7 +65,7 @@ const GROUPS = [{
 }]
 
 /** Boot the plugin over fake faces + a stateful fake host (current moves on selectModel). */
-async function bench(locale: 'zh' | 'en' = 'zh') {
+async function bench() {
   const ctx = new Context()
   let defaultSelection: ModelSelection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
   let selected = defaultSelection
@@ -133,7 +133,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
   const localeRuntime = new LocaleRuntime(ctx)
   // There is no jsdom `window` in this lane, so browser-language detection
   // never runs. Each bench states the locale its assertions require.
-  localeRuntime.setLocale(locale)
+
   ctx.provide('locale', localeRuntime)
   const scopes = new Map<SessionId, Context>()
   const bindings = new Map<SessionId, {
@@ -225,8 +225,8 @@ describe('ui-model-selection dual entry', () => {
     expect(b.seat().locale).toBe('model')
   })
 
-  it.each(['zh', 'en'] as const)('shows names and providers without catalog descriptions (%s)', async (locale) => {
-    const b = await bench(locale)
+  it('shows names and providers without catalog descriptions', async () => {
+    const b = await bench()
     b.mint('s1')
     const options = await b.popup().options(projection('s1'), new AbortController().signal)
     expect(options.map((o: SelectOption) => o.label)).toEqual([
@@ -237,9 +237,7 @@ describe('ui-model-selection dual entry', () => {
     expect(b.popup().searchMode).toBe('fuzzy-label')
     expect(options[0]?.active).toBe(true)
     expect(options[1]?.active).toBeUndefined()
-    expect(b.popup().searchLabels?.()).toEqual(locale === 'zh'
-      ? { placeholder: '搜索模型…', empty: '暂无可用模型', noResults: '没有匹配的模型。' }
-      : { placeholder: 'Search models…', empty: 'No models available.', noResults: 'No matching models.' })
+    expect(b.popup().searchLabels?.()).toEqual({ placeholder: '搜索模型…', empty: '暂无可用模型', noResults: '没有匹配的模型。' })
   })
 
   it('orders popup provider groups account-first while retaining third-party catalog order', async () => {
@@ -298,34 +296,34 @@ describe('ui-model-selection dual entry', () => {
     })
   })
 
-  it.each(['en', 'zh'] as const)('localizes account provider headings in the %s model popup', async (locale) => {
-    const b = await bench(locale)
+  it('shows the Chinese account provider heading in the model popup', async () => {
+    const b = await bench()
     try {
       b.setGroups([{ ...GROUPS[0]!, id: 'deepseek-account', name: 'DeepSeek Account' }])
       b.remote.emit('llm/adapters-updated', [])
       b.mint('s1')
       const options = await b.popup().options(projection('s1'), new AbortController().signal)
-      expect(options[0]?.group?.label).toBe(locale === 'zh' ? 'DeepSeek 账号' : 'DeepSeek Account')
+      expect(options[0]?.group?.label).toBe('DeepSeek 账号')
     } finally {
       await b.ctx.fiber.dispose()
     }
   })
 
   it('removes account models from the picker after sign-out', async () => {
-    const b = await bench('en')
+    const b = await bench()
     try {
       b.setGroups([{ ...GROUPS[0]!, id: 'deepseek-account', name: 'DeepSeek Account' }, ...GROUPS])
       b.remote.emit('llm/adapters-updated', [])
       b.mint('s1')
       const before = await b.popup().options(projection('s1'), new AbortController().signal)
-      expect(before.some(option => option.group?.label === 'DeepSeek Account')).toBe(true)
+      expect(before.some(option => option.group?.label === 'DeepSeek 账号')).toBe(true)
       b.setGroups(GROUPS)
       b.remote.emit('credentials/record-updated', ['deepseek-account-platform'])
       await vi.waitFor(() => {
         expect(b.ctx.modelDirectories.directoryFor(sid('s1')).store.getSnapshot().groups).toEqual(GROUPS)
       })
       const after = await b.popup().options(projection('s1'), new AbortController().signal)
-      expect(after.some(option => option.group?.label === 'DeepSeek Account')).toBe(false)
+      expect(after.some(option => option.group?.label === 'DeepSeek 账号')).toBe(false)
       expect(after.length).toBeGreaterThan(0)
     } finally {
       await b.ctx.fiber.dispose()

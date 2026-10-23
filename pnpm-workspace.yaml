@@ -24,6 +24,8 @@ peerDependencyRules:
 # (git hooks) genuinely need theirs.
 allowBuilds:
   esbuild: true
+  # Exec policy loads the packaged WASM grammar, not the native Node binding.
+  tree-sitter-bash: false
   lefthook: true
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.
   node-pty: true
@@ -41,6 +43,7 @@ allowBuilds:
   # The Python runtime deploy includes the reviewed workspace postinstall that
   # restores the executable bit on node-pty's macOS spawn helper.
   '@deepseek-ai/dsh-subprocess-local@file:packages/subprocess/subprocess-local': true
+  '@codexydsh/processes@file:packages/subprocess/codexy-processes': true
   # electron-builder pulls in the optional Squirrel.Windows helper, whose
   # install script only selects its bundled 7-Zip executable. Desktop ships
   # Windows through NSIS, so that mutation is not part of our build.

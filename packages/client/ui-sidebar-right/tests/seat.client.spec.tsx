@@ -894,7 +894,6 @@ describe('slot-owned useTabInfo', () => {
       keys: ['⌘', '\\'], aria: 'Meta+\\',
     }
     act(() => {
-      h.runtime.ctx.locale.setLocale('en')
       h.catalog.set([split])
       h.controller.toggleExpanded()
       h.controller.split()
@@ -902,12 +901,12 @@ describe('slot-owned useTabInfo', () => {
     const anchor = element(h.view.container, '[data-dockkit-split-button]').parentElement!
     fireEvent.keyDown(anchor, { key: 'Tab' })
     fireEvent.focus(anchor)
-    expect(document.querySelector('[role="tooltip"]')?.getAttribute('aria-label')).toBe('Two panes is the limit ⌘ \\')
+    expect(document.querySelector('[role="tooltip"]')?.getAttribute('aria-label')).toBe('已达两格上限 ⌘ \\')
     act(() => { h.catalog.set([{ ...split, binding: { code: 'KeyG', modifiers: ['control'] },
       keys: ['Ctrl', '+', 'G'], aria: 'Control+G' }]) })
-    expect(document.querySelector('[role="tooltip"]')?.getAttribute('aria-label')).toBe('Two panes is the limit Ctrl + G')
+    expect(document.querySelector('[role="tooltip"]')?.getAttribute('aria-label')).toBe('已达两格上限 Ctrl + G')
     act(() => { h.catalog.set([{ ...split, binding: null, keys: [], aria: undefined }]) })
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('Two panes is the limit')
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('已达两格上限')
   })
 
   it('advertises configured pane and page-close controls', async () => {

@@ -11,7 +11,7 @@ beforeEach(() => {
   const appSeat = document.createElement('div')
   appSeat.dataset.shellOverlay = ''
   document.body.append(appSeat)
-  document.documentElement.lang = 'en'
+  document.documentElement.lang = 'zh-CN'
   invoke.mockResolvedValue(undefined)
 })
 
@@ -49,13 +49,10 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it('localizes caption entries and removes the menu on disposal', () => {
+it('shows Chinese caption entries and removes the menu on disposal', () => {
   menu = installWindowsMenu()
   const host = document.querySelector('[data-windows-menu]')!
   const bar = host.shadowRoot!.querySelector('[role=menubar]')!
-  expect(bar.outerHTML).toMatchSnapshot('english')
-  document.documentElement.lang = 'zh-CN'
-  menu.update()
   expect(bar.outerHTML).toMatchSnapshot('chinese')
   menu.dispose()
   menu = undefined

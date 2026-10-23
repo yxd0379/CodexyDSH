@@ -216,11 +216,10 @@ it.runIf(process.platform === 'darwin')('blocks parent keyboard input and redire
   expect(f.parent.webContents.listenerCount('before-input-event')).toBe(0)
 })
 
-it('reads the current locale for each presentation', async () => {
-  let locale = resolveDesktopLocale('en')
-  const f = setup(() => locale)
-  for (const language of ['zh-CN', 'en']) {
-    locale = resolveDesktopLocale(language)
+it('uses Chinese labels for repeated presentations', async () => {
+  const locale = resolveDesktopLocale()
+  const f = setup(locale)
+  for (let attempt = 0; attempt < 2; attempt++) {
     const pending = f.show()
     const window = fixture.windows.at(-1)!
     const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }

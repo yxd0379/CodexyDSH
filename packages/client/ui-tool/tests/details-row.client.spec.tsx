@@ -6,13 +6,13 @@ import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { IconUsersOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { detailsCardModel, todosDetail } from '../src/client/tool/models/details-card-model.ts'
 import { DetailsRow, detailsToolview } from '../src/client/tool/toolviews/details-row.tsx'
 import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
 import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 
-const t = makeTranslate(en, commonEn)
+const t = makeTranslate(en, commonZh)
 const goal = { id: 'goal-1', revision: 2, objective: 'Ship compact cards', phase: 'active', roundsStarted: 2, maxGoalRounds: 8 }
 const schedule = { id: 'schedule-1', prompt: 'Review the build', kind: 'every', everySeconds: 3600, scheduledAt: '2026-09-10T09:00:00.000Z', state: 'scheduled', deliveryMode: 'session-local' }
 
@@ -137,8 +137,9 @@ describe('DetailsRow', () => {
       for (const dispose of callback()) dispose()
     })
     detailsToolview.apply({ slots: { inject, register } } as never)
-    expect(register.mock.calls).toHaveLength(37)
     expect(register.mock.calls.map(([spec]) => spec)).toContainEqual({ name: 'tool.call.toolview', key: 'cordis_inspect_query', locale: 'conversation' })
     expect(register.mock.calls.map(([spec]) => spec)).toContainEqual({ name: 'tool.call.toolview', key: 'schedule_update', locale: 'conversation' })
+    expect(register.mock.calls.map(([spec]) => spec)).toContainEqual({ name: 'tool.call.toolview', key: 'spawn_agent', locale: 'conversation' })
+    expect(register.mock.calls.map(([spec]) => spec)).toContainEqual({ name: 'tool.call.toolview', key: 'followup_task', locale: 'conversation' })
   })
 })

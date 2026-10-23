@@ -9,7 +9,6 @@ import type { StartedToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import {
   localizeTerminalCardModel, terminalCardModel, terminalFailed, terminalExitLabel,
@@ -22,7 +21,7 @@ import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 type BashRowProps = Parameters<typeof BashRow>[0]
 
 const t: GenericToolCardProps['t'] = makeTranslate(zh, commonZh)
-const enT: GenericToolCardProps['t'] = makeTranslate(en, commonEn)
+const enT: GenericToolCardProps['t'] = makeTranslate(en, commonZh)
 
 afterEach(cleanup)
 

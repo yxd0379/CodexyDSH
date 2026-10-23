@@ -6,18 +6,6 @@
     "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
   },
   "files": [
-    "src/index.ts",
-    "src/locale-settings.ts"
-  ],
-  "references": [
-    {
-      "path": "../../../vendor/cordis"
-    },
-    {
-      "path": "../../../vendor/schemastery"
-    },
-    {
-      "path": "../../settings/settings"
-    }
+    "src/index.ts"
   ]
 }

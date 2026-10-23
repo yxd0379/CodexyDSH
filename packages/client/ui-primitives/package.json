@@ -22,6 +22,9 @@
     "./package.json": "./package.json"
   },
   "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-util-workspace-path": "workspace:*"
+  },
   "devDependencies": {
     "@deepseek-ai/dsh-client-store": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~",

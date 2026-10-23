@@ -140,6 +140,33 @@ it('mirrors only successful bindings, suppresses recording menus, and invalidate
   expect((await f.call<ShortcutSaveResult>(DESKTOP_IPC.shortcutsEdit, { type: 'reset-all' }, saved.snapshot.revision)).status).toBe('stale')
 })
 
+it.each(['macos', 'windows'] as const)('leaves Remote %s shortcuts in the child DOM without triggering outer accelerators', async (platform) => {
+  const f = await fixture(platform)
+  await f.call(DESKTOP_IPC.shortcutsGet, f.definitions)
+  const remote: FrameFixture = { url: 'dsh-app://app/codexy-remote/ascend/?codexydsh-embedded=1',
+    name: 'codexydsh-remote-ascend', parent: f.frame }
+  f.contents.focusedFrame = remote
+  f.contents.send.mockClear()
+  const preventDefault = vi.fn()
+  const press = (type: string) => f.contents.emit('before-input-event', { preventDefault }, { type, modifiers: [],
+    code: 'KeyB', key: 'b', meta: platform === 'macos', control: platform === 'windows', alt: false, shift: false,
+    isAutoRepeat: false, isComposing: false })
+  press('keyDown'); press('keyUp')
+  expect(preventDefault).not.toHaveBeenCalled()
+  expect(f.contents.send).not.toHaveBeenCalled()
+  expect(f.contents.setIgnoreMenuShortcuts).toHaveBeenLastCalledWith(true)
+  // A preview nested under Remote must not redirect a shortcut to the outer local session either.
+  f.contents.focusedFrame = { url: 'https://example.com/', name: 'preview', parent: remote }
+  press('keyDown')
+  expect(preventDefault).not.toHaveBeenCalled()
+  expect(f.contents.send).not.toHaveBeenCalled()
+  f.contents.focusedFrame = f.frame
+  press('keyDown')
+  expect(preventDefault).toHaveBeenCalledOnce()
+  expect(f.contents.send).toHaveBeenCalledExactlyOnceWith(DESKTOP_IPC.shortcutsInput,
+    expect.objectContaining({ kind: 'keyboard', code: 'KeyB' }))
+})
+
 it('blocks macOS shortcuts while an update overlay loads and clears held and consumed keys before dismissal', async () => {
   const f = await fixture()
   const open = updateOverlayFixture(f)

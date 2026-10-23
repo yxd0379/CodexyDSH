@@ -1,46 +1,46 @@
 ---
-description: "Shared resolution of the DeepSeek Harness home and the shared agent configuration root, plus user-data paths, tilde expansion, and stable watch paths."
+description: "CodexyDSH 主目录与共享 agent 配置根目录的共享解析，以及用户数据路径、波浪号展开与稳定监听路径。"
 kind: "package-library"
 ---
 
 # @deepseek-ai/dsh-home-paths
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`@deepseek-ai/dsh-home-paths` 让包作者能够解析 CodexyDSH 数据根目录，以及其消费方读取的共享 agent 配置根目录。显式路径优先于环境变量，后者优先于操作系统主目录下的默认值；空白环境变量会被忽略。其公开辅助函数可以在不暴露机器绝对路径的情况下显示根目录，仅展开单独或当前用户的波浪号形式，并规范化最终路径段尚不存在的监听目标。请把它作为库依赖直接使用，不要通过 `cordis.yml` 加载。
 
-`@deepseek-ai/dsh-home-paths` lets package authors resolve the DeepSeek Harness data root and the shared agent configuration root their consumers read. An explicit path wins over the environment variable, which wins over the default under the operating-system home; blank environment values are ignored. Its public helpers can render a root without revealing an absolute machine path, expand only bare or current-user tilde forms, and canonicalize watch targets whose final components do not yet exist. Use it as a direct library dependency, not through `cordis.yml`.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Use these helpers wherever a package must agree with the rest of the harness about where user data lives: resolve the home once, then derive every child path from it.
+当包必须与 harness 的其他部分就用户数据存放位置达成一致时使用这些辅助函数：先解析一次主目录，再从中派生所有子路径。
 
-### Resolving the home
+### 解析主目录
 
 ```ts
 import { resolveDshHome, dshHomePath, dshCachePath } from '@deepseek-ai/dsh-home-paths'
 
-const home = resolveDshHome()                // configured path, else $DSH_HOME, else ~/.dsh
+const home = resolveDshHome()                // configured path, else $DSH_HOME, else ~/.codexydsh
 const settings = dshHomePath('settings')     // join one child onto the resolved home
-const cache = dshCachePath('models')         // $DSH_HOME/cache/models, default ~/.dsh/cache/models
+const cache = dshCachePath('models')         // $DSH_HOME/cache/models, default ~/.codexydsh/cache/models
 ```
 
-An explicit configured path has the highest precedence, then `$DSH_HOME`, then the default `~/.dsh`. An empty or whitespace-only `$DSH_HOME` is treated as unset, so a blank override never resolves the home to the current working directory.
+显式配置的路径优先级最高，然后是 `$DSH_HOME`，最后是默认的 `~/.codexydsh`。空或仅含空白的 `$DSH_HOME` 视为未设置，因此空白的覆盖值绝不会把主目录解析到当前工作目录。
 
-`dshCachePath(...segments)` derives paths from the resolved home's `cache` directory. With no segments it returns the cache directory itself. Pass an initial options object, `dshCachePath({ dshHome: home }, ...segments)`, to use an explicit configured home with the same precedence and tilde expansion. It returns an absolute path without creating directories.
+CodexyDSH 不自动探查、导入或迁移官方 DSH 数据。显式 `DSH_HOME` 仍可指定任意目录，包括已有的 DSH 主目录；这是主动选择共享数据和文件锁，不是默认的共存模式。
 
-### Resolving the shared agents root
+`dshCachePath(...segments)` 从解析出的主目录下的 `cache` 目录派生路径。不传路径段时返回缓存目录本身。传入首个选项对象 `dshCachePath({ dshHome: home }, ...segments)` 可使用显式配置的主目录，遵循相同的优先级与波浪号展开规则。它返回绝对路径，不会创建目录。
+
+### 解析共享 agents 根目录
 
 ```ts
 import { resolveAgentsHome, agentsHomeDisplay } from '@deepseek-ai/dsh-home-paths'
@@ -49,75 +49,75 @@ const agents = resolveAgentsHome()   // configured path, else $DSH_AGENTS_HOME, 
 agentsHomeDisplay(agents)            // ~/.agents, or $DSH_AGENTS_HOME for any configured root
 ```
 
-`resolveAgentsHome` applies the same precedence, blank-value handling, and tilde expansion as `resolveDshHome`. The root is deliberately outside `$DSH_HOME` because other agent tools share it; `dsh-agent-instructions` reads its user-global `AGENTS.md`, and `dsh-skill-filesystem` scans its `skills/` directory.
+`resolveAgentsHome` 采用与 `resolveDshHome` 相同的优先级、空白值处理与波浪号展开。该根目录刻意位于 `$DSH_HOME` 之外，因为其他 agent 工具也会共享它：`dsh-agent-instructions` 读取其中的用户全局 `AGENTS.md`，`dsh-skill-filesystem` 扫描其中的 `skills/` 目录。
 
-### Displaying a home
+### 展示主目录
 
-For user-facing paths, render a root symbolically rather than as a machine path: the default harness home displays as `~/.dsh`, any configured harness home as `$DSH_HOME`, the default shared agents root as `~/.agents`, and any configured shared agents root as `$DSH_AGENTS_HOME`. Neither display form leaks an absolute machine path.
+面向用户的路径请以符号形式渲染根目录，而不是机器路径：默认主目录显示为 `~/.codexydsh`，任何已配置的主目录显示为 `$DSH_HOME`，默认共享 agents 根目录显示为 `~/.agents`，任何已配置的共享 agents 根目录显示为 `$DSH_AGENTS_HOME`。两种展示形式都不会泄露机器的绝对路径。
 
-### Expanding user paths
+### 展开用户路径
 
-`expandHomePath` expands a leading `~`, `~/`, or `~\` against the operating-system home and leaves everything else untouched — non-tilde paths and named-user forms such as `~alice/...` pass through unchanged.
+`expandHomePath` 针对操作系统主目录展开开头的 `~`、`~/` 或 `~\`，其余内容原样保留——非波浪号路径以及 `~alice/...` 等指定用户的形式不做任何改动。
 
-### Canonicalizing watch paths
+### 规范化监听路径
 
-`canonicalizeWatchPath` gives a native filesystem watcher one canonical spelling of its target: the deepest existing ancestor is resolved through `realpath` and any missing suffix is restored, so a file or directory can be watched before it is created. This prevents Windows from treating a regular-file ancestor as ordinary absence, and prevents 8.3 short-name aliases from mixing with the long paths the native watcher backend emits.
+`canonicalizeWatchPath` 为原生文件系统 watcher 提供目标路径的一种规范化写法：先通过 `realpath` 解析层级最深的现有祖先，再拼回缺失的后缀，因此文件或目录在创建之前就可以被监听。这可以防止 Windows 把普通文件祖先当作普通缺失处理，也防止 8.3 短名别名与原生 watcher 后端发出的长路径混用。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The package is built on one principle: harness user data lives under one root, and the shared agent configuration root stays separate because other agent tools read it too. `resolveRoot` and `rootDisplay` own the precedence and display rules for both roots, so neither can drift from the other.
+本包建立在一个原则上：harness 的用户数据位于同一个根目录下，而共享 agent 配置根目录保持独立，因为其他 agent 工具也会读取它。`resolveRoot` 与 `rootDisplay` 负责两个根目录的优先级与展示规则，因此两者不会彼此漂移。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Home resolution, path joining, display, tilde expansion, and watch-path canonicalization |
+| [`src/index.ts`](src/index.ts) | 主目录解析、路径拼接、展示、波浪号展开与监听路径规范化 |
 
-### Resolution rules
+### 解析规则
 
-`resolveDshHome` reads the explicit override, then `$DSH_HOME`, then falls back to the operating-system home joined with `.dsh`. `resolveAgentsHome` reads the same three levels for `$DSH_AGENTS_HOME` and `~/.agents`. The chosen value is tilde-expanded and normalized to an absolute path; `dshHomePath` joins child segments with Node's platform path rules. `dshHomeDisplay` and `agentsHomeDisplay` compare the resolved path against the default root and return the symbolic label, so a configured root never leaks its absolute path.
+`resolveDshHome` 先读显式覆盖值，然后读 `$DSH_HOME`，最后回退到操作系统主目录拼接 `.codexydsh`。`resolveAgentsHome` 对 `$DSH_AGENTS_HOME` 与 `~/.agents` 读取同样的三层值。选中的值经过波浪号展开并规范化为绝对路径；`dshHomePath` 用 Node 的平台路径规则拼接子路径段。`dshHomeDisplay` 与 `agentsHomeDisplay` 把解析出的路径与默认根目录比较并返回符号标签，因此已配置的根目录绝不泄露其绝对路径。
 
-### Canonicalization mechanics
+### 规范化机制
 
-`canonicalizeWatchPath` walks up from the target until it finds an existing ancestor, resolves it with `realpath`, proves it is an enumerable directory, and restores the missing suffix. Errors other than absence propagate, and a missing-suffix ancestor that is not a directory is rejected.
+`canonicalizeWatchPath` 从目标向上逐级查找，直到找到现有祖先，用 `realpath` 解析它、证明它是可枚举目录，再拼回缺失的后缀。除路径不存在以外的错误都会传播；缺失后缀的祖先若不是目录则被拒绝。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when you need the launcher or the consumers that depend on a single home root.
+当你需要启动器或依赖统一主目录根的消费方时，阅读以下页面。
 
-- [Boot package](../../boot/app-boot/README.md) — the launcher that resolves the home before any plugin mounts.
-- [Shell environment](../../shell/shell-env/README.md) — how `DSH_HOME` reaches model shell calls.
-- [Anonymous user id](../../identity/anonymous-user-id/README.md) — a stored identity file under the resolved home.
+- [boot 包](../../boot/app-boot/README.zh.md)——在任何插件挂载之前解析主目录的启动器。
+- [shell 环境](../../shell/shell-env/README.zh.md)——`DSH_HOME` 如何到达模型 shell 调用。
+- [匿名用户 id](../../identity/anonymous-user-id/README.zh.md)——位于解析后主目录下的存储身份文件。
 
 -----
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when the helpers are not the right tool. They are current package constraints, not a task backlog.
+这些限制说明这些辅助函数何时不是合适的工具。它们是当前包约束，不是任务积压。
 
-- **Expansion is deliberately narrow** — only bare `~`, `~/...`, and `~\...` use the current operating-system home; named-user forms such as `~alice/...`, environment variables, and shell expressions remain unchanged.
-- **Canonicalization reads but never mutates** — `canonicalizeWatchPath` performs `realpath` probes and propagates errors other than absence; callers still own directory creation, permissions, and trust policy for the resulting path.
+- **展开范围刻意保持狭窄**——只有单独的 `~`、`~/...` 和 `~\...` 使用当前操作系统主目录；`~alice/...` 等指定用户的形式、环境变量与 shell 表达式保持不变。
+- **规范化只读不改**——`canonicalizeWatchPath` 执行 `realpath` 探测并传播除路径不存在以外的错误；调用方仍负责目录创建、权限，以及对结果路径应用信任策略。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

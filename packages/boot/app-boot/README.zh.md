@@ -170,10 +170,10 @@ Loader 结算后，app-boot 在仅 optional 条目未激活时输出警告。如
 当包级约定不够用时阅读以下页面。它们从共享启动机制逐步进入组合模型及其背后的决策证据。
 
 - [Cordis 入门](../../../docs/cordis-primer.zh.md)——Loader、`!!js` 配置表达式，以及 include/group 语义。
-- [dsh 应用](../../../apps/cli/README.zh.md)——消费这些 helper 的 `dsh` bin。
+- [dsh 应用](../../../apps/cli/README.md)——消费这些 helper 的 `dsh` bin。
 - [dsh-cmdline](../cmdline/README.zh.md)——各 bin 使用的启动器到应用命令行交接。
 - [Profile 组合包](../../bundle/README.zh.md)——组合进 `dsh --profile` 的可安装 patch 层。
-- [dsh-home-paths](../../util/home-paths/README.zh.md)——harness home 解析器（`resolveDshHome`）。
+- [dsh-home-paths](../../util/home-paths/README.md)——harness home 解析器（`resolveDshHome`）。
 - [配置来源归属](../../../.agents/notes/implemented/architecture/2026-08-04-configuration-source-ownership.zh.md)——被发现的文件为何不得决定 bootstrap 行为。
 - [Profile 插件组合包](../../../.agents/notes/implemented/architecture/2026-08-05-profile-plugin-bundles.zh.md)——profile 与组合包组合设计。
 - [用户 patch HMR 测试](tests/user-patches.spec.ts)——实时 patch 行为与原生文件系统投递的验证归属。

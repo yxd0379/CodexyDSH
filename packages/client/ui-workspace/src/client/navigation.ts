@@ -23,6 +23,7 @@ import type { DraftInitializationOptions } from '@deepseek-ai/dsh-client-ui-conv
 import type { RowToast } from './contract/slots.ts'
 import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
 import type { WorkspaceViewStoreActions } from './stores.ts'
+import type { WorkspaceSource, WorkspaceSourceActions, WorkspaceSourceView } from './sources.ts'
 
 interface MainSelection {
   readonly sessionId?: SessionId
@@ -37,6 +38,12 @@ export interface StartSessionOptions extends DraftInitializationOptions {
 
 /** Workspace archive and directory operations consumed by Client UI domains. */
 export interface UiWorkspace {
+  /**
+   * Register source-owned sidebar rows for the calling plugin's lifetime.
+   * @param source - Sidebar rows and actions owned by this source.
+   * @returns Remove this source's rows and actions.
+   */
+  registerSource(source: WorkspaceSource): () => void
   /**
    * Select a Session and show its Conversation as one UI navigation action.
    * @param target - known Session identity or durable direct-parent subagent address to display.
@@ -81,7 +88,7 @@ export interface UiWorkspace {
   /**
    * Create a fresh Session, or reuse a blank when preparing an explicit draft. A creation the Host
    * refuses is shown through the Workspace notice and leaves the selection as it was.
-   * @param workspaceId - explicit target; absent inherits the current or most recent Workspace.
+   * @param workspaceId - explicit local target; absent follows a selected external source, otherwise the current or most recent local Workspace.
    * @param options - initial content and the reused blank's preset; existing text or attachments
    * are preserved unless clearPreviousDraft is true.
    */
@@ -150,6 +157,9 @@ export class DirectoryBrowseError extends Error {
 
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
+  /** Source cuts stay outside the local Workspace and Session Controllers. */
+  readonly sources = createSnapshotStore<readonly WorkspaceSourceView[]>([])
+  private readonly sourceEntries = new Map<string, WorkspaceSource>()
   /** The latest in-flight connection per Workspace; a request joins it only when both name the same preset. */
   private readonly connecting = new Map<WorkspaceId, {
     readonly agentPreset: string | undefined
@@ -188,6 +198,31 @@ class UiWorkspaceService extends Service implements UiWorkspace {
         reference?.release()
       }
     }, 'ui-workspace: Workspace navigation policy')
+  }
+
+  registerSource(source: WorkspaceSource): () => void {
+    if (this.sourceEntries.has(source.id)) throw new Error(`workspace source already registered: ${source.id}`)
+    const publish = (): void => {
+      this.sources.set([...this.sourceEntries.values()].map(entry => ({
+        ...entry.state.getSnapshot(), id: entry.id, label: entry.label,
+      })))
+    }
+    const dispose = this.ctx.effect(() => {
+      this.sourceEntries.set(source.id, source)
+      const unsubscribe = source.state.subscribe(publish)
+      publish()
+      return () => {
+        unsubscribe()
+        this.sourceEntries.delete(source.id)
+        publish()
+      }
+    }, `uiWorkspace.registerSource(${JSON.stringify(source.id)})`)
+    return () => { void dispose() }
+  }
+
+  /** Resolve callbacks at gesture time, so a removed source cannot act through stale rows. */
+  sourceActions(sourceId: string): WorkspaceSourceActions | undefined {
+    return this.sourceEntries.get(sourceId)?.actions
   }
 
   connectWorkspace(workspaceId: WorkspaceId, options: Pick<StartSessionOptions, 'agentPreset'> = {}): Promise<SessionId> {
@@ -291,17 +326,40 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     reuse: Pick<StartSessionOptions, 'agentPreset'> | undefined,
   ): Promise<void> {
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
-    let sessionId: SessionId
+    const resumeInput = this.pauseCurrentInput(navigation)
     try {
-      sessionId = await this.connectBlank(workspaceId, reuse)
-    } catch (error: unknown) {
-      // Reported here, not in connectWorkspace: startup restoration calls that
-      // directly and stays console-only.
-      if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
-      throw error
+      let sessionId: SessionId
+      try {
+        sessionId = await this.connectBlank(workspaceId, reuse)
+      } catch (error: unknown) {
+        // Reported here, not in connectWorkspace: startup restoration calls that
+        // directly and stays console-only.
+        if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
+        throw error
+      }
+      if (navigation.aborted) return
+      this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
+    } finally {
+      resumeInput()
     }
-    if (navigation.aborted) return
-    this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
+  }
+
+  /** 等待新会话时原输入框只读，草稿留在原处；失败或切换立即解除。 */
+  private pauseCurrentInput(signal: AbortSignal): () => void {
+    const sessionId = this.mainReference?.sessionId
+    const blocks = this.ctx.get('conversation')?.blocks
+    if (sessionId === undefined || blocks === undefined || signal.aborted) return () => {}
+    const store = blocks.storeFor(sessionId)
+    const previous = store.getSnapshot()
+    const pending = { reason: '正在创建新会话…' }
+    blocks.set(sessionId, pending)
+    const resume = (): void => {
+      signal.removeEventListener('abort', resume)
+      // A later feature-owned block is not this navigation's to clear.
+      if (store.getSnapshot() === pending) blocks.set(sessionId, previous)
+    }
+    signal.addEventListener('abort', resume, { once: true })
+    return resume
   }
 
   async forkSession(
@@ -318,6 +376,15 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   startSession(workspaceId?: WorkspaceId, options?: StartSessionOptions): void {
+    if (workspaceId === undefined) {
+      const selectedSource = [...this.sourceEntries.values()]
+        .find(source => source.state.getSnapshot().selectedSessionId !== undefined)
+      if (selectedSource !== undefined) {
+        if (options === undefined) selectedSource.actions.startSession(undefined)
+        else selectedSource.actions.startSession(undefined, options)
+        return
+      }
+    }
     const { agentPreset, ...draft } = options ?? {}
     const draftOptions = options === undefined ? undefined : draft
     const initializeDraft = draftOptions !== undefined

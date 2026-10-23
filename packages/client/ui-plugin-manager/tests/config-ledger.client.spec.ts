@@ -41,7 +41,7 @@ function bench() {
       versions[name] = (versions[name] ?? 0) + 1
       for (const listener of listeners.get(name) ?? []) listener()
     },
-    setLocale: (): void => {
+    refreshCopy: (): void => {
       revision += 1
       for (const listener of localeListeners) listener()
     },
@@ -69,7 +69,7 @@ describe('configLedgerSource', () => {
     // A label thunk is re-read when the locale moves, not before.
     title = '终端'
     expect(source.getSnapshot().items[0]?.label).toBe('Shell')
-    b.setLocale()
+    b.refreshCopy()
     expect(source.getSnapshot().items[0]?.label).toBe('终端')
   })
 
@@ -93,7 +93,7 @@ describe('configLedgerSource', () => {
     b.register('plugins.item', { id: 'bash', label: 'Shell' })
     expect(listener).toHaveBeenCalledTimes(1)
     expect(source.getSnapshot()).not.toBe(first)
-    b.setLocale()
+    b.refreshCopy()
     expect(listener).toHaveBeenCalledTimes(2)
 
     off()
@@ -118,7 +118,7 @@ describe('tabLedgerSource', () => {
     expect(first).toEqual([{ id: 'discover', label: 'Discover' }, { id: 'unlabelled', label: '' }])
     expect(source.getSnapshot()).toBe(first)
     label = '发现'
-    b.setLocale()
+    b.refreshCopy()
     expect(source.getSnapshot()[0]).toEqual({ id: 'discover', label: '发现' })
     off()
     expect(b.listenerCount()).toBe(0)

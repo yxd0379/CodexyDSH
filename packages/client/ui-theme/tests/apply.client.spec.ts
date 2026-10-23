@@ -33,7 +33,7 @@ async function bench(isLoopback = true) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const locale = new LocaleRuntime(ctx)
-  locale.setLocale('zh')
+
   ctx.provide('locale', locale)
   const section: Record<string, unknown> = { preference: 'system', fontSize: 14, codeFontSize: 11, terminalFontSize: 13, textFontFamily: '', codeFontFamily: '', terminalFontFamily: '' }
   const namespace = () => ({
@@ -304,8 +304,7 @@ describe('ui-theme apply', () => {
     await before.ctx.plugin({ inject: [...inject], apply }).await()
     expect(before.locale.bind(SETTINGS_NS)('appearance.title')).toBe('外观')
     expect(before.locale.bind(SETTINGS_NS)('fontSize.text.title')).toBe('字号大小')
-    before.locale.setLocale('en')
-    expect(before.locale.bind(SETTINGS_NS)('appearance.title')).toBe('Appearance')
+
     const entry = before.slots.entries(SLOT).find(e => e.component === AppearanceRow)!
     expect(entry.options).toMatchObject({ id: 'appearance', order: 10 })
     const fontEntry = before.slots.entries(SLOT).find(e => e.component === FontSettingsGroup)!

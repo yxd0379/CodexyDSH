@@ -9,7 +9,7 @@
  * ESM hook each miss is an `ERR_MODULE_NOT_FOUND` that Node decorates with a
  * full CommonJS resolution walk, which dominated source-launch boot.
  *
- * This generator writes one explicit entry per package into a marked region of
+ * This generator writes explicit source aliases into a marked region of
  * `tsconfig.base.json`, leaving every hand-written alias and comment outside
  * that region untouched. `--check` reports drift instead of writing, so a new
  * package that needs an alias fails a gate rather than silently resolving
@@ -27,14 +27,17 @@ const CONFIG = join(ROOT, 'tsconfig.base.json')
 const BEGIN = '      // BEGIN generated package aliases — pnpm run gen-tsconfig-paths'
 const END = '      // END generated package aliases'
 
-/** Package-name prefix the expanded aliases cover. */
+/** Upstream package-name prefix whose matching directories can be expanded. */
 const PREFIX = '@deepseek-ai/dsh-'
+
+/** Owned packages keep their declared names when placed in upstream groups. */
+const OWNED_PREFIX = '@codexydsh/'
 
 /** One workspace package the generated region maps. */
 interface PackageAlias {
-  /** Bare specifier, e.g. `@deepseek-ai/dsh-session`. */
+  /** Package or export specifier, e.g. `@codexydsh/runtime/agent`. */
   readonly specifier: string
-  /** Repository-relative source directory, e.g. `./packages/session/session/src`. */
+  /** Repository-relative source file or directory. */
   readonly source: string
 }
 
@@ -60,11 +63,12 @@ interface WorkspacePackage {
   readonly group: string
   readonly directory: string
   readonly name: string
+  readonly exports: Readonly<Record<string, string | Readonly<Record<string, string>>>>
 }
 
 /**
  * Walk `packages/<group>/<directory>` once, in a stable order.
- * @returns Every directory whose manifest names a `@deepseek-ai/dsh-` package and that carries `src`.
+ * @returns Upstream and Codexy package directories carrying source.
  */
 function workspacePackages(): WorkspacePackage[] {
   const packages = join(ROOT, 'packages')
@@ -75,20 +79,25 @@ function workspacePackages(): WorkspacePackage[] {
     for (const directory of readdirSync(groupDir).sort()) {
       const packageDir = join(groupDir, directory)
       const name = packageName(join(packageDir, 'package.json'))
-      if (name === undefined || !name.startsWith(PREFIX)) continue
-      if (existsSync(join(packageDir, 'src'))) found.push({ group, directory, name })
+      if (name === undefined || !name.startsWith(PREFIX) && !name.startsWith(OWNED_PREFIX)) continue
+      if (!existsSync(join(packageDir, 'src'))) continue
+      const manifest: { exports?: WorkspacePackage['exports'] } = JSON.parse(
+        readFileSync(join(packageDir, 'package.json'), 'utf8'),
+      )
+      found.push({ group, directory, name, exports: manifest.exports ?? {} })
     }
   }
   return found
 }
 
 /**
- * Collect every package the removed wildcards could resolve.
+ * Collect upstream package aliases and Codexy's explicitly exported source entries.
  *
  * A wildcard substituted the specifier's suffix into `packages/<group>/<suffix>/src`,
  * so it only ever resolved a package whose declared name is exactly
  * `@deepseek-ai/dsh-<directory>`. Packages named after something other than
  * their directory already carry a hand-written alias and are skipped here.
+ * Codexy packages instead derive every subpath from their exports map.
  *
  * @returns Aliases sorted by specifier.
  * @throws When two package directories claim one specifier, which the removed
@@ -96,7 +105,29 @@ function workspacePackages(): WorkspacePackage[] {
  */
 export function collectPackageAliases(): PackageAlias[] {
   const bySpecifier = new Map<string, PackageAlias & { directory: string }>()
-  for (const { group, directory, name } of workspacePackages()) {
+  for (const { group, directory, name, exports } of workspacePackages()) {
+    if (name.startsWith(OWNED_PREFIX)) {
+      for (const [subpath, target] of Object.entries(exports)) {
+        if (subpath === './typert' || subpath === './remote') continue
+        const exported = typeof target === 'string' ? target : target.types ?? target.default
+        if (exported === undefined) continue
+        const source = exported.startsWith('./src/') || exported === './package.json'
+          ? exported
+          : exported.startsWith('./lib/types/')
+            ? exported.replace('./lib/types/', './src/').replace(/\.d\.ts$/, '.ts')
+            : exported.startsWith('./lib/')
+              ? exported.replace('./lib/', './src/').replace(/\.js$/, '.ts')
+              : undefined
+        if (source === undefined) continue
+        const specifier = subpath === '.' ? name : `${name}/${subpath.slice(2)}`
+        bySpecifier.set(specifier, {
+          specifier,
+          source: `./packages/${group}/${directory}/${source.slice(2)}`,
+          directory: `${group}/${directory}`,
+        })
+      }
+      continue
+    }
     if (name !== `${PREFIX}${directory}`) continue
     const previous = bySpecifier.get(name)
     if (previous !== undefined) {
@@ -124,10 +155,11 @@ export function collectPackageAliases(): PackageAlias[] {
  * alias can — but they still have to be mapped by something, because deleting
  * the group wildcards removed the fallback that used to catch them.
  *
- * @returns Declared names of every `@deepseek-ai/dsh-` package carrying a `src` directory.
+ * @returns Workspace package names whose root export needs a source alias.
  */
 export function collectPackageNames(): string[] {
   return workspacePackages()
+    .filter(({ exports, name }) => !name.startsWith(OWNED_PREFIX) || '.' in exports)
     .map(({ name }) => name)
     .sort((left, right) => left.localeCompare(right))
 }
@@ -139,7 +171,7 @@ export function collectPackageNames(): string[] {
  */
 export function mappedSpecifiers(text: string): Set<string> {
   const keys = new Set<string>()
-  for (const match of text.matchAll(/^\s*"(@deepseek-ai\/dsh-[^"/]+)":/gm)) {
+  for (const match of text.matchAll(/^\s*"(@deepseek-ai\/dsh-[^"/]+|@codexydsh\/[^"/]+)":/gm)) {
     const key = match[1]
     if (key !== undefined) keys.add(key)
   }
@@ -208,7 +240,7 @@ function handWrittenSpecifiers(text: string): Set<string> {
   const end = text.indexOf(END)
   const outside = begin < 0 || end < begin ? text : text.slice(0, begin) + text.slice(end)
   const keys = new Set<string>()
-  for (const match of outside.matchAll(/^\s*"(@deepseek-ai\/[^"]+)":/gm)) {
+  for (const match of outside.matchAll(/^\s*"(@(?:deepseek-ai|codexydsh)\/[^"]+)":/gm)) {
     const key = match[1]
     if (key !== undefined) keys.add(key)
   }

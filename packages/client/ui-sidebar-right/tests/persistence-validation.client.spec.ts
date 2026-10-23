@@ -18,6 +18,34 @@ const splitLayout = { ...layout, rootId: 'split3', nodes: { pane1: pane, split3:
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); localStorage.clear() })
 
+it('restores and inventories only the current deployment layout while keeping root and other Hosts untouched', () => {
+  const base = vi.spyOn(document, 'baseURI', 'get')
+  const save = (contentId: string): void => { writeSidebarLayout(session, {
+    ...empty, minted: 2, layout: { ...layout, tabs: { tab2: { ...tab, contentId } } } as never,
+  }) }
+  const content = (): string | undefined => readSidebarLayout(session)?.layout.tabs.tab2?.contentId
+  base.mockReturnValue('https://app.example/')
+  save('local-terminal')
+  base.mockReturnValue('https://app.example/codexy-remote/alpha/')
+  expect(content()).toBeUndefined()
+  save('alpha-terminal')
+  base.mockReturnValue('https://app.example/codexy-remote/beta/')
+  expect(content()).toBeUndefined()
+  save('beta-terminal')
+  base.mockReturnValue('https://app.example/codexy-remote/alpha/index.html')
+  expect(new SidebarTabInventory().source.getSnapshot()).toEqual([
+    { sessionId: session, tabId: 'tab2', kind: 'terminal', contentId: 'alpha-terminal' },
+  ])
+  expect(createSidebarRightStore(() => ({ kind: 'guide', title: 'Start' })).create(session)
+    .getSnapshot().bySession[session]?.layout.tabs.tab2?.contentId).toBe('alpha-terminal')
+  clearSidebarLayout(session)
+  expect(content()).toBeUndefined()
+  base.mockReturnValue('https://app.example/codexy-remote/beta/')
+  expect(content()).toBe('beta-terminal')
+  base.mockReturnValue('https://app.example/index.html')
+  expect(content()).toBe('local-terminal')
+})
+
 it.each([
   ['missing layout', { minted: 2 }],
   ['wrong tab fields', { ...valid, layout: { ...layout, tabs: { tab2: { ...tab, kind: null } } } }],

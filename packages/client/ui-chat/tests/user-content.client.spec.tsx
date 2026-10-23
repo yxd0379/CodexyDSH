@@ -6,7 +6,6 @@ import { AttachmentId, type FileAttachmentRef, type ImageAttachmentRef } from '@
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { PropsRenderFactories, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { UserContentAttachment, UserContentData, UserContentInput } from '../src/client/contract/slots.ts'
@@ -45,10 +44,10 @@ async function bench() {
   onTestFinished(() => runtime.dispose())
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
-  locale.register('common', { en: commonEn, zh: commonZh })
+  locale.register('common', 'zh', commonZh)
   locale.register(NS, { en, zh })
   locale.register('reference', { en: referenceEn, zh: referenceZh })
-  locale.setLocale('en')
+
   runtime.slots.installLocale(locale)
   const imageCalls: PropsRuntime<'conversation.chat.user.images'>[] = []
   const openFile = vi.fn<(path: string) => void>()
@@ -197,23 +196,18 @@ describe('user Content Factory', () => {
     expect(b.imageCalls.every(call => call.images[0] === preview.image)).toBe(true)
   })
 
-  it('binds live Chat locale labels for reference summaries and opaque extra blocks', async () => {
+  it('shows Chinese reference summaries and opaque extra blocks', async () => {
     const b = await bench()
     const block = { type: 'future-block', value: 'x'.repeat(20_001) }
     const content: UserContentData = { ...empty, extraBlocks: [block], referenceLabels: ['Alpha', 'Beta'] }
     const view = b.render(b.factory({ content, facts: {}, loadImage: b.loadImage }))
-    expect(view.getByText('Referenced session · Alpha, Beta')).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: '▸ Extra content block' }))
-    expect(view.container.querySelector('pre')?.textContent).toContain('"type": "future-block"')
-    expect(view.container.querySelector('pre')?.textContent).toContain(
-      `… truncated, ${JSON.stringify(block, null, 2).length} characters total`,
-    )
-    act(() => { b.locale.setLocale('zh') })
     expect(view.getByText('引用会话 · Alpha、Beta')).toBeTruthy()
-    expect(view.getByRole('button', { name: '▾ 附加内容块' })).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '▸ 附加内容块' }))
+    expect(view.container.querySelector('pre')?.textContent).toContain('"type": "future-block"')
     expect(view.container.querySelector('pre')?.textContent).toContain(
       `… 已截断，共 ${JSON.stringify(block, null, 2).length} 字符`,
     )
+    expect(view.getByRole('button', { name: '▾ 附加内容块' })).toBeTruthy()
   })
 
   it('opens file and skill references through their own injectors only in interactive content', async () => {

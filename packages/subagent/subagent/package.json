@@ -30,10 +30,6 @@
       "types": "./lib/typert.host.d.ts",
       "default": "./lib/typert.host.js"
     },
-    "./remote": {
-      "types": "./lib/typert.remote-client.d.ts",
-      "default": "./lib/typert.remote-client.js"
-    },
     "./src/*": "./src/*",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
@@ -44,14 +40,13 @@
     "lib/types/**/*.js",
     "lib/types/**/*.d.ts",
     "lib/typert.host.js",
-    "lib/typert.host.d.ts",
-    "lib/typert.remote-client.js",
-    "lib/typert.remote-client.d.ts"
+    "lib/typert.host.d.ts"
   ],
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-chunked-list": "workspace:*",
+    "@deepseek-ai/dsh-util-time": "workspace:*",
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
     "zod": "4.4.3"

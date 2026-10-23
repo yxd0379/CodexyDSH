@@ -53,6 +53,7 @@
     "@deepseek-ai/dsh-typert-protocol": "workspace:*"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-anonymous-user-id": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {

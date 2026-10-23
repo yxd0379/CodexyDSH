@@ -40,9 +40,6 @@ export class InputTriggerService extends Service implements InputTriggerServiceC
    */
   constructor(ctx: Context) {
     super(ctx, 'inputTriggers')
-    ctx.on('locale/change', () => {
-      for (const controller of this.live.controllers.values) controller.refreshOpenMenu()
-    })
   }
 
   /**

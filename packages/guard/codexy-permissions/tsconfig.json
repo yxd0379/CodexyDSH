@@ -1,0 +1,55 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../core/codexy-runtime"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../interaction/commands"
+    },
+    {
+      "path": "../../sandbox/sandbox"
+    },
+    {
+      "path": "../../sandbox/sandbox-policy"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../settings/settings"
+    },
+    {
+      "path": "../../shell/shell"
+    },
+    {
+      "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../typert/registry"
+    },
+    {
+      "path": "../codexy-approval"
+    }
+  ],
+  "exclude": [
+    "src/typert.ts",
+    "src/remote.ts"
+  ]
+}

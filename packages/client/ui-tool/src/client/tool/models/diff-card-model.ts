@@ -98,6 +98,11 @@ function appliedDiffs(meta: unknown): DiffHunk[] | 'empty' | null {
  * @returns the diff-card props, or null for the generic path.
  */
 export function diffCardModel(block: ToolCallBlock): DiffCardModel | null {
+  if (parsedToolCall(block)?.name === 'apply_patch') {
+    if (!('kind' in block) || block.isError) return null
+    const applied = appliedDiffs(block.meta)
+    return applied === null || applied === 'empty' ? null : { card: { diffs: applied } }
+  }
   if (block.parentCallId !== undefined) return null
   const intended = intendedDiff(block)
   if (intended === null) return null

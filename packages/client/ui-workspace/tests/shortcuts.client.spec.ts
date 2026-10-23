@@ -48,7 +48,7 @@ async function bench(runtime: 'web' | 'desktop' = 'desktop', platform: ShortcutP
   ctx.provide('slots', { entries: () => directory.getSnapshot() ? [{}] : [], subscribe: (_name: string, listener: () => void) => directory.subscribe(listener) })
   const locale = new LocaleRuntime(ctx)
   locale.register('workspace', { en, zh })
-  locale.setLocale('en')
+
   ctx.provide('locale', locale)
   const navigation = {
     startSession: vi.fn(), forkSession: vi.fn(async () => 'fork-child' as SessionId), archiveSession: vi.fn(async (_sessionId: SessionId) => {}),
@@ -73,7 +73,7 @@ describe('workspace shortcut ownership', () => {
     const b = await bench()
     b.select('none')
     for (const id of ['session.rename', 'session.archive']) {
-      expect(b.commands.get(id)!.resolve(context)).toMatchObject({ status: 'blocked', reason: en['shortcut.noSession'] })
+      expect(b.commands.get(id)!.resolve(context)).toMatchObject({ status: 'blocked', reason: zh['shortcut.noSession'] })
     }
     b.controls.directoryBusy(true)
     b.controls.add()
@@ -200,9 +200,9 @@ describe('workspace shortcut ownership', () => {
     expect(invoke().status).toBe('handled')
     expect(b.navigation.forkSession).toHaveBeenCalledTimes(3)
     b.list.set({ ...b.list.getSnapshot(), byId: { [sid('a')]: { ...row('a', true), blank: true } } })
-    expect(invoke()).toMatchObject({ status: 'blocked', reason: en['shortcut.noCompletedTurn'] })
+    expect(invoke()).toMatchObject({ status: 'blocked', reason: zh['shortcut.noCompletedTurn'] })
     b.list.set({ ...b.list.getSnapshot(), byId: {} })
-    expect(invoke()).toMatchObject({ status: 'blocked', reason: en['shortcut.noSession'] })
+    expect(invoke()).toMatchObject({ status: 'blocked', reason: zh['shortcut.noSession'] })
     expect(b.loadOlder).not.toHaveBeenCalled()
   })
 })

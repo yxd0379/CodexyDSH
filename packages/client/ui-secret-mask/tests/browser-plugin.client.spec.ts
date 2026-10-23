@@ -37,7 +37,7 @@ describe('apply', () => {
     expect(ctx.slots.entries('conversation.user.text.node')).toMatchObject([
       { options: { key: 'secret' }, component: SecretText },
     ])
-    expect(ctx.locale.bind(NS)('secret.reveal')).toBe('Show secret')
+    expect(ctx.locale.bind(NS)('secret.reveal')).toBe('显示密钥')
 
     await fiber.dispose()
     expect(ctx.uiConversation.userText.entries()).toHaveLength(0)

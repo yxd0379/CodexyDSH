@@ -178,10 +178,10 @@ export function resolveProfileDir(name: string, home: string = resolveDshHome())
 /** The shipped profile templates auto-initialized on first use, by name. */
 export const PROFILE_TEMPLATES: Record<string, ProfileTemplate> = {
   web: {
-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
+    bundles: ['@codexydsh/base', '@codexydsh/web'],
   },
   headless: {
-    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless'],
+    bundles: ['@codexydsh/base', '@codexydsh/headless'],
   },
 }
 
@@ -198,10 +198,13 @@ const RETIRED_BUNDLES: ReadonlySet<string> = new Set([
   // The Web composition mounts Schedule itself
   // ([upgrade guide](../../../../docs/upgrade-guide/v0.2.0-rc.2/schedule-bundle-retired/guide.md)).
   '@deepseek-ai/dsh-experimental-schedule-bundle',
+  // CodexyDSH base owns approval review through @codexydsh/auto-review;
+  // the upstream bundle requires a different permission-presets service.
+  '@deepseek-ai/dsh-experimental-auto-review',
 ])
 
 /** The bundle list a `dsh plugin` init uses for a name with no shipped template. */
-export const DEFAULT_PROFILE_BUNDLES: readonly string[] = ['@deepseek-ai/dsh-base']
+export const DEFAULT_PROFILE_BUNDLES: readonly string[] = ['@codexydsh/base']
 
 /**
  * The bundles the dsh installation ships for a person to switch on: each a
@@ -220,7 +223,6 @@ export const OPTIONAL_BUNDLES: readonly string[] = [
   '@deepseek-ai/dsh-experimental-agent-team-profile',
   '@deepseek-ai/dsh-experimental-voice-input-bundle',
   '@deepseek-ai/dsh-experimental-cot-translation-bundle',
-  '@deepseek-ai/dsh-experimental-auto-review',
   '@deepseek-ai/dsh-experimental-inspector-profile',
   '@deepseek-ai/dsh-experimental-plugin-market-bundle',
   '@deepseek-ai/dsh-experimental-tool-worktree',

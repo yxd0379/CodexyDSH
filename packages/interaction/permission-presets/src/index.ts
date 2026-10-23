@@ -19,7 +19,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
 import z from '@deepseek-ai/schemastery'
 import { z as zod } from 'zod'
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import { SANDBOX_MODES, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
@@ -289,7 +289,6 @@ export class PermissionPresetService extends TypertRemoteService {
    * Read the complete process-level catalog exposed to current-session UI.
    * @returns every currently selectable preset in contribution order.
    */
-  @Remote('catalog')
   catalog(): PermissionCatalog {
     return {
       options: this.names.map(name => this.optionOf(name)),

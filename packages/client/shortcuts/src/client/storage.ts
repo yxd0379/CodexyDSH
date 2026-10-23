@@ -1,5 +1,6 @@
 /** Explicit browser and Desktop preference adapters; Desktop never falls back to browser storage. */
 import { ShortcutPersistence } from '../protocol.ts'
+import { storageKey } from '@deepseek-ai/dsh-client-store'
 import type { DesktopShortcutsApi, ShortcutConfigSnapshot, ShortcutDefinition, ShortcutPlatform } from '../protocol.ts'
 
 /** Browser-profile and origin-local preference key. */
@@ -14,12 +15,13 @@ export const SHORTCUT_STORAGE_KEY = 'dsh.keybindings.v1'
  */
 export function webShortcutStorage(window: Window, platform: ShortcutPlatform,
   publish: (snapshot: ShortcutConfigSnapshot) => void): DesktopShortcutsApi & { dispose(): void } {
+  const key = storageKey(SHORTCUT_STORAGE_KEY, window.document.baseURI)
   const persistence = new ShortcutPersistence({
-    read: () => window.localStorage.getItem(SHORTCUT_STORAGE_KEY),
-    write: (raw) => { window.localStorage.setItem(SHORTCUT_STORAGE_KEY, raw) },
+    read: () => window.localStorage.getItem(key),
+    write: (raw) => { window.localStorage.setItem(key, raw) },
   }, 'web', platform, true, publish)
   const changed = (event: StorageEvent): void => {
-    if (event.key === null || event.key === SHORTCUT_STORAGE_KEY) void persistence.readCurrent()
+    if (event.key === null || event.key === key) void persistence.readCurrent()
   }
   window.addEventListener('storage', changed)
   return {

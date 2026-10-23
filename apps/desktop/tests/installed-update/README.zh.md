@@ -23,7 +23,7 @@ description: "Windows 已安装应用更新的人工清单，覆盖下载失败�
 
 在已安装依赖的仓库根目录中，用两个递增的派生测试版本创建批次。这只写入已忽略的本地清单，不构建、签名、上传、安装或读取凭据。
 
-示例以 `0.1.6-alpha.1` 为基础版本。创建新物料前，按[发布版本规则](../../packaging/README.zh.md#release-versions)替换为实际基础版本、北京时间日期和未使用的序号。
+示例以 `0.1.6-alpha.1` 为基础版本。创建新物料前，按[发布版本规则](../../packaging/README.md#release-versions)替换为实际基础版本、北京时间日期和未使用的序号。
 
 ```powershell
 node --import tsx apps/desktop/scripts/prepare-installed-update.ts init 0.1.6-alpha.1.20260916.1 0.1.6-alpha.1.20260916.2

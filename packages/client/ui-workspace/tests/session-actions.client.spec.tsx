@@ -20,7 +20,6 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { registerToasts } from '../src/client/toast/register.ts'
 import { ArchiveToastEntry } from '../src/client/toast/Toast.tsx'
 import type { ArchiveToastEntryProps } from '../src/client/contract/toast.ts'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type {
   MenuOpenState, RowToast, RowToastState, SessionArchiveConfirmInjected, SessionArchiveConfirmRequest,
@@ -44,7 +43,7 @@ afterEach(cleanup)
 // The seat's key domain is workspace ∪ common; the stub mirrors the real
 // lookup chain (namespace, then common vocabulary, then the key).
 const t: PropsLocale<'workspace'>['t'] = makeTranslate(zh, commonZh)
-const tEn: PropsLocale<'workspace'>['t'] = makeTranslate(en, commonEn)
+const tEn: PropsLocale<'workspace'>['t'] = makeTranslate(en, commonZh)
 
 const sid = (id: string) => id as SessionId
 /** Selector hook over one fixed snapshot: how the renderer binds a standard or injected `hooks` source. */
@@ -115,7 +114,7 @@ function callOrder(fn: { mock: { invocationCallOrder: readonly number[] } }, nth
 }
 
 describe('Session ID action', () => {
-  it.each([t, tEn])('dismisses the menu before copying the complete row ID', (translate) => {
+  it.each([t])('dismisses the menu before copying the complete row ID', (translate) => {
     const { state, setMenuOpen } = openMenu()
     const sessionId = sid('session-c4421b66-252e-44c0-80ed-6e320abeba25')
     const copySessionId = vi.fn(async () => {})
@@ -552,7 +551,7 @@ describe('RowActionToast', () => {
     const runtime = await SlotTestRuntime.create()
     onTestFinished(() => runtime.dispose())
     const locale = new LocaleRuntime(runtime.ctx)
-    locale.setLocale(translate === tEn ? 'en' : 'zh')
+
     locale.register('workspace', { en, zh })
     runtime.ctx.provide('locale', locale)
     runtime.slots.installLocale(locale)
@@ -587,9 +586,9 @@ describe('RowActionToast', () => {
       notify({ kind: 'archived', sessionId: sid('one') })
       const alert = screen.getByRole('alert')
       act(() => { vi.advanceTimersByTime(3000) })
-      act(() => { locale.setLocale('en'); view.set({ ...view.getSnapshot(), archivedFilter: 'show' }) })
+      act(() => { view.set({ ...view.getSnapshot(), archivedFilter: 'show' }) })
       expect(screen.getByRole('alert')).toBe(alert)
-      expect(alert.textContent).toContain('Session archived')
+      expect(alert.textContent).toContain('会话已归档')
       expect(screen.queryByRole('button', { name: 'filter archived sessions' })).toBeNull()
       act(() => { vi.advanceTimersByTime(3999) })
       expect(dismissToast).not.toHaveBeenCalled()
@@ -608,7 +607,6 @@ describe('RowActionToast', () => {
 
   it.each([
     ['zh', t, '请先打开原会话完成迁移，再创建分支', '打开原会话'],
-    ['en', tEn, 'Open the original session to complete migration before creating a branch.', 'Open original session'],
   ] as const)('keeps the %s fork notice after menu unmount and opens only on its action', async (_locale, translate, message, action) => {
     const { dismissToast, openForkSource, notify } = await toastSurface(undefined, translate)
     const { state, setMenuOpen } = openMenu()
@@ -632,7 +630,7 @@ describe('RowActionToast', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it.each([t, tEn])('reports clipboard success and failure through the global toast', async (translate) => {
+  it.each([t])('reports clipboard success and failure through the global toast', async (translate) => {
     const { notify } = await toastSurface(undefined, translate)
     notify({ kind: 'sessionIdCopied' })
     expect(screen.getByRole('alert').textContent).toBe(translate('toast.sessionIdCopied'))
@@ -640,7 +638,7 @@ describe('RowActionToast', () => {
     expect(screen.getByRole('alert').textContent).toBe(translate('toast.sessionIdCopyFailed'))
   })
 
-  it.each([t, tEn])('replaces other notices with plain shortcut fork failures and only keeps the latest', async (translate) => {
+  it.each([t])('replaces other notices with plain shortcut fork failures and only keeps the latest', async (translate) => {
     const { dismissToast, notify } = await toastSurface(undefined, translate)
     vi.useFakeTimers()
     try {

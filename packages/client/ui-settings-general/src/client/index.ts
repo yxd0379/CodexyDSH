@@ -98,9 +98,7 @@ export function apply(ctx: ClientContext): void {
     inject: () => ({ hooks: { desktopUpdate: desktopUpdate.store, connectionState: connection.state } }),
   }, DesktopUpdateBadge))
 
-  // Copy freshness is framework-owned: components read the standard `t`
-  // seat, and the nav label is a thunk the owner resolves per render — no
-  // locale/change re-registration wiring.
+  // 文案由框架注入，导航标题每次渲染读取当前中文词条。
   const t = ctx.locale.bind(NS)
   // The shared ConfigForm mirror updates after document commits and reconnects.
   const documentController = ctx.remote.$host.isLoopback

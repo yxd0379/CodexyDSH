@@ -1,0 +1,77 @@
+{
+  "name": "@codexydsh/prompt",
+  "description": "Codex-derived coding prompt and runtime environment for the Codexful application",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./recap": {
+      "types": "./lib/types/recap.d.ts",
+      "default": "./lib/recap.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT AND Apache-2.0",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@codexydsh/runtime": "workspace:*",
+    "@deepseek-ai/dsh-compaction": "workspace:*",
+    "@deepseek-ai/dsh-commands": "workspace:*",
+    "@deepseek-ai/dsh-llm-retry": "workspace:*",
+    "@deepseek-ai/dsh-sandbox-policy": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-projection": "workspace:*",
+    "@deepseek-ai/dsh-session-query": "workspace:*",
+    "@deepseek-ai/dsh-subagent": "workspace:*",
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*",
+    "@deepseek-ai/dsh": "workspace:*",
+    "@codexydsh/approval": "workspace:*",
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~"
+  },
+  "dependencies": {
+    "zod": "^4.4.3",
+    "@codexydsh/bridges": "workspace:*",
+    "@codexydsh/compaction": "workspace:*",
+    "@codexydsh/retry": "workspace:*",
+    "@codexydsh/delegation": "workspace:*",
+    "@codexydsh/prompt-registry": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/runtime-testkit": "workspace:*",
+    "@deepseek-ai/dsh-compaction": "workspace:*",
+    "@deepseek-ai/dsh-commands": "workspace:*",
+    "@deepseek-ai/dsh-llm-retry": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "workspace:*",
+    "@deepseek-ai/dsh-sandbox-policy": "workspace:*",
+    "@deepseek-ai/dsh-subagent": "workspace:*",
+    "@deepseek-ai/dsh-scope": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-projection": "workspace:*",
+    "@deepseek-ai/dsh-session-query": "workspace:*",
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*",
+    "@codexydsh/subagents": "workspace:*",
+    "@codexydsh/approval": "workspace:*",
+    "@deepseek-ai/dsh": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~"
+  }
+}

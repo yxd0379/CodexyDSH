@@ -35,6 +35,7 @@
     "@deepseek-ai/cordis": "workspace:~"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-session-title-llm": "workspace:*",
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~"
   },

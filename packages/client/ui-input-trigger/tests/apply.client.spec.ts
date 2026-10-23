@@ -40,7 +40,7 @@ async function bench() {
   // These specs assert the shipped Chinese copy. There is no jsdom `window`
   // in this lane, so browser-language detection never runs and the locale
   // comes from FALLBACK_LOCALE (en): state the asserted locale explicitly.
-  locale.setLocale('zh')
+
   ctx.provide('locale', locale)
   return { ctx, slots, locale }
 }
@@ -50,15 +50,15 @@ describe('apply', () => {
     expect(inject).toEqual(['sessions', 'locale'])
   })
 
-  it('registers the bilingual menu dictionaries (group titles by source name + the pending row)', async () => {
+  it('registers Chinese menu labels and the pending row', async () => {
     const { ctx, locale } = await bench()
     await ctx.plugin({ inject: [...inject], apply }).await()
     const t = locale.bind('slash.menu')
     expect(t('command')).toBe('指令')
-    locale.setLocale('en')
-    expect(t('skill')).toBe('Skills')
-    expect(t('subagent')).toBe('Subagents')
-    expect(t('loading')).toBe('Loading…')
+
+    expect(t('skill')).toBe('技能')
+    expect(t('subagent')).toBe('子智能体')
+    expect(t('loading')).toBe('正在加载…')
   })
 
   it('mounts ctx.inputTriggers once sessions is up, before any conversation service exists', async () => {

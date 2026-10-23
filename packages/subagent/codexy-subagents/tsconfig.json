@@ -1,0 +1,48 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/codexy-runtime"
+    },
+    {
+      "path": "../../core/codexy-tool-schema"
+    },
+    {
+      "path": "../../core/scope"
+    },
+    {
+      "path": "../../jobs/jobs"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../session-query/session-query"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../util/values"
+    },
+    {
+      "path": "../codexy-delegation"
+    }
+  ]
+}

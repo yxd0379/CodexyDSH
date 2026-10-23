@@ -36,17 +36,18 @@ export function sameTurnProcessSpec(left: TurnProcessSpec, right: TurnProcessSpe
 }
 
 /**
- * Recognize the shipped subagent delegation name and its configured variants.
+ * Recognize the shipped native and Codexy subagent creation names.
  * Control tools use distinct names such as `send_message` and `list_agents`.
  * @param name - durable Tool-call name.
  * @returns whether the call creates or forks a subagent.
  */
 export function isSubagentDelegationTool(name: string): boolean {
   return name === 'subagent' || name.startsWith('subagent_')
+    || name === 'spawn_agent' || name === 'multi_agent_v1__spawn_agent'
 }
 
 /**
- * Keep live, stopped, and failed Turns open.
+ * Keep live, stopped, failed, and unanswered Turns open.
  * @param node - Node carrying the owning Turn.
  * @returns whether whole-Turn collapse is unavailable.
  */
@@ -55,4 +56,5 @@ export function turnProcessAlwaysOpen(node: ChatNode | undefined): boolean {
   if (location?.kind !== 'turn' && location?.kind !== 'step') return false
   const reason = location.turn.end?.data.reason.kind
   return location.turn.status === 'open' || reason === 'aborted' || reason === 'interrupted' || reason === 'error'
+    || location.turn.data.get('turn-process')?.answerAnchorSeq === null
 }

@@ -117,63 +117,50 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'locale',
-    summary: 'Dictionary registry plus locale preference.',
-    description: 'Dictionary registry plus locale preference. Lookup walks the active language\'s declared fallback chain in the entry namespace, then repeats it in the shared common namespace before showing the key itself. Reads go through getLocale; preferences change only through setLocale, while language packs extend the catalog through addLanguage. Continuous sync uses the `locale/change` event or the LocaleFace getSnapshot/subscribe pair installed through `ctx.slots.installLocale`.',
+    summary: '按命名空间注册中文文案，不读取系统语言或用户语言偏好。',
+    description: '按命名空间注册中文文案，不读取系统语言或用户语言偏好。',
     methods: [
       {
         signature: 'getLocale(): LocaleSnapshot',
-        description: 'Read the current immutable locale snapshot.',
+        description: '读取当前中文文案状态。',
         parameters: [],
-        returns: 'the current snapshot (stable reference until the next change).',
+        returns: '文案版本快照。',
       },
       {
         signature: 'getSnapshot(): LocaleSnapshot',
-        description: 'LocaleFace getSnapshot: the current snapshot (carries `revision`; stable reference between changes, uSES-safe).',
+        description: '供 UI 订阅读取快照。',
         parameters: [],
-        returns: 'the current snapshot.',
+        returns: '文案版本快照。',
       },
       {
         signature: 'subscribe(fn: () => void): () => void',
-        description: 'LocaleFace subscribe: notified on every snapshot change (locale switch or dictionary registration — registrations bump the revision so already rendered outlets pick up late-arriving dictionaries and locale definitions).',
-        parameters: [{ name: 'fn', description: 'change callback.' }],
-        returns: 'unsubscribe.',
+        description: '订阅字典注册与释放。',
+        parameters: [{ name: 'fn', description: '文案版本变更回调。' }],
+        returns: '取消订阅。',
       },
       {
-        signature: 'setLocale(id: string): void',
-        description: 'Switch the active locale — the only user preference write entry.\n\nThe durable write happens even when the id already matches the active locale, because the active value may be a provisional browser-derived or fallback resolution that nothing has stored yet. Picking the language already on screen is still an explicit choice, and it must survive a different browser sharing the same DSH home. Only the render notification is conditional: republishing an unchanged locale would churn every subscriber for nothing.',
-        parameters: [{ name: 'id', description: 'a registered locale id; unknown ids throw.' }],
-      },
-      {
-        signature: 'addLanguage(input: LanguageRegistration): () => void',
-        description: 'Add one selectable language to the shared catalog. Its fallback must already be registered, and following fallback definitions must terminate at English. Dictionaries may register before or after this definition. Registration rechecks an unresolved Host preference and the browser\'s ordered language list. The caller owns the returned disposer; removing an active language falls back without clearing the stored id.',
-        parameters: [{ name: 'input', description: 'stable id, self-described label, and fallback language id.' }],
-        returns: 'idempotent disposer removing this exact definition.',
-        throws: ['when fields are malformed, the id is occupied, or the fallback target is unknown or creates a cycle.'],
-      },
-      {
-        signature: 'register<N extends Extract<keyof LocaleNamespaceMap, string>>(ns: N, dicts: Record<BuiltInLocaleId, LocaleDictOf<N>>): () => void',
-        description: 'Register a declared namespace\'s dictionaries, all locales in one call — the typed form: each dictionary is checked against the namespace\'s LocaleNamespaceMap key union (a missing or extra key is a compile error), and every shipped locale is required (bilingual balance enforced at registration). Duplicate (ns, locale) throws (single occupant; a namespace\'s texts have one owner). Registration bumps the revision so mounted outlets pick up late-arriving dictionaries.',
-        parameters: [{ name: 'ns', description: 'a namespace merged into LocaleNamespaceMap.' }, { name: 'dicts', description: 'complete dictionaries keyed by built-in locale id.' }],
-        returns: 'disposer removing every locale registered by this call (idempotent).',
+        signature: 'register<N extends Extract<keyof LocaleNamespaceMap, string>>(ns: N, dicts: { zh: LocaleDictOf<N> } & Record<string, LocaleDict>): () => void',
+        description: '注册命名空间的中文文案；其他语言字典不保留。',
+        parameters: [{ name: 'ns', description: '文案命名空间。' }, { name: 'dicts', description: '包含中文文案的字典。' }],
+        returns: '释放本次注册。',
       },
       {
         signature: 'register(ns: string, locale: string, dict: LocaleDict): () => void',
-        description: 'Single-locale untyped form for language-pack contributions and namespaces outside the merge table.',
-        parameters: [{ name: 'ns', description: 'namespace.' }, { name: 'locale', description: 'locale tag.' }, { name: 'dict', description: 'dictionary.' }],
-        returns: 'disposer (idempotent).',
-        throws: ['when locale is not a BCP 47-style tag.'],
+        description: '接收上游包的逐表注册调用，只采纳 zh。',
+        parameters: [{ name: 'ns', description: '文案命名空间。' }, { name: 'locale', description: '字典语言。' }, { name: 'dict', description: '文案字典。' }],
+        returns: '释放本次注册。',
       },
       {
         signature: 'bind<N extends Extract<keyof LocaleNamespaceMap, string>>(ns: N): TranslateNS<N>',
-        description: 'Bind a declared namespace to a translate function typed to its dictionary key union (plus the shared common vocabulary) — the same key domain the framework-injected `t` seat carries. The returned reference is stable per namespace (repeat binds return the same function), so it can ride inject surfaces without breaking memoization.',
-        parameters: [{ name: 'ns', description: 'a namespace merged into LocaleNamespaceMap.' }],
-        returns: 'the typed translate function (reads the active locale at call time).',
+        description: '绑定具有类型提示的中文文案函数。',
+        parameters: [{ name: 'ns', description: '文案命名空间。' }],
+        returns: '身份稳定的文案函数。',
       },
       {
         signature: 'bind(ns: string): Translate',
-        description: 'Untyped form for namespaces outside the merge table (dynamic composition, tests).',
-        parameters: [{ name: 'ns', description: 'namespace.' }],
-        returns: 'the translate function.',
+        description: '绑定动态命名空间的中文文案函数。',
+        parameters: [{ name: 'ns', description: '文案命名空间。' }],
+        returns: '身份稳定的文案函数。',
       },
     ],
   },
@@ -362,7 +349,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'startSession(workspaceId?: WorkspaceId, options?: StartSessionOptions): void',
         description: 'Create a fresh Session, or reuse a blank when preparing an explicit draft. A creation the Host refuses is shown through the Workspace notice and leaves the selection as it was.',
-        parameters: [{ name: 'workspaceId', description: 'explicit target; absent inherits the current or most recent Workspace.' }, { name: 'options', description: 'initial content and the reused blank\'s preset; existing text or attachments are preserved unless clearPreviousDraft is true.' }],
+        parameters: [{ name: 'workspaceId', description: 'explicit local target; absent follows a selected external source, otherwise the current or most recent local Workspace.' }, { name: 'options', description: 'initial content and the reused blank\'s preset; existing text or attachments are preserved unless clearPreviousDraft is true.' }],
       },
       {
         signature: 'archiveSession(sessionId: SessionId, options?: { readonly stopActivity?: boolean }): Promise<void>',
@@ -448,14 +435,6 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [],
   },
   {
-    name: 'locale/change',
-    mode: 'emit',
-    signature: '\'locale/change\'(snapshot: LocaleSnapshot): void',
-    summary: 'The active locale switched.',
-    description: 'The active locale switched. Dictionary registrations do NOT emit this event (listeners may re-register slots in response, and boot registers one namespace per package); continuous render refresh rides the LocaleFace revision instead.',
-    parameters: [{ name: 'snapshot', description: 'Current immutable locale snapshot.' }],
-  },
-  {
     name: 'slots/changed',
     mode: 'emit',
     signature: '\'slots/changed\'(key: string): void',
@@ -498,10 +477,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BoundActions',
     declaration: 'export type BoundActions<H> = H extends StoreHandle<infer T, infer A> ? BakedActions<T, A> : never;',
-  },
-  {
-    name: 'BuiltInLocaleId',
-    declaration: 'export type BuiltInLocaleId = typeof LOCALE_IDS[number];',
   },
   {
     name: 'ChainKeysOf',
@@ -680,10 +655,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type KeyPropsOf<K extends keyof SlotMap & string, EntryKey extends EntryKeyOf<K>> = SlotMap[K] extends {\n    kind: \'keyed\';\n    keyProps: infer P extends object;\n} ? EntryKey extends keyof P ? P[EntryKey] extends object ? P[EntryKey] : never : never : object;',
   },
   {
-    name: 'LanguageRegistration',
-    declaration: 'export interface LanguageRegistration {\n    id: LocaleId;\n    label: string;\n    fallback: LocaleId;\n}',
-  },
-  {
     name: 'LiveCompositionNode',
     declaration: 'export type LiveCompositionNode = LiveSlotNode | LiveFactoryNode;',
   },
@@ -700,20 +671,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface LiveSlotOccupant {\n    registrant?: string;\n    key?: string;\n    id?: string;\n    order?: number;\n    priority: number;\n    active: boolean;\n}',
   },
   {
-    name: 'LocaleDefinition',
-    declaration: 'export interface LocaleDefinition {\n    readonly id: LocaleId;\n    readonly label: string;\n    readonly fallback?: LocaleId;\n}',
-  },
-  {
     name: 'LocaleDict',
     declaration: 'export type LocaleDict = Record<string, string>;',
   },
   {
     name: 'LocaleDictOf',
     declaration: 'export type LocaleDictOf<N extends keyof LocaleNamespaceMap & string> = Record<LocaleNamespaceMap[N] & string, string>;',
-  },
-  {
-    name: 'LocaleId',
-    declaration: 'export type LocaleId = string;',
   },
   {
     name: 'LocaleKeysOf',
@@ -725,7 +688,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LocaleSnapshot',
-    declaration: 'export interface LocaleSnapshot {\n    active: LocaleId;\n    locales: readonly LocaleDefinition[];\n    revision: number;\n}',
+    declaration: 'export interface LocaleSnapshot {\n    active: string;\n    locales: readonly {\n        readonly id: string;\n        readonly label: string;\n    }[];\n    revision: number;\n}',
   },
   {
     name: 'MainPanelId',

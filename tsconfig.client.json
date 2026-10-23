@@ -37,6 +37,7 @@
   "exclude": [
   ],
   "references": [
+    { "path": "./packages/client/ui-remote" },
     { "path": "./apps/desktop/tsconfig.client.json" },
     { "path": "./packages/util/atomic-write" },
 

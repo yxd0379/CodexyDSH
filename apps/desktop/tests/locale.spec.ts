@@ -1,27 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { en, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale, zh } from '../src/locale.ts'
+import { formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale, zh } from '../src/locale.ts'
 
-describe('desktop locale dictionaries', () => {
-  it('ships the same key set in English and Chinese', () => {
-    expect(Object.keys(zh)).toEqual(Object.keys(en))
-    expect(resolveDesktopLocale('zh-Hans-CN').messages).toEqual(zh)
-    expect(resolveDesktopLocale('en-US').messages).toEqual(en)
-    expect(resolveDesktopLocale('fr-FR').messages).toEqual(en)
+describe('桌面中文文案', () => {
+  it('固定中文，不使用系统语言或旧语言偏好', () => {
+    expect(resolveDesktopLocale('en-US')).toEqual({ id: 'zh-CN', messages: zh })
+    expect(resolveDesktopStartupLocale('en', ['en-US'])).toEqual({ id: 'zh-CN', messages: zh })
+    expect(resolveDesktopStartupLocale()).toEqual({ id: 'zh-CN', messages: zh })
   })
 
-  it('formats named values without consuming unknown placeholders', () => {
+  it('替换已有参数并保留未知占位符', () => {
     expect(formatDesktopMessage('{name}@{version} {missing}', { name: 'plugin', version: '1.2.3' }))
       .toBe('plugin@1.2.3 {missing}')
   })
-
-  it('prefers an explicit supported choice, then the first supported system language', () => {
-    expect(resolveDesktopStartupLocale('zh', ['en-US']).id).toBe('zh-CN')
-    expect(resolveDesktopStartupLocale('EN', ['zh-CN']).id).toBe('en')
-    expect(resolveDesktopStartupLocale(null, ['ja-JP', 'zh-Hant', 'en-US']).id).toBe('zh-CN')
-    expect(resolveDesktopStartupLocale(null, ['en-US', 'zh-CN']).id).toBe('en')
-    expect(resolveDesktopStartupLocale(null, ['ja-JP']).id).toBe('en')
-    expect(resolveDesktopStartupLocale(null, []).id).toBe('en')
-    expect(resolveDesktopStartupLocale('ja', ['zh-CN']).id).toBe('zh-CN')
-  })
-
 })

@@ -2,6 +2,7 @@ import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
 
 import { readFile, writeFile } from 'node:fs/promises'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -21,7 +22,7 @@ import {
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from 'electron'
-import { resolveDesktopPaths } from './paths.ts'
+import { resolveDesktopPaths, resolveDesktopUserData } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
 import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
@@ -30,7 +31,7 @@ import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
-import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
+import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
@@ -78,6 +79,12 @@ let windowsLanguage: string | undefined
 let backendReady = false
 /** Error-level console output of the primary window, attached to crash reports. */
 const rendererConsole = new RendererConsoleTail()
+
+app.setName('CodexyDSH')
+const electronUserData = resolveDesktopUserData(app.getPath('appData'),
+  process.env.DSH_DESKTOP_USER_DATA_DIR ?? (app.commandLine.getSwitchValue('user-data-dir') || undefined))
+mkdirSync(electronUserData, { recursive: true, mode: 0o700 })
+app.setPath('userData', electronUserData)
 
 // Platform-conventional logs directory (macOS ~/Library/Logs/<name>, otherwise under userData);
 // set before ready so the first fatal report already resolves under it.
@@ -351,8 +358,7 @@ async function main(): Promise<void> {
   let updateStoppedHost = false
   let updateStopFailure: DesktopHostUncleanExitError | undefined
   let updateState: DesktopUpdateState = { phase: 'idle' }
-  const systemLanguages = app.getPreferredSystemLanguages()
-  let locale = resolveDesktopStartupLocale(null, systemLanguages)
+  const locale = resolveDesktopLocale()
   windowsLanguage = locale.id
   let mandatoryPolicy: DesktopMandatoryUpdatePolicy | undefined
   let mandatoryUI: DesktopMandatoryUpdateWindow | undefined
@@ -461,7 +467,11 @@ async function main(): Promise<void> {
             returnedAttempt = attempt.id
             focusPrimaryWindow()
           }
-          if (state.status === 'credential-stored' && attempt?.phase === 'succeeded' && welcomeWindow !== undefined) void enterWorkspace({ activate: false }).catch(() => undefined)
+          if (state.status === 'credential-stored' && attempt?.phase === 'succeeded' && returnedAttempt !== attempt.id) {
+            returnedAttempt = attempt.id
+            if (welcomeWindow === undefined) focusPrimaryWindow()
+            else void enterWorkspace().then(() => { focusPrimaryWindow() }).catch(() => undefined)
+          }
           if (previousAccountStatus === 'credential-stored' && state.status === 'signed-out') {
             void readWelcomeState().then(async (value) => {
               if (needsWelcome(value) && !quitting) {
@@ -735,25 +745,6 @@ async function main(): Promise<void> {
     if (mainWindow === undefined || event.sender !== mainWindow.webContents) return
     if (source === 'light' || source === 'dark' || source === 'system') nativeTheme.themeSource = source
   })
-  ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
-    if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame
-      || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
-      throw new Error('desktop welcome: rejected locale request from an unowned frame')
-    }
-    if (welcomeBackend === undefined) throw new Error('desktop welcome: backend unavailable')
-    return { languages: systemLanguages, preference: await welcomeBackend.readLocalePreference() }
-  })
-  ipcMain.on(DESKTOP_IPC.localeChanged, (event, next: unknown) => {
-    const window = mainWindow
-    if (window === undefined || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame
-      || typeof next !== 'string') return
-    const current = resolveDesktopStartupLocale(next, systemLanguages)
-    if (current.id === locale.id) return
-    locale = current
-    platformView.notifyLocaleChanged()
-    windowsLanguage = locale.id
-    refreshApplicationMenu()
-  })
   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
     assertProductSender(event)
     return presentDesktopUpdate(updates.state)
@@ -917,7 +908,7 @@ async function main(): Promise<void> {
   const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
     : join(process.resourcesPath, 'icon.png')
   app.setAboutPanelOptions({
-    applicationName: 'DeepSeek Harness',
+    applicationName: 'CodexyDSH',
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
@@ -1187,9 +1178,6 @@ async function main(): Promise<void> {
     if (quitting || recovery.active) return
     const state = await readWelcomeState()
     if (isQuitting() || backend.state.phase !== 'ready') return
-    locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
-    windowsLanguage = locale.id
-    refreshApplicationMenu()
     if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
       // A later login must retain its own activation policy instead of replaying startup focus.
       raiseAfterUpdate = false
@@ -1214,10 +1202,10 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('codexydsh')
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    if (url === 'codexydsh://open' || url === 'codexydsh://open/') focusPrimaryWindow()
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {

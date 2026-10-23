@@ -1,0 +1,35 @@
+{
+  "name": "@codexydsh/web",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "dependencies": {
+    "@codexydsh/remote": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-remote": "workspace:*",
+    "@deepseek-ai/dsh-web-app": "workspace:*",
+    "@codexydsh/api-memory": "workspace:*",
+    "@codexydsh/api-prompt": "workspace:*",
+    "@codexydsh/api-session": "workspace:*",
+    "@codexydsh/api-usage": "workspace:*"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "description": "CodexyDSH Web composition over the native client UI"
+}

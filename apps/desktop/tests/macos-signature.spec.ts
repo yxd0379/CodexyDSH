@@ -48,7 +48,7 @@ describe('desktop macOS release signature', () => {
   it('loads release identifiers from the environment and requires code signing', async () => {
     const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
     const config = createElectronBuilderConfig(RELEASE_ENVIRONMENT, 'darwin', 'arm64')
-    expect(config.protocols).toEqual([{ name: 'DeepSeek Harness', schemes: ['dsh'] }])
+    expect(config.protocols).toEqual([{ name: 'CodexyDSH', schemes: ['codexydsh'] }])
     expect(portablePath(config.directories.output)).toContain('/.desktop-build/targets/mac-arm64/artifacts')
     expect(config.mac.extendInfo.NSMicrophoneUsageDescription).toContain('microphone')
     expect(config.mac.entitlementsInherit).toBe(config.mac.entitlements)
@@ -160,13 +160,20 @@ describe('desktop macOS release signature', () => {
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'darwin', arch)
     expect(portablePath(config.directories.output)).toContain(`/targets/mac-${arch}/unsigned-artifacts`)
-    expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(config.artifactName).toBe('codexydsh-${version}-${os}-${arch}-unsigned.${ext}')
     expect(config.mac).toMatchObject({ identity: '-', forceCodeSigning: false, notarize: false, target: ['dmg'] })
     expect(config.dmg).toMatchObject({ sign: false, writeUpdateInfo: false })
     expect(config.publish).toBeNull()
     expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
     await expect(config.afterSign({ electronPlatformName: 'darwin' } as Parameters<typeof config.afterSign>[0])).resolves.toBeUndefined()
     expect(config.artifactBuildCompleted({ file: '/tmp/local-unsigned.dmg' })).toBeUndefined()
+  })
+
+  it('does not embed an updater for a signed build without an explicit product origin', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const config = createElectronBuilderConfig({ ...RELEASE_ENVIRONMENT,
+      DOWNLOAD_TEST_ORIGIN: undefined, DOWNLOAD_TEST_RELEASE_ID: undefined }, 'darwin', 'arm64')
+    expect(config.publish).toBeNull()
   })
 
   it('omits mandatory-update policy from local macOS builds even when release settings are supplied', async () => {
@@ -230,7 +237,8 @@ describe('desktop macOS release signature', () => {
   })
 
   it('rejects missing and malformed release identifiers', () => {
-    expect(() => resolveDesktopAppId({})).toThrow(/DSH_DESKTOP_APP_ID/u)
+    expect(resolveDesktopAppId({})).toBe('io.codexydsh.desktop')
+    expect(() => resolveDesktopAppId({ DSH_DESKTOP_APP_ID: '' })).toThrow(/DSH_DESKTOP_APP_ID/u)
     expect(() => resolveDesktopAppId({ DSH_DESKTOP_APP_ID: 'not-a-bundle-id' })).toThrow(/reverse-DNS/u)
     expect(() => resolveMacOSSigningEnvironment({})).toThrow(/DSH_DESKTOP_MACOS_SIGNING_IDENTITY/u)
     expect(() => resolveMacOSSigningEnvironment({

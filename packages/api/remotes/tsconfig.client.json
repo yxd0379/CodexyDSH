@@ -11,6 +11,13 @@
     "src/types.ts"
   ],
   "references": [
+    { "path": "../../ssh/codexy-remote" },
+    {
+      "path": "../../guard/codexy-permissions"
+    },
+    {
+      "path": "../../subagent/codexy-delegation"
+    },
     {
       "path": "../../../vendor/cordis"
     },

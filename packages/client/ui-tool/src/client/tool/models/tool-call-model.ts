@@ -44,6 +44,8 @@ export const VARIANT_TITLE_KEYS = {
  */
 const TOOL_VARIANTS: Record<string, ToolRowVariant> = {
   bash: 'bash',
+  exec_command: 'bash',
+  write_stdin: 'bash',
   // The PowerShell twin is a shell tool: the bash row family (icon, colors)
   // with its own title from TOOL_TITLE_KEYS, not the generic `others` row.
   pwsh: 'bash',
@@ -59,6 +61,7 @@ const TOOL_VARIANTS: Record<string, ToolRowVariant> = {
   glob: 'search',
   write: 'write',
   edit: 'edit',
+  apply_patch: 'edit',
   run_code: 'code',
   cordis_package_inspect: 'read',
   cordis_runtime_inspect: 'read',
@@ -79,6 +82,7 @@ const TOOL_TITLE_KEYS: Record<string, ToolTitleKey> = {
   cordis_stop: 'tool.title.stopCordis',
   cordis_undefine: 'tool.title.removeCordis',
   pwsh: 'tool.title.pwsh',
+  exec_command: 'tool.title.execCommand',
   read_image: 'tool.title.readImage',
   todo_write: 'todo.rowTitle',
   ask_user_question: 'ask.rowTitle',
@@ -101,6 +105,14 @@ const TOOL_TITLE_KEYS: Record<string, ToolTitleKey> = {
   session_trace: 'tool.title.traceSession',
   list_subagent_models: 'tool.title.listModels',
   subagent: 'tool.title.subagent',
+  spawn_agent: 'tool.title.subagent',
+  followup_task: 'tool.title.followupTask',
+  write_stdin: 'tool.title.readCommandOutput',
+  multi_agent_v1__spawn_agent: 'tool.title.subagent',
+  multi_agent_v1__send_input: 'tool.title.sendMessage',
+  multi_agent_v1__resume_agent: 'tool.title.resumeAgent',
+  multi_agent_v1__close_agent: 'tool.title.closeAgent',
+  multi_agent_v1__wait_agent: 'tool.title.waitAgent',
   list_agents: 'tool.title.listAgents',
   send_message: 'tool.title.sendMessage',
   interrupt_agent: 'tool.title.interruptAgent',
@@ -214,7 +226,7 @@ function pickString(args: Record<string, unknown>, keys: readonly string[]): str
 
 /** Summary key preference per variant (args-derived; result-derived summaries are a ledger item). */
 const SUMMARY_KEYS: Record<ToolRowVariant, readonly string[]> = {
-  bash: ['description', 'command'],
+  bash: ['description', 'cmd', 'command', 'chars'],
   read: ['path', 'file_path', 'url'],
   search: ['query', 'pattern', 'url'],
   write: ['path', 'file_path'],
@@ -238,6 +250,30 @@ function deriveSummary(variant: ToolRowVariant, argsRaw: string): string {
     if (typeof v === 'string' && v !== '') return firstLine(v)
   }
   return firstLine(argsRaw)
+}
+
+function controlSummary(toolName: string, args: ToolArgs): string | undefined {
+  if (toolName === 'exec_command') return args.textPrefix('cmd', 240)
+  if (toolName === 'spawn_agent') return args.textPrefix('task_name', 160)
+  if (toolName === 'multi_agent_v1__spawn_agent') return args.textPrefix('message', 160)
+  if (['followup_task', 'send_message', 'interrupt_agent', 'multi_agent_v1__send_input', 'multi_agent_v1__close_agent'].includes(toolName)) {
+    return args.text('target')
+  }
+  if (toolName === 'multi_agent_v1__resume_agent') return args.text('id')
+  if (toolName === 'list_agents' || toolName === 'wait_agent') return args.text('path_prefix') ?? ''
+  if (toolName === 'multi_agent_v1__wait_agent') {
+    const targets = args.value('targets')
+    return Array.isArray(targets) ? targets.filter(item => typeof item === 'string').join(', ') : ''
+  }
+  if (toolName === 'write_stdin') {
+    const session = args.value('session_id')
+    return typeof session === 'number' ? String(session) : undefined
+  }
+  if (toolName === 'apply_patch') {
+    const prefix = args.textPrefix('patch', 1024)
+    return prefix === undefined ? undefined : /^\*\*\* (?:Add|Update|Delete) File: (.+)$/mu.exec(prefix)?.[1] ?? ''
+  }
+  return undefined
 }
 
 /** Path keys only — never `url` (web_fetch lands on the read variant). */
@@ -288,6 +324,8 @@ export function formatToolBody(variant: ToolRowVariant, argsRaw: string): string
     const code = (parsed as Record<string, unknown>).code
     if (typeof code === 'string' && code !== '') return code
   }
+  if (variant === 'edit' && typeof parsed === 'object' && parsed !== null
+    && typeof (parsed as Record<string, unknown>).patch === 'string') return (parsed as { patch: string }).patch
   return JSON.stringify(parsed, null, 2)
 }
 
@@ -315,7 +353,8 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
     : block.error?.code === 'interrupted' ? 'stopped'
       : block.isError ? 'error' : 'ok'
   // The argument view serves every stage; the raw text is the fallback when it carries nothing useful.
-  const base = primary.summary !== '' || argsRaw === null ? primary.summary
+  const control = controlSummary(toolName, block.args)
+  const base = control !== undefined ? firstLine(control) : primary.summary !== '' || argsRaw === null ? primary.summary
     : argsRaw === '' ? block.callId
       : abbreviateHomePath(relativizeToCwd(deriveSummary(variant, argsRaw), cwd), home)
   const summary = [titleKey === 'tool.title.generic' ? toolName : '', base].filter(Boolean).join(' · ')

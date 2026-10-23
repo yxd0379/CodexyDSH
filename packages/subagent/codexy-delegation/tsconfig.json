@@ -1,0 +1,100 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../attachment/attachment"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/codexy-bridges"
+    },
+    {
+      "path": "../../core/codexy-runtime"
+    },
+    {
+      "path": "../../core/scope"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../../guard/codexy-approval"
+    },
+    {
+      "path": "../../guard/codexy-permissions"
+    },
+    {
+      "path": "../../jobs/jobs"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../preset/agent-preset-registry"
+    },
+    {
+      "path": "../../sandbox/sandbox"
+    },
+    {
+      "path": "../../sandbox/sandbox-policy"
+    },
+    {
+      "path": "../../session-query/session-query"
+    },
+    {
+      "path": "../../session/session-persistence"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../session/session-projection-cache"
+    },
+    {
+      "path": "../../storage/storage-domain"
+    },
+    {
+      "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../typert/registry"
+    },
+    {
+      "path": "../../util/brand"
+    },
+    {
+      "path": "../../util/chunked-list"
+    },
+    {
+      "path": "../../util/time"
+    },
+    {
+      "path": "../../util/values"
+    },
+    {
+      "path": "../../workspace/workspace"
+    }
+  ],
+  "exclude": [
+    "src/typert.ts",
+    "src/remote.ts"
+  ]
+}

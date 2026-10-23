@@ -23,12 +23,20 @@ it.each(['socks5://host:8080', 'http://user:secret@host', 'http://host/path', 'h
 it('overrides conflicting child proxy variables while preserving the parent and unrelated settings', () => {
   const parent = { PATH: 'tools', HTTPS_PROXY: 'http://old', http_proxy: 'http://lower', ALL_PROXY: 'socks5://old',
     NO_PROXY: '*', npm_config_proxy: 'http://npm', ELECTRON_GET_USE_PROXY: '0' }
-  expect(macOSDownloadEnvironment(parent)).toEqual(parent)
+  expect(macOSDownloadEnvironment(parent)).toEqual({ ...parent, NODE_USE_ENV_PROXY: '1' })
   const child = macOSDownloadEnvironment(parent, 'http://new:8080')
   expect(child).toMatchObject({ PATH: 'tools', HTTP_PROXY: 'http://new:8080', HTTPS_PROXY: 'http://new:8080',
-    http_proxy: 'http://new:8080', https_proxy: 'http://new:8080', ELECTRON_GET_USE_PROXY: '1', NO_PROXY: 'localhost,127.0.0.1,::1' })
+    http_proxy: 'http://new:8080', https_proxy: 'http://new:8080', ELECTRON_GET_USE_PROXY: '1', NODE_USE_ENV_PROXY: '1', NO_PROXY: 'localhost,127.0.0.1,::1' })
   expect(child).not.toHaveProperty('ALL_PROXY')
   expect(child).not.toHaveProperty('npm_config_proxy')
   expect(parent.HTTPS_PROXY).toBe('http://old')
   expect(parent.NO_PROXY).toBe('*')
+})
+
+it('enables Electron downloads through an inherited HTTP proxy without replacing caller settings', () => {
+  expect(macOSDownloadEnvironment({ https_proxy: 'http://proxy.example:7890' })).toEqual({
+    https_proxy: 'http://proxy.example:7890', NODE_USE_ENV_PROXY: '1',
+  })
+  expect(macOSDownloadEnvironment({ PATH: 'tools' })).toEqual({ PATH: 'tools' })
+  expect(macOSDownloadEnvironment({ HTTPS_PROXY: 'http://proxy.example:7890', NODE_USE_ENV_PROXY: '0' }).NODE_USE_ENV_PROXY).toBe('0')
 })

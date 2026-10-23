@@ -91,7 +91,7 @@ Web 客户端在聊天输入框旁显示 agent（智能体）的提问。用户�
 以下页面覆盖编辑器宿主、工具 seam 与 plan-mode 消费方。
 
 - [ui-conversation](../ui-conversation/README.zh.md)——拥有 `conversation.composer` slot 的聊天界面。
-- [ui-tool](../ui-tool/README.zh.md)——工具调用记录界面，其 `ask_user_question` 行可重新打开被收起的面板。
+- [ui-tool](../ui-tool/README.md)——工具调用记录界面，其 `ask_user_question` 行可重新打开被收起的面板。
 - [tool-ask-user](../../interaction/tool-ask-user/README.zh.md)——面向模型的工具；本 UI 会渲染其 schema 与答案。
 - [ui-plan](../ui-plan/README.zh.md)——设置 `plan-review` 意图的 plan-mode 界面。
 - [user-questions](../../interaction/user-questions/README.zh.md)——Host 侧提问 seam 及其应答方 waterfall（瀑布式事件）。

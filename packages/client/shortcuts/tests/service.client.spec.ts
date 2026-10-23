@@ -65,6 +65,28 @@ it('rejects a native window close outside Desktop', async () => {
   await expect(service.closeWindow()).rejects.toThrow('Desktop keyboard bridge unavailable')
 })
 
+it('invokes explicit actions using the current client focus and modal, without a native bridge', () => {
+  const { service } = mount()
+  const run = vi.fn()
+  const resolve = vi.fn(() => ({ status: 'handled' as const, run }))
+  const off = service.register({ id: 'page.close' as ShortcutCommandId, label: () => 'Close', aliases: [],
+    defaults: {}, regions: ['page'], modals: [], resolve })
+  const field = document.createElement('textarea')
+  document.body.append(field); field.focus()
+  try {
+    service.invoke('page.close' as ShortcutCommandId)
+    expect(resolve).toHaveBeenCalledWith({ source: 'menu', target: field, region: 'editable', modal: null })
+    expect(run).toHaveBeenCalledOnce()
+    field.setAttribute('role', 'dialog'); field.setAttribute('aria-modal', 'true')
+    service.invoke('page.close' as ShortcutCommandId)
+    expect(run).toHaveBeenCalledOnce()
+    off()
+    field.removeAttribute('role'); field.removeAttribute('aria-modal')
+    service.invoke('page.close' as ShortcutCommandId)
+    expect(run).toHaveBeenCalledOnce()
+  } finally { field.remove() }
+})
+
 it('describes registered binding conflicts on Linux Desktop', async () => {
   desktop()
   document.documentElement.dataset.platform = 'linux'
@@ -156,7 +178,7 @@ it.each(['resolve', 'reject'] as const)('suppresses %s completions after disposa
 })
 
 it('persists Web edits and presents normalized bindings through the public service', async () => {
-  const { service, ctx } = mount()
+  const { service } = mount()
   await vi.waitFor(() => { expect(service.config.getSnapshot().status).toBe('ready') })
   expect(service.describeBinding(null)).toEqual({ binding: null, keys: [], issue: null, conflicts: [] })
   expect(service.describeBinding({ code: 'Slash', modifiers: ['primary'] }))
@@ -167,8 +189,6 @@ it('persists Web edits and presents normalized bindings through the public servi
     'web:linux': { code: 'Slash', modifiers: ['primary'] },
   } })
   await vi.waitFor(() => { expect(service.config.getSnapshot().status).toBe('ready') })
-  const changed = vi.fn(); service.catalog.subscribe(changed)
-  ctx.locale.setLocale('zh'); expect(changed).toHaveBeenCalled()
   expect((await service.edit({ type: 'set', id: command.id, binding: null }, service.config.getSnapshot().revision)).status).toBe('saved')
   expect(service.catalog.getSnapshot()[0]?.keys).toEqual([])
   await service.recording(true); off()

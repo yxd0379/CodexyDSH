@@ -13,8 +13,11 @@ it('reads public settings without opening the absent credential file and require
     const selected = await readDesktopPublishConfig(root, 'test')
     expect(selected).toEqual(config)
     await expect(readDesktopUploadCredentials(selected)).rejects.toThrow(/cannot read valid upload credentials/u)
-    await writeFile(join(root, 'publishing/production.json'), JSON.stringify({ ...config, origin: 'https://download.deepseek.com' }))
+    await writeFile(join(root, 'publishing/production.json'), JSON.stringify(config))
     await expect(readDesktopPublishConfig(root, 'production')).rejects.toThrow(/GitHub App configuration/u)
+    const production = { ...config, githubApp: { clientId: 'app-id', privateKeyFile: join(root, 'key.pem') } }
+    await writeFile(join(root, 'publishing/production.json'), JSON.stringify(production))
+    await expect(readDesktopPublishConfig(root, 'production')).resolves.toEqual(production)
     await writeFile(config.credentialsFile, JSON.stringify({ secretId: 'fixture', secretKey: 'fixture-only' }))
     await expect(readDesktopUploadCredentials(selected)).resolves.toEqual({ secretId: 'fixture', secretKey: 'fixture-only' })
   } finally { await rm(root, { recursive: true, force: true }) }

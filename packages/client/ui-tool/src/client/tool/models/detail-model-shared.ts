@@ -41,6 +41,7 @@ export function detailJson(text: string): unknown {
 const STATUS_KEYS = {
   running: 'detail.status.running', idle: 'detail.status.idle', ready: 'detail.status.ready',
   inactive: 'detail.status.inactive', provisioning: 'detail.status.provisioning',
+  pending_init: 'detail.status.provisioning', interrupted: 'row.stopped', shutdown: 'detail.status.closed', not_found: 'detail.status.notFound',
   failed: 'detail.status.failed', error: 'detail.status.failed',
   completed: 'detail.status.completed', complete: 'detail.status.completed', done: 'detail.status.completed',
   pending: 'detail.todo.pending', in_progress: 'detail.todo.in_progress',
@@ -58,8 +59,8 @@ export function detailBadge(status: string, t: DetailTranslate): NonNullable<Det
   const key = Object.hasOwn(STATUS_KEYS, status) ? STATUS_KEYS[status as keyof typeof STATUS_KEYS] : undefined
   const tone = ['completed', 'complete', 'done', 'accepted'].includes(status) ? 'success'
     : ['failed', 'error'].includes(status) ? 'error'
-      : ['blocked', 'killed', 'pending', 'queued', 'inactive'].includes(status) ? 'warning'
-        : ['running', 'in_progress', 'provisioning'].includes(status) ? 'info' : 'neutral'
+      : ['blocked', 'killed', 'pending', 'queued', 'inactive', 'interrupted'].includes(status) ? 'warning'
+        : ['running', 'in_progress', 'provisioning', 'pending_init'].includes(status) ? 'info' : 'neutral'
   return { label: key === undefined ? status : t(key), tone }
 }
 

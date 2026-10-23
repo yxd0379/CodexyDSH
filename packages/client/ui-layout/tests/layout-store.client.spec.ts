@@ -14,6 +14,7 @@ describe('createLayoutStore', () => {
       panelInfo: { activePanelId: null },
       layoutInfo: {
         sidebar: 280,
+        sidebarVisible: true,
         viewportWidth: 1920,
         narrowExpanded: false,
         rightbar: null,

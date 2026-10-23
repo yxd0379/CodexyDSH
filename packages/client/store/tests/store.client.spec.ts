@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createSnapshotStore, defineStore, shallowEqual } from '../src/index.ts'
+import { createSnapshotStore, defineStore, shallowEqual, storageKey } from '../src/index.ts'
 
 interface State {
   a: { n: number }
@@ -12,6 +12,66 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
+})
+
+it.each([
+  ['https://app.example/', 'selection'],
+  ['https://app.example/index.html?view=one#history', 'selection'],
+  ['https://app.example/foo/index.html?view=two', '/foo/selection'],
+  ['https://app.example/foo/', '/foo/selection'],
+  ['dsh-app://app/codexy-remote/ascend/?codexydsh-embedded=1', '/codexy-remote/ascend/selection'],
+])('scopes storage by the deployment directory of %s', (baseURI, expected) => {
+  expect(storageKey('selection', baseURI)).toBe(expected)
+})
+
+it('isolates persisted selection and recovery for two deployments sharing the parent origin', () => {
+  const backing = new Map<string, string>([['selection', JSON.stringify('old-local')]])
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => backing.get(key) ?? null,
+    setItem: (key: string, value: string) => { backing.set(key, value) },
+    removeItem: (key: string) => { backing.delete(key) },
+  })
+  const owner = (baseURI: string): void => { vi.stubGlobal('document', { baseURI }) }
+  const create = () => createSnapshotStore('', { persist: { name: 'selection' } })
+  owner('https://app.example/index.html')
+  const parent = create()
+  expect(parent.getSnapshot()).toBe('old-local')
+  owner('https://app.example/codexy-remote/alpha/')
+  const alpha = create()
+  expect(alpha.getSnapshot()).toBe('')
+  alpha.set('alpha-session')
+  owner('https://app.example/codexy-remote/beta/index.html?view=history')
+  const beta = create()
+  expect(beta.getSnapshot()).toBe('')
+  beta.set('beta-session')
+  // Each existing instance keeps its own owner even after the test changes the current document.
+  parent.set('new-local')
+  alpha.set('alpha-latest')
+  expect(create().getSnapshot()).toBe('beta-session')
+  owner('https://app.example/codexy-remote/alpha/?view=chat')
+  expect(create().getSnapshot()).toBe('alpha-latest')
+  owner('https://app.example/')
+  expect(create().getSnapshot()).toBe('new-local')
+  expect([...backing.keys()].sort()).toEqual(['/codexy-remote/alpha/selection', '/codexy-remote/beta/selection', 'selection'])
+})
+
+it('clears only the declarative instance owner key, including its Session suffix', () => {
+  const backing = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => backing.get(key) ?? null,
+    setItem: (key: string, value: string) => { backing.set(key, value) },
+    removeItem: (key: string) => { backing.delete(key) },
+  })
+  const handle = defineStore({ init: () => '', persist: 'draft', actions: {} })
+  vi.stubGlobal('document', { baseURI: 'https://app.example/alpha/' })
+  const alpha = handle.create('same-session')
+  alpha.store.set('alpha')
+  vi.stubGlobal('document', { baseURI: 'https://app.example/beta/' })
+  const beta = handle.create('same-session')
+  beta.store.set('beta')
+  alpha.clearPersisted()
+  expect(backing.has('/alpha/draft.same-session')).toBe(false)
+  expect(backing.get('/beta/draft.same-session')).toBe(JSON.stringify('beta'))
 })
 
 describe('createSnapshotStore', () => {

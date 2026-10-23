@@ -98,10 +98,3 @@ syncWindowFullscreen()
 syncNativeTheme()
 // Main-process IPC also verifies the owning window and top frame.
 contextBridge.exposeInMainWorld('dshDesktop', location.protocol === `${SCHEME}:` && location.hostname === 'app' && process.isMainFrame ? createProductApi() : { protocolVersion: 1 })
-
-if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
-  contextBridge.exposeInMainWorld('__DSH_LOCALE__', {
-    read: () => ipcRenderer.invoke(DESKTOP_IPC.localeBootstrap),
-    onChange: (locale: string) => { ipcRenderer.send(DESKTOP_IPC.localeChanged, locale) },
-  })
-}

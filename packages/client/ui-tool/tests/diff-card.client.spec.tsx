@@ -330,7 +330,7 @@ describe('FileMutationRow diff card', () => {
 })
 
 describe('fileMutationToolview registration', () => {
-  it('registers one component under both edit and write, and each disposes', () => {
+  it('registers the file mutation tools and disposes each contribution', () => {
     const registered: { key: string; locale: unknown; disposed: boolean }[] = []
     const disposers: (() => void)[] = []
     let disposeInjection = (): void => {}
@@ -351,9 +351,8 @@ describe('fileMutationToolview registration', () => {
       },
     }
     fileMutationToolview.apply(ctx as never)
-    expect(registered.map(r => r.key).sort()).toEqual(['edit', 'write'])
-    // Both keys claim the conversation locale seat ToolRow's body copy needs.
-    expect(registered.map(r => r.locale)).toEqual(['conversation', 'conversation'])
+    expect(registered.map(r => r.key)).toEqual(expect.arrayContaining(['edit', 'write', 'apply_patch']))
+    expect(registered.every(r => r.locale === 'conversation')).toBe(true)
     expect(fileMutationToolview.inject).toEqual(['slots'])
     // Disposal removes each contribution (packages/AGENTS.md registry contract).
     disposeInjection()

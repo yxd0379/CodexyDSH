@@ -52,6 +52,8 @@ export interface TerminalCardModel {
   copy:
     | { readonly kind: 'shell'; readonly command: string; readonly description: string | undefined }
     | { readonly kind: 'terminal-send'; readonly text: string; readonly sessionId: string }
+    | { readonly kind: 'codex-exec'; readonly command: string; readonly sessionId: string | undefined }
+    | { readonly kind: 'codex-stdin'; readonly text: string; readonly sessionId: string }
 }
 
 interface LocalizedTerminalCardModel {
@@ -76,12 +78,60 @@ export function localizeTerminalCardModel(
       description: model.copy.description,
     }
   }
+  if (model.copy.kind === 'codex-exec') {
+    return {
+      card: { command: model.copy.command, ...model.card },
+      description: model.copy.sessionId === undefined ? model.copy.command
+        : `${model.copy.command} · ${t('terminal.session', { sessionId: model.copy.sessionId })}`,
+    }
+  }
   return {
     card: {
-      command: model.copy.text === '' ? t('terminal.sendInput') : model.copy.text,
+      command: model.copy.text === '' ? t(model.copy.kind === 'codex-stdin' ? 'terminal.readOutput' : 'terminal.sendInput') : model.copy.text,
       ...model.card,
     },
     description: t('terminal.session', { sessionId: model.copy.sessionId }),
+  }
+}
+
+/** Read the complete output header emitted by the unified-exec provider. */
+function codexCommandOutput(text: string): { output: string; exitCode: number | null | undefined; sessionId?: string; running: boolean } | null {
+  const header = /^Chunk ID: [^\n]+\nWall time: [\d.]+ seconds\n(?:Process exited with code (-?\d+)\n|Process running with session ID (\d+)\n)?Original token count: \d+\nOutput:\n/u.exec(text)
+  if (header === null) return null
+  const running = header[2] !== undefined
+  return {
+    output: text.slice(header[0].length),
+    exitCode: running ? undefined : header[1] === undefined ? null : Number(header[1]),
+    ...(header[2] === undefined ? {} : { sessionId: header[2] }),
+    running,
+  }
+}
+
+function codexTerminalCard(block: ToolCallBlock, name: string, args: Record<string, unknown>, sessionCwd?: string): TerminalCardModel | null {
+  if (name !== 'exec_command' && name !== 'write_stdin') return null
+  const stdin = name === 'write_stdin'
+  if (stdin ? !Number.isSafeInteger(args.session_id) || Number(args.session_id) < 1
+    || args.chars !== undefined && typeof args.chars !== 'string'
+    : typeof args.cmd !== 'string' || args.cmd.trim() === ''
+      || args.workdir !== undefined && typeof args.workdir !== 'string') return null
+  const workdir = typeof args.workdir === 'string' ? args.workdir : undefined
+  const cwd = stdin ? undefined : 'kind' in block
+    ? recordedAbsolutePath(block.meta, 'cwd') ?? (block.parentCallId === undefined ? resolveTerminalCwd(workdir, sessionCwd) : undefined)
+    : workdir !== undefined && isAbsoluteWorkspacePath(workdir) ? normalizeSegments(workdir) : undefined
+  const status = 'kind' in block ? !block.isError && singleResultText(block) : undefined
+  const output = typeof status === 'string' ? codexCommandOutput(status) : null
+  if ('kind' in block && output === null) return null
+  const copy: TerminalCardModel['copy'] = stdin
+    ? { kind: 'codex-stdin', text: typeof args.chars === 'string' ? args.chars : '', sessionId: String(args.session_id) }
+    : { kind: 'codex-exec', command: String(args.cmd), sessionId: output?.sessionId }
+  return {
+    copy,
+    card: {
+      cwd,
+      output: output?.output,
+      exitCode: output?.exitCode,
+      running: output?.running ?? true,
+    },
   }
 }
 
@@ -315,6 +365,9 @@ export function terminalCardModel(
 ): TerminalCardModel | null {
   const parsed = parsedToolCall(block)
   if (parsed === null) return null
+  if (parsed.name === 'exec_command' || parsed.name === 'write_stdin') {
+    return codexTerminalCard(block, parsed.name, parsed.args, sessionCwd)
+  }
   const call = shellCall(parsed.name, parsed.args) ?? terminalSendCall(parsed.name, parsed.args)
   if (call === null || (call.kind === 'terminal-send' && call.background)) return null
 

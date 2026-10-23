@@ -53,7 +53,7 @@ kind: "package-reference"
 
 一次工具调用创建后台子 agent 并立即返回子会话 ID。子级在自己的会话中工作，父级通过完成通知收到其最终答案。子级也可以通过 `send_message` 发送消息。被拒绝的启动不会留下已发布的子 agent；工作流等程序调用方可以直接等待 activation 的结果。
 
-显式 `agentPreset` 独立选择当前注册的 preset；省略时加入父方的活跃代际。只有 spawn 支持此选择。persona 与工具放在 [preset 定义](../../preset/agent-preset-registry/README.zh.md)中。冷恢复遵守共享的[子级组装规则](../subagent/README.zh.md#restoring-child-composition)。
+显式 `agentPreset` 独立选择当前注册的 preset；省略时加入父方的活跃代际。只有 spawn 支持此选择。persona 与工具放在 [preset 定义](../../preset/agent-preset-registry/README.zh.md)中。冷恢复遵守共享的[子级组装规则](../subagent/README.md#restoring-child-composition)。
 
 -----
 

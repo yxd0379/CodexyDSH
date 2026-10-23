@@ -55,9 +55,12 @@ import { RowActionToast } from './session-actions/RowActionToast.tsx'
 import { registerToasts } from './toast/register.ts'
 import { SessionIdMenuItem } from './session-actions/SessionId.tsx'
 import { WorkspacePicker } from './WorkspacePicker.tsx'
+import { WorkspaceManagement } from './WorkspaceManagement.tsx'
 import { en, zh, type WorkspaceKey } from './locales.ts'
 
 export type { StartSessionOptions, UiWorkspace } from './navigation.ts'
+export type { WorkspaceSource, WorkspaceSourceActions, WorkspaceSourceSnapshot, WorkspaceSourceView } from './sources.ts'
+export type { GroupNode, SessionNode } from './tree.ts'
 export type {
   DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected,
   MenuOpenState, RowToast, SessionRenameTarget, SessionRowOwnerProps, UseMenuOpenState, WorkspaceBrowserInjected,
@@ -258,6 +261,11 @@ export function apply(ctx: Context): void {
     hooks: { toast: rowToast },
     dismissToast: () => { rowToast.set(null) },
   })
+  const createWorkspace: WorkspaceBrowserInjected['createWorkspace'] = async (input) => {
+    const workspace = await workspaces.create(input)
+    viewInstance.actions.setWorkspaceVisible(workspace.workspaceId, true)
+    return workspace
+  }
   const browserInjected = (): WorkspaceBrowserInjected => ({
     // Explicit group actions keep their target; unscoped New Session inherits
     // the current Session Workspace before the recent-Workspace fallback.
@@ -273,15 +281,16 @@ export function apply(ctx: Context): void {
       await workspaces.insertBefore(workspaceId, beforeWorkspaceId)
     },
     unarchiveSession: async (sessionId) => { await uiWorkspace.unarchiveSession(sessionId) },
-    createWorkspace: input => workspaces.create(input),
+    createWorkspace,
     requestSearch: shortcutControls.search,
     requestAddWorkspace: shortcutControls.add,
     closeAddWorkspace: shortcutControls.closeAdd,
     setDirectoryBusy: shortcutControls.directoryBusy,
-    hooks: { directoryFlow: browserFlowSource, hostInfo, workspaceShortcuts: shortcutControls.state, shortcuts: ctx.shortcuts.catalog },
+    sourceActions: sourceId => uiWorkspace.sourceActions(sourceId),
+    hooks: { directoryFlow: browserFlowSource, hostInfo, workspaceShortcuts: shortcutControls.state, shortcuts: ctx.shortcuts.catalog, sources: uiWorkspace.sources },
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
-    createWorkspace: input => workspaces.create(input),
+    createWorkspace,
     hooks: { directoryFlow: pickerFlowSource },
   })
   // Each registration declares its owned children in the same call; slot
@@ -344,6 +353,11 @@ export function apply(ctx: Context): void {
     },
     WorkspacePicker,
   ))
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section', id: 'workspaces', order: 75, label: '工作区', locale: NS,
+    store: viewStore,
+    children: { 'settings.workspaces.source': { kind: 'list', scope: 'root' } },
+  }, WorkspaceManagement))
 }
 
 /**

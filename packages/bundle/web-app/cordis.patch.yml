@@ -42,6 +42,15 @@
 # `dsh.client` rows are the browser roster the modules node half scans into
 # window.__DSH_BOOT__; the modules row is simultaneously a host row.
 - insert:
+    - id: codexy-remote
+      name: '@codexydsh/remote'
+
+    - id: ui-remote
+      name: '@deepseek-ai/dsh-client-ui-remote'
+
+    - id: ui-directory-picker-browse
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
+
     - id: subagent-model-selection-settings
       name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
@@ -90,7 +99,7 @@
     # matching dual-face directory picker. Mount -native or -browse directly in
     # an overlay to pin the interaction.
     - id: directory-picker
-      name: '@deepseek-ai/dsh-host-directory-picker-auto'
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
 
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
@@ -155,7 +164,7 @@
       inject: [webStartup]
       config:
         host: !!js ctx.webStartup.host ?? '127.0.0.1'
-        port: !!js ctx.webStartup.port ?? 3080
+        port: !!js ctx.webStartup.port ?? 3082
         tls: !!js ctx.webStartup.tls
         compression: gzip
         compressionLevel: 1

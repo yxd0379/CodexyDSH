@@ -8,6 +8,7 @@ function fakePanels(): PanelActions {
     selectPanel: vi.fn(),
     retainMainPanels: vi.fn(),
     setSidebar: vi.fn(),
+    setSidebarVisible: vi.fn(),
     toggleSidebar: vi.fn(),
     setViewportWidth: vi.fn(),
     setRightbar: vi.fn(),
@@ -42,6 +43,17 @@ describe('LayoutController', () => {
 
     expect(panels.toggleSidebar).toHaveBeenCalledTimes(1)
     expect(panels.setSidebar).not.toHaveBeenCalled()
+  })
+
+  it('hides navigation independently of its collapsed width and the right panel', () => {
+    const panels = fakePanels()
+    const service = new LayoutController(panels, () => true, createSnapshotStore({ activePanelId: null }))
+    service.setSidebarVisible(false)
+    service.setSidebarVisible(true)
+    expect(panels.setSidebarVisible).toHaveBeenNthCalledWith(1, false)
+    expect(panels.setSidebarVisible).toHaveBeenNthCalledWith(2, true)
+    expect(panels.setSidebar).not.toHaveBeenCalled()
+    expect(panels.closeRightbar).not.toHaveBeenCalled()
   })
 
   it('forwards panel selection and returning to the Conversation without changing geometry', () => {

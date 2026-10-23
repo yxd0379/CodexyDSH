@@ -74,7 +74,7 @@ Web 应用 bundle 将此包与 `shortcuts` 一同挂载。速查仅展示已注�
 <a id="known-limitations-and-deferred-work"></a>
 
 - 加载或卸载命令 owner 会使打开的录键草稿失效，即使已保存的覆盖没有变化；重试前需核对当前键位。
-- 录键使用物理位置和美式键盘名称。浏览器组合受[快捷键服务](../shortcuts/README.zh.md)限制。审批和双 Esc 停止行只由已挂载的功能 owner 贡献。
+- 录键使用物理位置和美式键盘名称。浏览器组合受[快捷键服务](../shortcuts/README.md)限制。审批和双 Esc 停止行只由已挂载的功能 owner 贡献。
 
 <a id="dev-note"></a>
 ### 开发备注

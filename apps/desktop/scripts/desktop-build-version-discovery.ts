@@ -20,7 +20,7 @@
 import { readdir } from 'node:fs/promises'
 import { parse } from 'semver'
 import { desktopBuildVersionPrefix, validateDesktopBuildVersion } from './desktop-build-version.mjs'
-import { DESKTOP_AUTO_UPDATE_ENV, resolveDesktopUploadConfig } from './desktop-auto-update-environment.mjs'
+import { resolveConfiguredDesktopAutoUpdateConfig, resolveDesktopUploadConfig } from './desktop-auto-update-environment.mjs'
 import { createDesktopCos, DESKTOP_COS_REGION } from './desktop-cos.ts'
 import type { DesktopPackageTargetName } from './package-target.ts'
 
@@ -31,7 +31,7 @@ const LISTING_DEADLINE_MS = 8_000
 const LISTING_PAGE_SIZE = 1000
 
 /** Artifact name electron-builder writes for one build, on either platform; unsigned and unnotarized builds add a suffix. */
-const ARTIFACT = /(?:^|\/)deepseek-harness-(?<version>.+)-(?:mac|win)-(?:arm64|x64)(?:-unsigned|-unnotarized)?\.(?:exe|dmg|zip)$/u
+const ARTIFACT = /(?:^|\/)codexydsh-(?<version>.+)-(?:mac|win)-(?:arm64|x64)(?:-unsigned|-unnotarized)?\.(?:exe|dmg|zip)$/u
 
 /** Inputs that decide which versions are already taken. */
 export interface DesktopBuildVersionSuggestionOptions {
@@ -90,8 +90,7 @@ async function remoteVersions(options: DesktopBuildVersionSuggestionOptions): Pr
   const platform = options.target === 'win-x64' ? 'win32' as const : 'darwin' as const
   const arch = options.target === 'mac-arm64' ? 'arm64' : 'x64'
   // An unconfigured destination has nothing to be unique against; an invalid one must not be mistaken for it.
-  if (options.environment[DESKTOP_AUTO_UPDATE_ENV] === undefined
-    && options.environment.DOWNLOAD_TEST_ORIGIN === undefined) return undefined
+  if (resolveConfiguredDesktopAutoUpdateConfig(options.environment, platform, arch) === undefined) return undefined
   const update = resolveDesktopUploadConfig(options.environment, platform, arch)
   const secretId = options.environment[update.secretIdEnvName]?.trim()
   const secretKey = options.environment[update.secretKeyEnvName]?.trim()
@@ -107,7 +106,7 @@ async function remoteVersions(options: DesktopBuildVersionSuggestionOptions): Pr
         new Promise<{ keys: string[]; next: string | undefined }>((resolveListing, rejectListing) => {
           cos.getBucket({
             Bucket: update.bucket, Region: DESKTOP_COS_REGION, MaxKeys: LISTING_PAGE_SIZE,
-            Prefix: `${update.binaryKeyPrefix}/deepseek-harness-`, ...marker === undefined ? {} : { Marker: marker },
+            Prefix: `${update.binaryKeyPrefix}/codexydsh-`, ...marker === undefined ? {} : { Marker: marker },
           }, (error, data) => {
             if (error !== null && error !== undefined) rejectListing(error instanceof Error ? error : new Error(String(error)))
             else {

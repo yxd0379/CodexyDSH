@@ -45,7 +45,7 @@ export type MacOSNotarizationEnvironment =
 /**
  * Resolve and validate the application identifier shared by every platform target.
  * @param env - Packaging environment.
- * @returns Reverse-DNS application identifier.
+ * @returns Reverse-DNS application identifier; io.codexydsh.desktop when no override is set.
  */
 export function resolveDesktopAppId(env: NodeJS.ProcessEnv): string
 

@@ -70,13 +70,26 @@ export function desktopUpdateMetadataFilename(
  * @param platform - Target Node.js platform.
  * @param arch - Target Node.js architecture.
  * @returns Resolved updater configuration.
- * @throws When the test deployment lacks a valid HTTPS origin or a 32-character lowercase hexadecimal release ID.
+ * @throws When the selected deployment lacks a valid HTTPS origin or a test release ID is invalid.
  */
 export function resolveDesktopAutoUpdateConfig(
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
   arch: string,
 ): DesktopAutoUpdateConfig
+
+/**
+ * Resolve updates only when the selected deployment has an explicit product origin.
+ * @param env - Packaging environment.
+ * @param platform - Target Node.js platform.
+ * @param arch - Target Node.js architecture.
+ * @returns Configured feed, or undefined when updates are unconfigured.
+ */
+export function resolveConfiguredDesktopAutoUpdateConfig(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  arch: string,
+): DesktopAutoUpdateConfig | undefined
 
 /**
  * Resolve the public updater URL and private COS destination for one upload target.

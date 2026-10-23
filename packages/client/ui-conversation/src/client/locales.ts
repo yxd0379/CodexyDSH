@@ -155,6 +155,12 @@ export const zh = {
   'tool.title.traceSession': '追踪会话',
   'tool.title.listModels': '查看可用模型',
   'tool.title.subagent': '创建子智能体',
+  'tool.title.followupTask': '继续任务',
+  'tool.title.resumeAgent': '恢复智能体',
+  'tool.title.closeAgent': '关闭智能体',
+  'tool.title.readCommandOutput': '读取命令输出',
+  'tool.title.execCommand': '运行命令',
+  'tool.title.sendTerminalInput': '发送终端输入',
   'tool.title.listAgents': '查看子智能体',
   'tool.title.sendMessage': '发送消息',
   'tool.title.interruptAgent': '中断智能体',
@@ -195,6 +201,8 @@ export const zh = {
   'detail.status.accepted': '已接收',
   'detail.status.queued': '已入队',
   'detail.status.exited': '已退出',
+  'detail.status.closed': '已关闭',
+  'detail.status.notFound': '未找到',
   'detail.field.id': 'ID',
   'detail.field.revision': '版本',
   'detail.field.platform': '平台',
@@ -381,6 +389,7 @@ export const zh = {
   'terminal.expandAria': '展开其余 {n} 行输出',
   'terminal.expandRest': '… 其余 {n} 行',
   'terminal.sendInput': '（发送输入）',
+  'terminal.readOutput': '（读取输出）',
   'terminal.session': '终端 {sessionId}',
 } satisfies Record<string, string>
 
@@ -535,6 +544,12 @@ export const en = {
   'tool.title.traceSession': 'Trace session',
   'tool.title.listModels': 'List models',
   'tool.title.subagent': 'Create subagent',
+  'tool.title.followupTask': 'Continue task',
+  'tool.title.resumeAgent': 'Resume agent',
+  'tool.title.closeAgent': 'Close agent',
+  'tool.title.readCommandOutput': 'Read command output',
+  'tool.title.execCommand': 'Run command',
+  'tool.title.sendTerminalInput': 'Send terminal input',
   'tool.title.listAgents': 'List subagents',
   'tool.title.sendMessage': 'Send message',
   'tool.title.interruptAgent': 'Interrupt agent',
@@ -575,6 +590,8 @@ export const en = {
   'detail.status.accepted': 'Accepted',
   'detail.status.queued': 'Queued',
   'detail.status.exited': 'Exited',
+  'detail.status.closed': 'Closed',
+  'detail.status.notFound': 'Not found',
   'detail.field.id': 'ID',
   'detail.field.revision': 'Revision',
   'detail.field.platform': 'Platform',
@@ -763,5 +780,6 @@ export const en = {
   // The Host terminal_send presenter has no locale seat; keep its fallbacks
   // aligned with these English values.
   'terminal.sendInput': '(send input)',
+  'terminal.readOutput': '(read output)',
   'terminal.session': 'Terminal {sessionId}',
 } satisfies Record<ConversationKey, string>

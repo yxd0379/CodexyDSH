@@ -11,7 +11,6 @@ import { createWaterfallRequest, PendingQuestion, type QuestionCardSnapshot, typ
 import { createQuestionDraftStore } from '../src/client/draft-store.ts'
 import { QuestionComposer as Composer, parseRecommendedLabel } from '../src/client/QuestionComposer.tsx'
 import { en, zh } from '../src/client/locales.ts'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 
 // Every session-scope fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
@@ -454,7 +453,7 @@ describe('QuestionComposer', () => {
 
   it('renders chrome copy through the English dictionary', () => {
     const { carrier } = wait([{ id: 'detail', question: '补充你的要求' }])
-    render(<QuestionComposer matched={carrier} {...kit} t={seatOver(en, commonEn)} />)
+    render(<QuestionComposer matched={carrier} {...kit} t={seatOver(en, commonZh)} />)
     expect(screen.getByLabelText('Dismiss all questions')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Skip' })).toBeTruthy()
     expect(screen.getByPlaceholderText('Type your answer')).toBeTruthy()
@@ -929,7 +928,7 @@ describe('review card', () => {
 
   it('renders the read-only copy through the English dictionary', () => {
     const { carrier } = reviewCard()
-    render(<QuestionComposer matched={carrier} {...kit} t={seatOver(en, commonEn)} />)
+    render(<QuestionComposer matched={carrier} {...kit} t={seatOver(en, commonZh)} />)
 
     expect(screen.getByText(en['review.status'])).toBeTruthy()
     fireEvent.click(screen.getByLabelText(en['nav.next']))

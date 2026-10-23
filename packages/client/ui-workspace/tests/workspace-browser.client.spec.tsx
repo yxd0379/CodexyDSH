@@ -18,7 +18,9 @@ import { createWorkspaceShortcutControls } from '../src/client/shortcuts.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
+import { WorkspaceManagement } from '../src/client/WorkspaceManagement.tsx'
 import { zh } from '../src/client/locales.ts'
+import type { WorkspaceSourceActions, WorkspaceSourceView } from '../src/client/sources.ts'
 
 // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
@@ -109,6 +111,8 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
   const store = createWorkspaceViewStore().create()
   const props: WorkspaceBrowserProps = {
     useShortcuts: select => select([]),
+    useSources: select => select([]),
+    sourceActions: () => undefined,
     useWorkspaceShortcuts: bindSnapshotSelector(controls.state),
     requestSearch: controls.search,
     requestAddWorkspace: controls.add,
@@ -152,6 +156,128 @@ function rerender(b: ReturnType<typeof mount>, overrides: Partial<WorkspaceBrows
 }
 
 describe('WorkspaceBrowser', () => {
+  it('归档当前工作区只隐藏导航，刷新后仍隐藏，也不创建或删除会话', () => {
+    const sessions = sessionState([summary('正在运行', 2, { running: true }), summary('散落会话', 1)], { main: sid('正在运行') })
+    const workspaces = workspaceState([workspace('本地项目', ['正在运行'])])
+    const b = mount({ useSessions: hook(sessions), useWorkspaces: hook(workspaces) })
+    expect(screen.getByText('正在运行')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('工作区“本地项目”的操作'))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档工作区' }))
+    expect(screen.queryByText('本地项目')).toBeNull()
+    expect(screen.queryByText('正在运行')).toBeNull()
+    fireEvent.click(screen.getByText('未分组'))
+    expect(screen.getByText('散落会话')).toBeTruthy()
+    expect(b.props.startSession).not.toHaveBeenCalled()
+    expect(b.props.open).not.toHaveBeenCalled()
+    expect(b.props.deleteWorkspace).not.toHaveBeenCalled()
+    expect(b.store.getSnapshot().archivedWorkspaceIds).toEqual(['本地项目'])
+    expect(workspaces.archivedSessionIds).toEqual([])
+    expect(sessions.byId['正在运行']?.running).toBe(true)
+    b.view.unmount()
+    mount({ useSessions: hook(sessions), useWorkspaces: hook(workspaces) })
+    expect(screen.queryByText('本地项目')).toBeNull()
+    expect(screen.queryByText('正在运行')).toBeNull()
+  })
+
+  it('在原生工作区设置恢复显示，不改变会话本身的归档状态', () => {
+    const b = mount({
+      useSessions: hook(sessionState([summary('可见会话', 2), summary('已归档会话', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('本地项目', ['可见会话', '已归档会话'])], [sid('已归档会话')])),
+    })
+    act(() => { b.store.actions.setWorkspaceVisible('本地项目', false) })
+    const settings = render(<WorkspaceManagement {...b.props} close={() => {}} renderSlot={() => null} />)
+    const visible = screen.getByRole<HTMLInputElement>('checkbox', { name: '在侧栏显示 本机: 本地项目' })
+    expect(visible.checked).toBe(false)
+    fireEvent.click(visible)
+    expect(visible.checked).toBe(true)
+    settings.unmount()
+    fireEvent.click(screen.getByText('本地项目'))
+    expect(screen.getByText('可见会话')).toBeTruthy()
+    expect(screen.queryByText('已归档会话')).toBeNull()
+    expect(b.props.unarchiveSession).not.toHaveBeenCalled()
+    expect(b.props.deleteWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('本机工作区属性显示真实路径和会话数量', () => {
+    mount({ useWorkspaces: hook(workspaceState([workspace('本地项目', ['一', '二'])])) })
+    fireEvent.click(screen.getByLabelText('工作区“本地项目”的操作'))
+    fireEvent.click(screen.getByRole('menuitem', { name: '属性' }))
+    const details = screen.getByRole('dialog', { name: '工作区属性' })
+    expect(within(details).getByText('/projects/本地项目')).toBeTruthy()
+    expect(within(details).getByText('本机')).toBeTruthy()
+    expect(within(details).getByText('2 个')).toBeTruthy()
+    fireEvent.click(within(details).getByLabelText('关闭'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it.each(['flat', 'workspace-tree'] as const)('已归档工作区的会话不从 %s 或搜索结果漏出', async (mode) => {
+    const searchSessions = vi.fn(async () => ({ items: [{ sessionId: sid('隐藏的会话'), snippet: '匹配正文' }], hasMore: false }))
+    const b = mount({
+      useSessions: hook(sessionState([summary('隐藏的会话', 2), summary('保留的会话', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('归档项目', ['隐藏的会话']), workspace('保留项目', ['保留的会话'])])),
+      searchSessions,
+    })
+    act(() => {
+      b.store.actions.setGroupBy(mode)
+      b.store.actions.setWorkspaceVisible('归档项目', false)
+      b.store.actions.setGroupExpanded('保留项目', true)
+    })
+    expect(screen.queryByText('隐藏的会话')).toBeNull()
+    expect(screen.getByText('保留的会话')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '搜索会话' }), { target: { value: '会话' } })
+    await waitFor(() => { expect(searchSessions).toHaveBeenCalled() })
+    expect(screen.queryByText('隐藏的会话')).toBeNull()
+    expect(screen.queryByText('匹配正文')).toBeNull()
+    expect(screen.getByText('保留的会话')).toBeTruthy()
+  })
+
+  it('renders another Host with native rows while every gesture remains source-owned', () => {
+    const group = {
+      key: 'remote-workspace', workspaceId: wid('remote-workspace'), label: 'Remote Repo', cwd: '/home/u/repo',
+      createdAt: 0, expanded: true, containsCurrent: true, sessionCount: 1,
+      sessions: [{ id: sid('same-id'), title: 'Remote task', blank: false, running: false,
+        runningSubagentCount: 0, completed: false, pinned: false, archived: false, updatedAt: 1 }],
+    }
+    const source: WorkspaceSourceView = { id: 'host-a', label: 'Ascend', groups: [group], selectedSessionId: sid('same-id') }
+    const sourceActions: WorkspaceSourceActions = {
+      toggleWorkspace: vi.fn(), openSession: vi.fn(), startSession: vi.fn(), renameWorkspace: vi.fn(),
+      archiveWorkspace: vi.fn(), showWorkspaceDetails: vi.fn(), renameSession: vi.fn(),
+      archiveSession: vi.fn(), unarchiveSession: vi.fn(),
+    }
+    const localSlots = vi.fn(renderDirectoryFlowOnly)
+    const b = mount({
+      useSources: hook([source]), sourceActions: id => id === 'host-a' ? sourceActions : undefined,
+      renderSlot: localSlots,
+      useSessions: hook(sessionState([summary('same-id', 1)], { main: sid('same-id') })),
+      useWorkspaces: hook(workspaceState([workspace('local', ['same-id'], 'Local Repo')])),
+    })
+    const project = screen.getByText('Remote Repo').closest('[role="treeitem"]')!
+    fireEvent.click(project)
+    expect(sourceActions.toggleWorkspace).toHaveBeenCalledExactlyOnceWith('remote-workspace')
+    expect(sourceActions.startSession).not.toHaveBeenCalled()
+    fireEvent.click(within(project as HTMLElement).getByLabelText('在“Remote Repo”中新建会话'))
+    expect(sourceActions.startSession).toHaveBeenCalledExactlyOnceWith(wid('remote-workspace'))
+    fireEvent.click(screen.getByText('Remote task'))
+    expect(sourceActions.openSession).toHaveBeenCalledExactlyOnceWith(sid('same-id'))
+    expect(b.props.open).not.toHaveBeenCalled()
+    expect(b.props.startSession).not.toHaveBeenCalled()
+    expect(localSlots.mock.calls.some(call => call[0] !== 'sidebar.workspaces.directoryFlow'
+      && (call[1] as { sessionId?: string }).sessionId === 'same-id')).toBe(false)
+
+    fireEvent.click(within(project as HTMLElement).getByLabelText('工作区“Remote Repo”的操作'))
+    fireEvent.click(screen.getByRole('menuitem', { name: '属性' }))
+    expect(sourceActions.showWorkspaceDetails).toHaveBeenCalledOnce()
+    fireEvent.click(within(project as HTMLElement).getByLabelText('工作区“Remote Repo”的操作'))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档工作区' }))
+    expect(sourceActions.archiveWorkspace).toHaveBeenCalledOnce()
+    expect(b.props.deleteWorkspace).not.toHaveBeenCalled()
+    const session = screen.getByText('Remote task').closest('[role="treeitem"]')!
+    fireEvent.click(within(session as HTMLElement).getByLabelText('会话“Remote task”的操作'))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }))
+    expect(sourceActions.archiveSession).toHaveBeenCalledExactlyOnceWith(sid('same-id'))
+  })
+
   it.each(['workspace', 'flat', 'ungrouped'] as const)('keeps %s recency independent of arrival order and saved manual positions', (mode) => {
     localStorage.clear()
     const preferences = createWorkspaceViewStore().create()

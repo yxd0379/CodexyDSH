@@ -28,6 +28,8 @@ type WorkspaceViewState = {
   sessionOrderByAccount: Record<string, string[]>
   /** Archived-row visibility; omitted in pre-filter v5 snapshots and read as 'default'. */
   archivedFilter?: ArchivedFilter
+  /** Sidebar visibility only; never changes Workspace membership or Session archive state. */
+  archivedWorkspaceIds?: string[]
 }
 
 type SessionOrderSource = {
@@ -66,6 +68,7 @@ type WorkspaceViewActions = {
     source: SessionOrderSource,
   ) => void
   setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
+  setWorkspaceVisible: (draft: WorkspaceViewState, workspaceId: string, visible: boolean) => void
 }
 
 /** Copy read-only projections into the persisted mutable store representation. */
@@ -87,6 +90,7 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
       groupExpansion: {},
       sessionOrderByAccount: {},
       archivedFilter: 'default',
+      archivedWorkspaceIds: [],
     }),
     persist: 'dsh.workspace.view.v5',
     actions: {
@@ -125,6 +129,10 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
         }))
       },
       setArchivedFilter: (d, filter: ArchivedFilter) => { d.archivedFilter = filter },
+      setWorkspaceVisible: (d, workspaceId: string, visible: boolean) => {
+        const archived = (d.archivedWorkspaceIds ?? []).filter(id => id !== workspaceId)
+        d.archivedWorkspaceIds = visible ? archived : [...archived, workspaceId]
+      },
     },
   })
 }

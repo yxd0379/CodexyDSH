@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包提供 Web GUI 的原生目录拾取表面：当工作区流程请求一个目录时，一个无渲染的浏览器填充会在本地机器上打开操作系统自带的选择器，并回报唯一结果——拾取的路径、取消或失败。它填充 `ui-workspace` 声明的两个目录流程 slot，用一行 `cordis.yml` 组合出原生拾取交互的客户端一侧。当浏览器与 Host 运行在同一台机器上时选择它；进程内与远程浏览器部署则需要 [`-browse`](../ui-directory-picker-browse/README.zh.md) 表面。
+本包提供 Web GUI 的原生目录拾取表面：当工作区流程请求一个目录时，一个无渲染的浏览器填充会在本地机器上打开操作系统自带的选择器，并回报唯一结果——拾取的路径、取消或失败。它填充 `ui-workspace` 声明的两个目录流程 slot，用一行 `cordis.yml` 组合出原生拾取交互的客户端一侧。当浏览器与 Host 运行在同一台机器上时选择它；进程内与远程浏览器部署则需要 [`-browse`](../ui-directory-picker-browse/README.md) 表面。
 
 ## 目录
 
@@ -31,7 +31,7 @@ kind: "package-reference"
 
 ### 何时选择
 
-当浏览器与 Host 运行在同一台机器上、操作系统对话框可以在那里打开时，选择此表面。当浏览器为远程或进程内、没有本地选择器时，选择 [`-browse`](../ui-directory-picker-browse/README.zh.md) 表面。两个表面填充相同的 slot，因此切换只是组合改动，而非代码改动。
+当浏览器与 Host 运行在同一台机器上、操作系统对话框可以在那里打开时，选择此表面。当浏览器为远程或进程内、没有本地选择器时，选择 [`-browse`](../ui-directory-picker-browse/README.md) 表面。两个表面填充相同的 slot，因此切换只是组合改动，而非代码改动。
 
 -----
 
@@ -53,8 +53,8 @@ kind: "package-reference"
 当拾取面不够用时阅读以下页面。它们从浏览器半部进入 Host 后端与它所填充的 slot。
 
 - [dsh-host-directory-picker-native](../../host/directory-picker-native/README.zh.md)——本表面驱动的操作系统选择器后端。
-- [ui-workspace](../ui-workspace/README.zh.md)——声明目录流程 slot 并拥有拾取对话。
-- [ui-directory-picker-browse](../ui-directory-picker-browse/README.zh.md)——面向远程与进程内部署的应用内浏览替代方案。
+- [ui-workspace](../ui-workspace/README.md)——声明目录流程 slot 并拥有拾取对话。
+- [ui-directory-picker-browse](../ui-directory-picker-browse/README.md)——面向远程与进程内部署的应用内浏览替代方案。
 - [Web 客户端架构](../../../docs/subsystems/web-client.zh.md)——浏览器插件行如何加载并注册 slot。
 
 -----

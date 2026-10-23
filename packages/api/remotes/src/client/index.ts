@@ -15,11 +15,12 @@ import pluginRegistryProbeRemote from '@deepseek-ai/dsh-client-ui-plugin-manager
 import pluginMarketRemote from '@deepseek-ai/dsh-plugin-market/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
-import permissionPresetsRemote from '@deepseek-ai/dsh-permission-presets/remote'
+import permissionPresetsRemote from '@codexydsh/permissions/remote'
 import sessionFeedbackRemote from '@deepseek-ai/dsh-command-feedback/remote'
 import fileUploadsRemote from '@deepseek-ai/dsh-client-file-upload/remote'
 import sessionReferencesRemote from '@deepseek-ai/dsh-session-reference/remote'
-import subagentsRemote from '@deepseek-ai/dsh-subagent/remote'
+import subagentsRemote from '@codexydsh/delegation/remote'
+import remoteHostsRemote from '@codexydsh/remote/remote'
 import sessionRemote from '@deepseek-ai/dsh-api-session-controller/remote'
 import jobRemote from '@deepseek-ai/dsh-api-job-controller/remote'
 import workspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
@@ -53,11 +54,12 @@ export type {} from '@deepseek-ai/dsh-office-to-pdf/remote'
 export type {} from '@deepseek-ai/dsh-llm/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
-export type {} from '@deepseek-ai/dsh-permission-presets/remote'
+export type {} from '@codexydsh/permissions/remote'
 export type {} from '@deepseek-ai/dsh-command-feedback/remote'
 export type {} from '@deepseek-ai/dsh-client-file-upload/remote'
 export type {} from '@deepseek-ai/dsh-session-reference/remote'
-export type {} from '@deepseek-ai/dsh-subagent/remote'
+export type {} from '@codexydsh/delegation/remote'
+export type {} from '@codexydsh/remote/remote'
 export type * from '@deepseek-ai/dsh-subagent/client'
 export type {} from '@deepseek-ai/dsh-api-session-controller/remote'
 export type * from '@deepseek-ai/dsh-api-session-controller/types'
@@ -188,7 +190,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
       messageFeedbackRemote, sessionFeedbackRemote,
       fileUploadsRemote, sessionReferencesRemote,
       permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,
-      officeToPdfRemote, userQuestionsRemote,
+      officeToPdfRemote, userQuestionsRemote, remoteHostsRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

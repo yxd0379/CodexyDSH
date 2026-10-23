@@ -21,7 +21,7 @@ async function bench(served?: string[]) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const locale = new LocaleRuntime(ctx)
-  locale.setLocale('zh')
+
   ctx.provide('locale', locale)
   const describeSettings = vi.fn(() => Promise.resolve(served === undefined
     ? { ok: false, error: new RemoteError('gateway/internal', 'no provider', {}) }

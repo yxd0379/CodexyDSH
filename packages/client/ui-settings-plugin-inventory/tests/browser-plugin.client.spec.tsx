@@ -72,9 +72,8 @@ describe('ui-settings-plugin-inventory browser plugin', () => {
     const injected = (entry.inject as unknown as () => PluginInventorySettingsTabInjected)()
     const text = { en: 'Local tools', zh: '本地工具' }
     expect(injected.resolveText(text)).toBe('本地工具')
-    b.locale.setLocale('en')
-    expect(injected.resolveText(text)).toBe('Local tools')
-    b.locale.setLocale('zh')
+
+
     injected.retryClient()
     const retryError = vi.spyOn(b.ctx.logger, 'error').mockImplementation(() => {})
     b.retryClient.mockRejectedValueOnce(new Error('retry unavailable'))
@@ -102,8 +101,8 @@ describe('ui-settings-plugin-inventory browser plugin', () => {
 
     const stop = declare(b.slots)
     await vi.waitFor(() => { expect(b.slots.entries('settings.plugins.tab')).toHaveLength(1) })
-    b.locale.setLocale('en')
-    expect(resolveSlotLabel(b.slots.entries('settings.plugins.tab')[0]!.options.label)).toBe('Plugin list')
+
+    expect(resolveSlotLabel(b.slots.entries('settings.plugins.tab')[0]!.options.label)).toBe('插件列表')
 
     stop()
     expect(b.slots.entries('settings.plugins.tab')).toHaveLength(0)

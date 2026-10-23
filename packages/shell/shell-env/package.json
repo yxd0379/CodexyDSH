@@ -36,6 +36,7 @@
     "@deepseek-ai/dsh-tools": "workspace:*"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-shell": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~"
   },
   "devDependencies": {

@@ -158,7 +158,8 @@ export function AppFrame({
   }, [actions])
 
   const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
-  const sidebarCollapsed = narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0
+  const sidebarVisible = layoutInfo.sidebarVisible
+  const sidebarCollapsed = !sidebarVisible || (narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0)
   const sidebarPreference = sidebarCollapsed
     ? 0
     : layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar
@@ -166,7 +167,7 @@ export function AppFrame({
   // Desktop reopen controls occupy the frame's shell.leading seat (macOS) or
   // the Windows caption row; neither platform keeps an icon rail.
   const darwin = document.documentElement.dataset.platform === 'darwin'
-  const collapsedWidth = darwin
+  const collapsedWidth = !sidebarVisible || darwin
     || document.documentElement.hasAttribute('data-windows-titlebar') ? 0 : SIDEBAR_COLLAPSED
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
@@ -253,7 +254,7 @@ export function AppFrame({
   // row (ui-sidebar). AppFrame.module.css publishes the matching
   // --dsh-frame-leading-clearance under the same collapsed condition.
   const leading = useMemo(() => renderSlot('shell.leading', {}), [renderSlot])
-  const leadingMounted = darwin && sidebarCollapsed
+  const leadingMounted = sidebarVisible && darwin && sidebarCollapsed
 
   return (
     <div
@@ -266,6 +267,7 @@ export function AppFrame({
           `${cols.sidebar}px minmax(${cols.rightbar === 0 ? 0 : CENTER_MIN}px, 1fr) minmax(0px, ${rightbarMax}px)`,
       }}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
+      data-sidebar-hidden={!sidebarVisible || undefined}
       data-rightbar-collapsed={cols.rightbar === 0 || undefined}
       data-rightbar-fullscreen={layoutInfo.rightbarFullscreen || undefined}
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
@@ -278,7 +280,9 @@ export function AppFrame({
         usePanelInfo={usePanelInfo}
       />
       <div className={css.sidebarCol}>
-        {sidebar}
+        <div className={css.sidebarContent} hidden={!sidebarVisible}>
+          {sidebar}
+        </div>
       </div>
       <>
         <CenterColumn>{main}</CenterColumn>

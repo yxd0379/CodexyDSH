@@ -24,10 +24,10 @@ const LSP_TITLE_KEYS = {
 } as const
 
 /** Teammate-coordination tools presented with the two-person team icon. */
-const TEAMMATE_TOOLS = new Set(['spawn_teammate', 'list_agents', 'send_message', 'interrupt_agent', 'wait_agent'])
+const TEAMMATE_TOOLS = new Set(['spawn_teammate', 'spawn_agent', 'followup_task', 'list_agents', 'send_message', 'interrupt_agent', 'wait_agent'])
 
 function detailIcon(toolName: string) {
-  if (TEAMMATE_TOOLS.has(toolName)) return <IconUsersOutlineRegular size={14} />
+  if (TEAMMATE_TOOLS.has(toolName) || toolName.startsWith('multi_agent_v1__')) return <IconUsersOutlineRegular size={14} />
   if (toolName.startsWith('schedule_')) return <IconClockOutlineRegular size={14} />
   if (toolName.endsWith('_goal')) return <IconGoalOutlineRegular size={14} />
   if (toolName.startsWith('cordis_')) return <IconCordisPluginOutlineRegular />
@@ -96,6 +96,9 @@ export const detailsToolview = {
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'session_trace', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'list_subagent_models', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'subagent', locale: NS }, DetailsRow)
+      for (const key of ['spawn_agent', 'followup_task', 'multi_agent_v1__spawn_agent', 'multi_agent_v1__send_input', 'multi_agent_v1__resume_agent', 'multi_agent_v1__close_agent', 'multi_agent_v1__wait_agent']) {
+        yield ctx.slots.register({ name: 'tool.call.toolview', key, locale: NS }, DetailsRow)
+      }
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'list_agents', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'send_message', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'interrupt_agent', locale: NS }, DetailsRow)

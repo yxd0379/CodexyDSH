@@ -9,7 +9,7 @@ import { ChatSnapshotBuilder, chatViewDefinition } from '../../ui-chat/src/clien
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { en, zh } from '../src/client/locales.ts'
 import { PlanCards, PlanReviewOpen } from '../src/client/PlanCard.tsx'
 import { PlanPreview, PlanTitle } from '../src/client/PlanPreview.tsx'
@@ -23,7 +23,7 @@ const markdown = '# Keep this plan\n\n## Goal\n\n- Review\n- Implement'
 const call = { type: 'tool/call', seq: 12, data: { turn: 1, name: 'exit_plan_mode', callId: 'call:1', arguments: JSON.stringify({ plan: markdown }) } }
 const plan = submittedPlan(call)!
 const target = { session: { kind: 'session' as const, sessionId: 'session / 中文' as SessionId }, callId: plan.callId }
-const t = makeTranslate(en, commonEn)
+const t = makeTranslate(en, commonZh)
 
 function planHook(plans: readonly typeof plan[]): Parameters<typeof PlanCards>[0]['usePlans'] {
   const source = createSnapshotStore(plans)
@@ -207,7 +207,7 @@ describe('plan entry points and document', () => {
     for (const dictionary of [en, zh]) {
       const openPlan = vi.fn()
       const props = { turn: { turn: 1 }, usePlans: planHook([plan]), seq: 30,
-        t: makeTranslate(dictionary, commonEn), openPlan,
+        t: makeTranslate(dictionary, commonZh), openPlan,
       } as Parameters<typeof PlanCards>[0]
       const view = render(<PlanCards {...props} />)
       expect(openPlan).not.toHaveBeenCalled()
@@ -324,7 +324,7 @@ describe('plan entry points and document', () => {
     expect(screen.getByText('Plan')).toBeTruthy()
   })
   it.each([en, zh])('localizes plan failures and unavailable providers', (dictionary) => {
-    const props = { t: makeTranslate(dictionary, commonEn),
+    const props = { t: makeTranslate(dictionary, commonZh),
       useTabInfo: () => ({ tab: { title: 'Plan', navigation: { address: planAddress(target) } } }),
     }
     const view = render(<PlanPreview {...{ ...props, useResource: () => ({ status: 'loading' }) } as unknown as Parameters<typeof PlanPreview>[0]} />)

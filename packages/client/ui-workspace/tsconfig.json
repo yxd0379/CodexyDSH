@@ -69,6 +69,9 @@
       "path": "../ui-session"
     },
     {
+      "path": "../ui-settings/tsconfig.client.json"
+    },
+    {
       "path": "../../util/values"
     },
     {

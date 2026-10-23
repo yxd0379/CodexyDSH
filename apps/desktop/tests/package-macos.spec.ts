@@ -29,14 +29,14 @@ function barrier() {
 async function fixture(arch: 'arm64' | 'x64' = 'arm64') {
   const root = await mkdtemp(join(tmpdir(), 'desktop-parallel-notarization-'))
   const artifactsRoot = join(root, 'artifacts')
-  const appPath = join(artifactsRoot, arch === 'arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app')
+  const appPath = join(artifactsRoot, arch === 'arm64' ? 'mac-arm64' : 'mac', 'CodexyDSH.app')
   await mkdir(join(appPath, 'Contents', 'Resources'), { recursive: true })
   await writeFile(join(appPath, 'payload'), 'signed content')
   await writeMacOSAppUpdateConfig(join(appPath, 'Contents', 'Resources'), {
     publicUrl: `https://desktop-updates.example.com/dsh-desk/0123456789abcdef0123456789abcdef/feeds/mac-${arch}/`,
-  }, 'deepseek-harness-updater')
+  }, 'codexydsh-updater')
   const version = '1.2.3-alpha.1'
-  const base = `deepseek-harness-${version}-mac-${arch}`
+  const base = `codexydsh-${version}-mac-${arch}`
   const request = { arch, artifactsRoot, version, environment }
   const apple: MacOSArtifactOperations = {
     copyApp: async (source, destination) => {
@@ -64,6 +64,23 @@ async function fixture(arch: 'arm64' | 'x64' = 'arm64') {
 }
 
 describe('parallel macOS artifacts', () => {
+  it('packages signed artifacts without an updater configuration or feed metadata when updates are unconfigured', async () => {
+    const f = await fixture()
+    const noUpdates: NodeJS.ProcessEnv = { ...f.request.environment }
+    delete noUpdates.DOWNLOAD_TEST_ORIGIN
+    delete noUpdates.DOWNLOAD_TEST_RELEASE_ID
+    try {
+      await rm(join(f.appPath, 'Contents', 'Resources', 'app-update.yml'))
+      await packageMacOSArtifacts({ ...f.request, environment: noUpdates }, f.build, f.apple)
+      expect(existsSync(join(f.appPath, 'Contents', 'Resources', 'app-update.yml'))).toBe(false)
+      expect((await readdir(f.request.artifactsRoot)).sort()).toEqual([
+        `${f.base}.dmg`, `${f.base}.zip`, 'mac-arm64',
+      ].sort())
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   it.each(['arm64', 'x64'] as const)('overlaps notarization on isolated %s copies and promotes only completed payloads', async (arch) => {
     const f = await fixture(arch)
     const appStarted = barrier()
@@ -196,7 +213,7 @@ describe('parallel macOS artifacts', () => {
   it('passes the actual App and isolated output directory to each single-target builder', () => {
     const target = resolveDesktopPackageTarget('mac-arm64', 'darwin', 'arm64')
     for (const format of ['zip', 'dmg'] as const) {
-      const appPath = join('private build', format, 'DeepSeek Harness.app')
+      const appPath = join('private build', format, 'CodexyDSH.app')
       const output = join(dirname(appPath), 'artifacts')
       expect(desktopElectronBuilderArguments(target, false, { format, appPath, output })).toEqual([
         'exec', 'electron-builder', '--config', 'electron-builder.config.mjs',

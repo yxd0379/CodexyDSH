@@ -53,7 +53,7 @@ function digest(value: unknown): string {
 }
 
 function receiptPath(options: FileCommandInstallation): string {
-  return join(dirname(options.destination), '.dsh-desktop-command.json')
+  return join(dirname(options.destination), '.codexydsh-desktop-command.json')
 }
 
 async function readEntry(path: string): Promise<Entry> {
@@ -96,7 +96,7 @@ async function readReceipt(options: FileCommandInstallation): Promise<Receipt | 
   if (record.backup !== undefined) {
     if (typeof record.backup !== 'object' || record.backup === null) throw new CommandInstallationError('EOWNERSHIP', 'Invalid command backup record.')
     const candidate = record.backup as Record<string, unknown>
-    if (typeof candidate.name !== 'string' || !/^\.dsh-command-backup-[a-f0-9-]{36}$/u.test(candidate.name)
+    if (typeof candidate.name !== 'string' || !/^\.codexydsh-command-backup-[a-f0-9-]{36}$/u.test(candidate.name)
       || typeof candidate.fingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(candidate.fingerprint)) {
       throw new CommandInstallationError('EOWNERSHIP', 'Invalid command backup record.')
     }
@@ -165,7 +165,7 @@ async function linkEntry(options: FileCommandInstallation, source: string, desti
 async function withdraw(options: FileCommandInstallation, destination: string, expected: Entry): Promise<string | undefined> {
   if (expected.kind === 'missing') return undefined
   if (expected.kind === 'unsupported') throw new CommandInstallationError('EUNSUPPORTED', 'The command path is not a file or symbolic link.')
-  const path = join(dirname(destination), '.dsh-command-backup-' + randomUUID())
+  const path = join(dirname(destination), '.codexydsh-command-backup-' + randomUUID())
   await rename(destination, path)
   if ((await readEntry(path)).fingerprint !== expected.fingerprint) {
     try { await restoreEntry(options, path, destination) } catch (error) {
@@ -189,7 +189,7 @@ export async function installFileCommand(options: FileCommandInstallation, expec
     if (state.fingerprint !== expected) throw new CommandInstallationError('ESTALE', 'The command changed after confirmation.')
     if (!await available(options.launcher)) throw new CommandInstallationError('ENOENT', 'The installed launcher is unavailable.')
     const moved = await withdraw(options, options.destination, entry)
-    const pending = join(dirname(options.destination), '.dsh-command-new-' + randomUUID())
+    const pending = join(dirname(options.destination), '.codexydsh-command-new-' + randomUUID())
     let created: Entry | undefined
     try {
       await symlink(options.launcher, pending)

@@ -1,6 +1,7 @@
 {
-  "name": "DeepSeek Harness",
-  "short_name": "DSH",
+  "name": "CodexyDSH",
+  "short_name": "CodexyDSH",
+  "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

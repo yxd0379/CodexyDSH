@@ -1,6 +1,7 @@
 /** Browser entry for the Web client. */
 import '@deepseek-ai/dsh-client-ui-theme/brand-font.css'
 import { AppWebEntry, applyIndexInjections } from '@deepseek-ai/dsh-client-web'
+import { embeddedTransport, isEmbeddedWeb } from './embedded-transport.ts'
 
 interface DesktopBootGlobal {
   dshDesktopBoot?: {
@@ -8,7 +9,8 @@ interface DesktopBootGlobal {
     ready(): Promise<{ injections: Parameters<typeof applyIndexInjections>[0]; streamBaseUrl: string }>
   }
 }
-const desktop = (globalThis as DesktopBootGlobal).dshDesktopBoot
+const embedded = isEmbeddedWeb(new URL(location.href), window.parent !== window)
+const desktop = embedded ? undefined : (globalThis as DesktopBootGlobal).dshDesktopBoot
 const reportFailure = (reason: unknown): void => {
   if (desktop === undefined) throw reason
   void desktop.failed(reason instanceof Error ? reason.message : String(reason)).catch(console.error)
@@ -17,6 +19,18 @@ const reportFailure = (reason: unknown): void => {
 try {
   const el = document.getElementById('root')
   if (el === null) throw new Error('web app: missing #root')
+  if (embedded) {
+    // The same-origin parent supplies an address, never its live Connection or preload objects.
+    const parent = window.parent as Window & { __DSH_TRANSPORT__?: { streamBaseUrl?: string } }
+    const transport = embeddedTransport(new URL(location.href), parent.__DSH_TRANSPORT__?.streamBaseUrl)
+    if (transport !== undefined) {
+      (globalThis as { __DSH_TRANSPORT__?: typeof transport }).__DSH_TRANSPORT__ = transport
+    }
+    // The child owns a Web document, not the native window's caption or keyboard bridge.
+    document.documentElement.removeAttribute('data-platform')
+    document.documentElement.removeAttribute('data-windows-titlebar')
+    document.documentElement.removeAttribute('data-fullscreen')
+  }
   const entry = new AppWebEntry(el)
   if (desktop !== undefined) {
     const gate = (globalThis as { __DSH_BOOT_READY__?: PromiseWithResolvers<void> }).__DSH_BOOT_READY__

@@ -5,11 +5,10 @@ import type { ComponentProps } from 'react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { HoverCardGroup, MenuItemButton, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MenuOpenState, SessionRowOwnerProps } from '../src/client/contract/slots.ts'
-import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { RowDragProps } from '../src/client/rows/Rows.tsx'
 import {
   ProjectRowItem, SearchResultItem, SessionNodeItem as SessionNodeItemComponent,
@@ -20,7 +19,7 @@ import { en, zh } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const t = makeTranslate(zh, commonZh) as never
-const tEn = makeTranslate(en, commonEn) as never
+const tEn = makeTranslate(en, commonZh) as never
 
 const sid = (id: string) => id as SessionId
 const wid = (id: string) => id as WorkspaceId

@@ -55,6 +55,8 @@
     }
   },
   "dependencies": {
+    "@codexydsh/remote": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-remote": "workspace:*",
     "@deepseek-ai/dsh-agent-instructions": "workspace:*",
     "@deepseek-ai/dsh-agent-preset": "workspace:*",
     "@deepseek-ai/dsh-agent-preset-registry": "workspace:*",

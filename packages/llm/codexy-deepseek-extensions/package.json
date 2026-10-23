@@ -1,0 +1,24 @@
+{
+  "name": "@codexydsh/deepseek-extensions",
+  "version": "0.1.0",
+  "description": "Fail-before-dispatch DeepSeek extension preparation and joint acceptance",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-deepseek-llm-api-extensions": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-deepseek-llm-api-extensions": "workspace:*"
+  }
+}

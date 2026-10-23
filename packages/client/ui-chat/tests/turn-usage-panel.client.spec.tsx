@@ -3,12 +3,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { TurnUsagePanel } from '../src/client/chat/TurnUsagePanel.tsx'
 import type { TurnTokenUsage } from '../src/client/contract/chat-nodes.ts'
 import { en } from '../src/client/locale.ts'
 
-const t = makeTranslate(en, commonEn)
+const t = makeTranslate(en, commonZh)
 
 afterEach(cleanup)
 

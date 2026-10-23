@@ -69,7 +69,7 @@ kind: "package-reference"
 
 配置的默认值与白名单必须引用已声明 preset。preset 内的工具在 Agent 初始化期间检查这些 id 并读取描述；直接挂载在 Host 的工具在加载时检查。此检查不激活候选 preset。创建子级时，选中 preset 的激活失败会拒绝组装。两个选择字段都省略时，工具不要求 preset 服务。模型省略选择时使用配置的 `agentPreset`；若也没有默认值，则加入父方当前 preset 代际。任何显式 id 都挂载当前可用代际，即使与父方 id 相同。
 
-在 [preset 插件列表](../../preset/agent-preset-registry/README.zh.md)中配置 persona 与工具。包含 `persona` 或 `toolFilter` 的工具配置在加载时会报迁移错误。本地子级采用共享的 [preset 恢复规则](../subagent/README.zh.md#restoring-child-composition)。
+在 [preset 插件列表](../../preset/agent-preset-registry/README.zh.md)中配置 persona 与工具。包含 `persona` 或 `toolFilter` 的工具配置在加载时会报迁移错误。本地子级采用共享的 [preset 恢复规则](../subagent/README.md#restoring-child-composition)。
 
 ### 选择子级 LLM
 

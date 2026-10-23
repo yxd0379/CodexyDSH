@@ -7,7 +7,7 @@ import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import type { ExecFileOptions } from 'node:child_process'
 import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { DesktopCommandManager } from '../src/command-management.ts'
-import { en, zh, type DesktopMessages } from '../src/locale.ts'
+import { zh } from '../src/locale.ts'
 
 const external = vi.hoisted(() => ({ shell: null as string | null, cancelAuthorization: false, elevations: 0 }))
 
@@ -37,7 +37,6 @@ async function fixture(options: {
   managed?: boolean
   shadowed?: boolean
   elevate?: boolean
-  messages?: DesktopMessages
 } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-command-dialog-'))
   onTestFinished(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
@@ -52,9 +51,9 @@ async function fixture(options: {
   await writeFile(join(worker, 'package.json'), '{"type":"module"}\n')
   const state = {
     fingerprint: 'a'.repeat(64), managed: options.managed ?? false, available: true, kind: options.managed ? 'symlink' : 'file',
-    destination: join(root, process.platform === 'win32' ? 'dsh.cmd' : 'dsh'),
+    destination: join(root, process.platform === 'win32' ? 'codexydsh.cmd' : 'codexydsh'),
     directory: root, launcher: join(root, 'desktop-dsh'),
-    activeCommand: options.managed && !options.shadowed ? join(root, process.platform === 'win32' ? 'dsh.cmd' : 'dsh') : join(root, 'other-dsh'),
+    activeCommand: options.managed && !options.shadowed ? join(root, process.platform === 'win32' ? 'codexydsh.cmd' : 'codexydsh') : join(root, 'other-dsh'),
   }
   if (process.platform === 'darwin') {
     const shell = join(root, 'lookup-shell')
@@ -83,7 +82,7 @@ async function fixture(options: {
   const show = vi.fn<(options: MessageBoxOptions) => Promise<MessageBoxReturnValue>>()
   const manager = new DesktopCommandManager({
     resources, isPackaged: true, isInstalledLocation: () => true, isInstalling: () => false, isQuitting: () => false,
-    messages: () => options.messages ?? en, show,
+    messages: () => zh, show,
   })
   const calls = async (): Promise<Array<{ operation: string; expected?: string }>> =>
     (await readFile(join(worker, 'calls.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line) as { operation: string; expected?: string })
@@ -95,7 +94,7 @@ it('requires confirmation before replacing an existing command', async () => {
   f.show.mockResolvedValueOnce({ response: 0, checkboxChecked: false })
     .mockResolvedValueOnce({ response: 1, checkboxChecked: false })
   await f.manager.show()
-  expect(f.show.mock.calls[1]![0]).toMatchObject({ message: en.cliCommandSwitch, defaultId: 1, cancelId: 1 })
+  expect(f.show.mock.calls[1]![0]).toMatchObject({ message: zh.cliCommandSwitch, defaultId: 1, cancelId: 1 })
   expect(await f.calls()).toEqual([{ operation: 'inspect' }])
 })
 
@@ -104,23 +103,23 @@ it('passes the displayed fingerprint and reports a stale worker refusal', async 
   f.show.mockResolvedValue({ response: 0, checkboxChecked: false })
   await f.manager.show()
   expect(await f.calls()).toEqual([{ operation: 'inspect' }, { operation: 'install', expected: 'a'.repeat(64) }])
-  expect(f.show.mock.lastCall![0].message).toBe(en.cliCommandChanged)
+  expect(f.show.mock.lastCall![0].message).toBe(zh.cliCommandChanged)
 })
 
-it.each([['en-US', en], ['zh-CN', zh]] as const)('repairs its own selected command without a switch confirmation in %s', async (locale, messages) => {
-  const f = await fixture({ managed: true, messages })
+it('repairs its own selected command without a switch confirmation', async () => {
+  const f = await fixture({ managed: true })
   f.show.mockResolvedValueOnce({ response: 1, checkboxChecked: false }).mockResolvedValue({ response: 0, checkboxChecked: false })
   await f.manager.show()
   expect(await f.calls()).toEqual([{ operation: 'inspect' }, { operation: 'install', expected: 'a'.repeat(64) }, { operation: 'inspect' }])
   await expect(JSON.stringify(f.show.mock.calls.map(([options]) => ({ message: options.message, buttons: options.buttons })), null, 2) + '\n')
-    .toMatchFileSnapshot(join(import.meta.dirname, 'expected', `command-repair-${locale}.json`))
+    .toMatchFileSnapshot(join(import.meta.dirname, 'expected', 'command-repair-zh-CN.json'))
 })
 
 it('keeps confirmation when repairing a command shadowed by another installation', async () => {
   const f = await fixture({ managed: true, shadowed: true })
   f.show.mockResolvedValue({ response: 1, checkboxChecked: false })
   await f.manager.show()
-  expect(f.show.mock.calls[1]![0].message).toBe(en.cliCommandSwitch)
+  expect(f.show.mock.calls[1]![0].message).toBe(zh.cliCommandSwitch)
   expect(await f.calls()).toEqual([{ operation: 'inspect' }])
 })
 
@@ -130,7 +129,7 @@ it.skipIf(process.platform !== 'darwin')('keeps a declined worker response throu
   await f.manager.show()
   expect(external.elevations).toBe(1)
   expect(await f.calls()).toEqual([{ operation: 'inspect' }, { operation: 'install', expected: 'a'.repeat(64) }, { operation: 'install', expected: 'a'.repeat(64) }])
-  expect(f.show.mock.lastCall![0]).toMatchObject({ message: en.cliCommandChanged, technicalDetails: 'worker declined' })
+  expect(f.show.mock.lastCall![0]).toMatchObject({ message: zh.cliCommandChanged, technicalDetails: 'worker declined' })
 })
 
 it.skipIf(process.platform !== 'darwin')('returns without an error dialog when administrator authorization is cancelled', async () => {

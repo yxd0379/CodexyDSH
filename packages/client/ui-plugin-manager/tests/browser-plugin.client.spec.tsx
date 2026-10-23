@@ -174,9 +174,8 @@ describe('ui-plugin-manager browser plugin', () => {
     expect(Object.keys(overlayFace.hooks)).toEqual(['pluginManager'])
     const text = { en: 'Local tools', zh: '本地工具' }
     expect(face.resolveText(text)).toBe('本地工具')
-    b.locale.setLocale('en')
-    expect(face.resolveText(text)).toBe('Local tools')
-    b.locale.setLocale('zh')
+
+
     expect(face.hooks.configLedger.getSnapshot()).toEqual({ items: [], bundles: new Set(), rows: new Set() })
     // A Host change before the first render is not a reason to read.
     b.remote.emit('plugin-manager/changed', [{ reason: 'install' }])

@@ -135,4 +135,9 @@ export interface Shortcuts {
    * @returns disposer removing the binding and catalog entry.
    */
   register(command: ShortcutCommand): () => void
+  /**
+   * Invoke a registered menu action using this document's current focus and modal owner.
+   * @param id - command registered in this client; unknown commands do nothing.
+   */
+  invoke(id: ShortcutCommandId): void
 }

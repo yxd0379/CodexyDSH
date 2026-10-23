@@ -1,77 +1,42 @@
-# DeepSeek Harness
+# CodexyDSH
 
-English | [中文](README.zh.md)
+CodexyDSH 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的独立编程 agent 客户端，组合 Codexy 的运行时、工具与 Harness 的 Session 服务和原生 Web/Desktop 界面，不再向官方 DSH 安装扩展。
 
-DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
+内部能力仍通过 Cordis 插件与现有 profile 启动链组合；不为改名而改名，因此保留部分上游包名和内部 `dsh` 命令。
 
-It is built on an **everything-is-a-plugin** architecture and powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).
+当前仍在迁移中，不会自动导入官方或旧 Codexy 对话，也不会代替用户配置模型。添加 SSH 主机并连接后，应用可自动部署独立的远端服务；现阶段支持 Linux ARM64。
 
-Documentation: [https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
+## 从源码运行
 
-## Developer preview
-
-DeepSeek Harness is in _developer preview_ and iterating rapidly. **THERE WILL BE COMPATIBILITY-BREAKING CHANGES.**
-
-Review the [safety notice](SAFETY.md) before running the project.
-
-## Run
-
-### Run from `npm`
-
-Install `Node.js`, then run:
+使用 Node.js `^22.19` 或 `>=24`，pnpm 版本见 `package.json`。
 
 ```sh
-npx @deepseek-ai/dsh web
-```
-
-The command starts the Web UI at `http://127.0.0.1:3080` by default and opens it in the default browser for a local launch. An SSH launch only prints the host URL because the SSH client or editor owns the local forwarded address. Pass `--no-open` to run the server without opening a browser. See [Web UI guide](docs/user/guide/index.md).
-
-### Run from source
-
-To run from a repository checkout:
-
-```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
 pnpm install
-pnpm run build
-pnpm dsh web
+pnpm build
+pnpm dsh web --no-open
 ```
 
-`pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
+Web 默认地址为 `http://127.0.0.1:3082`。发送任务前，请在本应用的设置中配置模型。官方 npm 包启动的仍是官方 DSH，不是本 fork。
 
-## Community and support
-
-- Submit feedback or bug reports through [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions).
-- Add the [`dsh-plugin`](https://github.com/topics/dsh-plugin) topic to your plugin repository for discoverability.
-- Join <a href="https://discord.gg/4MrtZUhpxg">DeepSeek Harness Discord community</a>.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Development
-
-Start with the [development guide](docs/development.md) and [architecture documentation](docs/architecture.md).
-
-`pnpm run dev:web` builds, serves, and rebuilds client bundles on source edits in one terminal, and `make help` lists the matching Make targets for Web and Desktop; the guide's application commands section owns the full table.
-
-For agents, follow [AGENTS.md](AGENTS.md).
-
-## Citation
-
-```bibtex
-@misc{deepseek-harness2026,
-  title={DeepSeek Harness: Everything is a Plugin},
-  author={DeepSeek-AI},
-  year={2026},
-  publisher={GitHub},
-  howpublished={\url{https://github.com/deepseek-ai/deepseek-harness}},
-}
+```sh
+pnpm dsh headless "task"
+pnpm start:desktop
 ```
 
-## License
+`pnpm build:artifacts` 构建可运行产物，`pnpm build:check` 基于最新产物检查聚合程序。开发 Web 时，`pnpm dev:web` 会重建客户端 bundle。桌面运行与打包说明见 [apps/desktop](apps/desktop/README.md)。
 
-[MIT](LICENSE)
+## 与官方 DSH 共存
 
-Third-party dependencies and their licenses are disclosed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+默认数据目录为 `~/.codexydsh`。桌面端使用独立应用身份和单实例目录，注册 `codexydsh`，不改官方 `dsh` 命令。显式 `DSH_HOME` 会覆盖默认路径；若要数据独立，不要将它指向 `~/.dsh`。
+
+默认不配置官方更新下载源。保持官方应用和数据不变，无需安装之前的 Codexy 插件。数据与更新行为见[升级说明](docs/upgrade-guide/v0.2.1-rc.2/independent-product/guide.md)。
+
+## 架构
+
+[架构概览](docs/architecture.md)说明产品装配和共享基础设施。源码继续按 `packages/<group>/<package>` 分组，不另建一套包目录或启动器。
+
+## 来源与许可
+
+上游 Harness 与 Cordis 代码保留原有许可证和声明。本 fork 并非 DeepSeek 官方客户端。[MIT](LICENSE)。
+
+第三方依赖及许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

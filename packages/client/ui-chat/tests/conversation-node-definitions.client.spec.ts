@@ -225,6 +225,57 @@ function toolResult(callId: string, text: string, isError = false) {
 }
 
 describe('built-in conversation node Definitions', () => {
+  it.each([
+    'The user interrupted the previous turn on purpose.',
+    'The previous turn was interrupted on purpose.',
+  ])('keeps the runtime interruption notice out of Chat after %s', (opening) => {
+    const text = `<turn_aborted>\n${opening} Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.\n</turn_aborted>`
+    const entries = [
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', textMessage('human', 'question'), { surfaceOp: 'append' }),
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      at(4, 'assistant/live-chunk', { turn: 1, step: 1,
+        chunk: { type: 'text-delta', index: 0, text: 'partial answer' } }),
+      at(5, 'step/end', { turn: 1, step: 1 }),
+      at(6, 'turn/end', { turn: 1, reason: { kind: 'aborted', reason: { kind: 'user' } } }),
+      at(7, 'user/message', textMessage('internal-notice', text), { surfaceOp: 'append', sourceEventSeqs: [6] }),
+    ]
+    const cold = assembler(entries)
+    const live = assembler()
+    for (const entry of entries) { live.append(entry); live.flush() }
+    for (const value of [cold, live]) {
+      const current = snapshot(value)
+      const internal = node(current, 'context')
+      expect(internal?.data).toMatchObject({ content: [{ type: 'text', text }] })
+      expect(current.order).not.toContain(internal?.key)
+      expect(current.order.map(key => current.nodes.get(key)?.kind).filter(kind => kind === 'user')).toEqual(['user'])
+      expect(node(current, 'assistant-step')?.data).toMatchObject({ blocks: [{ kind: 'text', text: 'partial answer' }] })
+
+      value.append(at(8, 'turn/start', { turn: 2 }))
+      value.append(at(9, 'step/start', { turn: 2, step: 1 }))
+      value.append(at(10, 'developer/message', { turn: 2, step: 1, message: {
+        id: 'developer-notice', role: 'developer', content: [{ type: 'text', text }], source: { kind: 'user' },
+      } }, { surfaceOp: { op: 'replace', startSeq: 7, endSeq: 7 }, sourceEventSeqs: [7, 6] }))
+      value.flush()
+      const replaced = snapshot(value)
+      expect(replaced.order.some(key => (replaced.nodes.get(key)?.data as { content?: { text?: string }[] })
+        .content?.some(block => block.text === text))).toBe(false)
+    }
+  })
+
+  it('preserves identical interruption XML typed by a human without the runtime source link', () => {
+    const text = '<turn_aborted>\nThe user interrupted the previous turn on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.\n</turn_aborted>'
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'turn/end', { turn: 1, reason: { kind: 'aborted', reason: { kind: 'user' } } }),
+      at(3, 'user/message', textMessage('human-xml', text), { surfaceOp: 'append' }),
+    ])
+    const current = snapshot(value)
+    const human = node(current, 'user')
+    expect(human?.data).toMatchObject({ content: [{ type: 'text', text }] })
+    expect(current.order).toContain(human?.key)
+  })
+
   it.each(['replay', 'live', 'prepend'] as const)('keeps developer tool changes visible while hiding ordinary Context (%s)', (mode) => {
     const entries = [
       at(0, 'request/header', { reason: 'initial', header: {
@@ -474,7 +525,7 @@ describe('built-in conversation node Definitions', () => {
       reason: { kind: 'aborted', reason: { kind: 'user' } },
     }))
     value.flush()
-    expect(process()).toMatchObject({ answerAnchorSeq: 14.1, answerStep: 2 })
+    expect(process()).toMatchObject({ answerAnchorSeq: null, answerStep: null })
 
     const recovered = assembler([
       at(20, 'turn/start', { turn: 2 }),
@@ -491,7 +542,7 @@ describe('built-in conversation node Definitions', () => {
     ])
     const recoveredProcess = snapshot(recovered).timeline.turns.get(2)?.data.get('turn-process')
     expect(recoveredProcess)
-      .toMatchObject({ answerStep: 2, answerAnchorSeq: 25.1 })
+      .toMatchObject({ answerStep: null, answerAnchorSeq: null })
 
     const partialWindow = assembler([
       at(30, 'assistant/live-chunk', {
@@ -501,10 +552,11 @@ describe('built-in conversation node Definitions', () => {
     ], true)
     const partialProcess = snapshot(partialWindow).timeline.turns.get(3)?.data.get('turn-process')
     expect(partialProcess)
-      .toMatchObject({ processStartSeq: 30.1, answerAnchorSeq: 30.1, answerStep: 4 })
+      .toMatchObject({ processStartSeq: 30, answerAnchorSeq: null, answerStep: null })
   })
 
-  it('counts Assistant messages, Tool calls, and subagent delegations per Turn', () => {
+  it.each(['subagent_fork', 'spawn_agent', 'multi_agent_v1__spawn_agent'])(
+    'counts Assistant messages, Tool calls, and %s delegations per Turn', (delegationName) => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
       at(2, 'step/start', { turn: 1, step: 1 }),
@@ -518,7 +570,7 @@ describe('built-in conversation node Definitions', () => {
         turn: 1, step: 1, message: toolResult('call-read', 'read done'),
       }, { surfaceOp: 'append' }),
       at(6, 'tool/call', {
-        turn: 1, step: 1, callId: 'call-subagent', name: 'subagent_fork', arguments: '{}',
+        turn: 1, step: 1, callId: 'call-subagent', name: delegationName, arguments: '{}',
       }),
       at(7, 'tool/result', {
         turn: 1, step: 1, message: toolResult('call-subagent', 'delegation done'),

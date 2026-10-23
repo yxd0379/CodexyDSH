@@ -1,0 +1,25 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../api/remotes/tsconfig.client.json" },
+    { "path": "../../api/session-controller/tsconfig.client.json" },
+    { "path": "../../api/workspace-controller/tsconfig.client.json" },
+    { "path": "../connection/tsconfig.client.json" },
+    { "path": "../locale/tsconfig.client.json" },
+    { "path": "../store" },
+    { "path": "../shortcuts/tsconfig.client.json" },
+    { "path": "../ui-layout" },
+    { "path": "../ui-primitives" },
+    { "path": "../ui-renderer" },
+    { "path": "../ui-session" },
+    { "path": "../ui-slots" },
+    { "path": "../ui-settings/tsconfig.client.json" },
+    { "path": "../ui-workspace" },
+    { "path": "../ui-directory-picker-browse" },
+    { "path": "../../core/session" },
+    { "path": "../../ssh/codexy-remote" }
+  ]
+}

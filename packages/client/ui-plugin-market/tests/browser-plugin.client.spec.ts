@@ -24,7 +24,7 @@ it('contributes Discover to the Plugins page, follows Host changes, and withdraw
   const fiber = await ctx.plugin({ inject: [...inject], apply }).await()
   const [entry] = slots.entries('plugins.tab')
   expect(entry?.options.id).toBe('discover')
-  expect(resolveSlotLabel(entry?.options.label)).toBe('Discover')
+  expect(resolveSlotLabel(entry?.options.label)).toBe('发现')
   remote.emit('plugin-market/changed', [])
   remote.emit('plugin-manager/changed', [{ reason: 'install' }])
   ctx.emit('connection/reset')

@@ -11,7 +11,7 @@ import type { WelcomeSaveResult, WelcomeNotice } from '../src/welcome-api.ts'
 const html = readFileSync(join(import.meta.dirname, '../renderer/welcome.html'), 'utf8')
 afterEach(cleanup)
 
-function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotice | undefined>>().mockResolvedValue(undefined)) {
+function mount(takeNotice = vi.fn<() => Promise<WelcomeNotice | undefined>>().mockResolvedValue(undefined)) {
   cleanup()
   const stopAccount = vi.fn()
   const api = {
@@ -22,7 +22,7 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
     startSignIn: vi.fn(async (): Promise<AccountView> => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null })),
     cancelSignIn: vi.fn(async (): Promise<AccountView> => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null })),
     copySignInLink: vi.fn(async () => undefined),
-    ...resolveDesktopLocale(language),
+    ...resolveDesktopLocale(),
     saveApiKey: vi.fn<(value: string) => Promise<WelcomeSaveResult>>().mockResolvedValue({ ok: true }),
     skip: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   }
@@ -48,15 +48,15 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
 }
 
 describe('desktop welcome presentation', () => {
-  it.each(['zh-CN', 'en'])('renders the %s entry and API-key step', async (language) => {
-    const view = mount(language)
-    expect(view.document.documentElement.lang).toBe(language)
+  it('renders the Chinese entry and API-key step', async () => {
+    const view = mount()
+    expect(view.document.documentElement.lang).toBe('zh-CN')
     expect(view.document.querySelector('img')!.getAttribute('src')).toBe('assets/welcome-brand.svg')
-    await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${language}.expected.txt`)
+    await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/zh-CN.expected.txt`)
     fireEvent.click(view.button('#api-key'))
     expect(view.document.activeElement).toBe(view.input)
     expect(view.input.type).toBe('password')
-    await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${language}-api-key.expected.txt`)
+    await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/zh-CN-api-key.expected.txt`)
   })
 
   it('sends one trimmed key, prevents competing actions, and clears it after saving', async () => {
@@ -156,27 +156,27 @@ describe('desktop welcome presentation', () => {
   })
 })
 
-it.each(['zh-CN', 'en'])('renders %s timeout with manual retry and API-key alternative', async (language) => {
-  const view = mount(language)
+it('renders timeout with manual retry and API-key alternative', async () => {
+  const view = mount()
   const receive = (state: AccountView) => { act(() => { view.api.onAccountState.mock.calls[0]![0](state) }) }
   receive({ status: 'signed-out', links: { usageUrl: '', topUpUrl: '' }, attempt: { id: 'expired' as NonNullable<AccountView['attempt']>['id'], phase: 'expired' } })
   expect(view.button('#auth-retry').hidden).toBe(false)
   expect(view.button('#auth-api-key').hidden).toBe(false)
   expect(view.api.startSignIn).not.toHaveBeenCalled()
-  await expect(view.copy() + view.document.querySelector('#auth-description')!.textContent + '\n').toMatchFileSnapshot(`./expected/welcome/${language}-timeout.expected.txt`)
+  await expect(view.copy() + view.document.querySelector('#auth-description')!.textContent + '\n').toMatchFileSnapshot(`./expected/welcome/zh-CN-timeout.expected.txt`)
   fireEvent.click(view.button('#auth-api-key'))
   expect(view.document.querySelector('#auth-page')!.hasAttribute('hidden')).toBe(true)
   expect(view.document.querySelector('#key-form')!.hasAttribute('hidden')).toBe(false)
 })
 
-it.each(['zh-CN', 'en'])('renders %s browser fallback and copies only the active login link', async (language) => {
-  const view = mount(language)
+it('renders browser fallback and copies only the active login link', async () => {
+  const view = mount()
   const receive = (state: AccountView) => { act(() => { view.api.onAccountState.mock.calls[0]![0](state) }) }
   const waiting: AccountView = { status: 'signed-out', links: { usageUrl: '', topUpUrl: '' },
     attempt: { id: 'waiting' as NonNullable<AccountView['attempt']>['id'], phase: 'waiting-browser', authorizeUrl: 'https://example.test/login' } }
   receive(waiting)
   await expect(view.copy() + view.document.querySelector('#auth-description')!.textContent + '\n')
-    .toMatchFileSnapshot(`./expected/welcome/${language}-waiting.expected.txt`)
+    .toMatchFileSnapshot(`./expected/welcome/zh-CN-waiting.expected.txt`)
   fireEvent.click(view.button('#auth-copy'))
   await vi.waitFor(() => { expect(view.button('#auth-copy').textContent).toBe(view.api.messages.welcomeAuthCopied) })
   expect(view.api.copySignInLink).toHaveBeenCalledWith('waiting')
@@ -236,7 +236,7 @@ it('keeps the key draft while account notifications arrive and releases the subs
 it.each(['copied', 'failed'] as const)('restores the copy action after %s feedback and cleans up on unmount', async (result) => {
   vi.useFakeTimers()
   try {
-    const view = mount('en')
+    const view = mount()
     if (result === 'failed') view.api.copySignInLink.mockRejectedValue(new Error('clipboard unavailable'))
     const waiting: AccountView = { status: 'signed-out', links: { usageUrl: '', topUpUrl: '' },
       attempt: { id: 'waiting' as NonNullable<AccountView['attempt']>['id'], phase: 'waiting-browser' } }
@@ -264,11 +264,11 @@ it.each(['copied', 'failed'] as const)('restores the copy action after %s feedba
   }
 })
 
-it.each(['zh-CN', 'en'])('keeps the expiry notice visible after returning to Welcome: %s', async (language) => {
+it('keeps the expiry notice visible after returning to Welcome', async () => {
   vi.useFakeTimers()
   try {
     const takeNotice = vi.fn<() => Promise<WelcomeNotice | undefined>>().mockResolvedValue(undefined).mockResolvedValueOnce('session-expired')
-    const view = mount(language, takeNotice)
+    const view = mount(takeNotice)
     await act(async () => {})
     const publish = view.api.onAccountState.mock.calls[0]![0]
     const expired: AccountView = { status: 'signed-out', attempt: null,
@@ -276,14 +276,14 @@ it.each(['zh-CN', 'en'])('keeps the expiry notice visible after returning to Wel
     await act(async () => { publish(expired) })
     const notice = screen.getByRole('alert')
     expect(notice.textContent).toBe(view.api.messages.welcomeSessionExpired)
-    await expect(`${notice.textContent}\n`).toMatchFileSnapshot(`./expected/welcome/${language}-expired.expected.txt`)
+    await expect(`${notice.textContent}\n`).toMatchFileSnapshot(`./expected/welcome/zh-CN-expired.expected.txt`)
     expect(view.button('#sign-in').closest('[hidden]')).toBeNull()
     await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
     expect(screen.queryByRole('alert')).toBeNull()
     await act(async () => { publish(expired) })
     expect(screen.queryByRole('alert')).toBeNull()
     view.unmount()
-    mount(language, takeNotice)
+    mount(takeNotice)
     await act(async () => {})
     expect(screen.queryByRole('alert')).toBeNull()
   } finally { cleanup(); vi.useRealTimers() }
@@ -299,7 +299,7 @@ it('does not infer a notification from a retained expired account snapshot', asy
 })
 
 it('keeps the entry usable when notification IPC fails', async () => {
-  const view = mount('en', vi.fn<() => Promise<WelcomeNotice | undefined>>().mockRejectedValue(new Error('closed')))
+  const view = mount(vi.fn<() => Promise<WelcomeNotice | undefined>>().mockRejectedValue(new Error('closed')))
   await act(async () => {})
   expect(screen.queryByRole('alert')).toBeNull()
   fireEvent.click(view.button('#api-key'))
@@ -308,16 +308,16 @@ it('keeps the entry usable when notification IPC fails', async () => {
 
 it('ignores a notification received after its renderer unmounts', async () => {
   const pending = Promise.withResolvers<WelcomeNotice | undefined>()
-  const view = mount('en', vi.fn<() => Promise<WelcomeNotice | undefined>>().mockReturnValue(pending.promise))
+  const view = mount(vi.fn<() => Promise<WelcomeNotice | undefined>>().mockReturnValue(pending.promise))
   view.unmount()
-  mount('en')
+  mount()
   await act(async () => { pending.resolve('session-expired') })
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
 
-it.each(['zh-CN', 'en'])('returns from completed sign-in to the initial page after sign-out: %s', async (language) => {
-  const view = mount(language)
+it('returns from completed sign-in to the initial page after sign-out', async () => {
+  const view = mount()
   const publish = view.api.onAccountState.mock.calls[0]![0]
   const links = { usageUrl: 'https://example.test/usage', topUpUrl: 'https://example.test/top_up' }
   act(() => { publish({ status: 'credential-stored', links,
@@ -326,5 +326,5 @@ it.each(['zh-CN', 'en'])('returns from completed sign-in to the initial page aft
   act(() => { publish({ status: 'signed-out', links, attempt: null }) })
   expect(view.button('#sign-in').closest('[hidden]')).toBeNull()
   expect(view.document.querySelector<HTMLElement>('#auth-page')!.hidden).toBe(true)
-  await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${language}.expected.txt`)
+  await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/zh-CN.expected.txt`)
 })

@@ -6,7 +6,6 @@ import type {
   AssistantMessageNode, ChatSnapshot, LegacyConversationSlice, ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 import { ActivityPill, UsagePill, deriveStats, formatDuration, type StatPillProps } from '../src/client/chat/StatsPills.tsx'
@@ -15,7 +14,7 @@ import { en, zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 
 const t: StatPillProps['t'] = makeTranslate(zh, commonZh)
-const tEn: StatPillProps['t'] = makeTranslate(en, commonEn)
+const tEn: StatPillProps['t'] = makeTranslate(en, commonZh)
 
 /** Both composer-dock entries in their registered order, as the dock renders them. */
 function StatsPills(props: StatPillProps) {

@@ -1,32 +1,26 @@
-/** Materialize the complete production runtime before publishing Desktop resources. */
+/** Materialize the current workspace production closure before packaging Desktop resources. */
 
 import { resolveMacOSSignatureCacheDirectory } from './macos-signature-cache-directory.mjs'
 import { packagingStep } from './packaging-step.mjs'
 import { spawn } from 'node:child_process'
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join, relative, resolve } from 'node:path'
-import { desktopNodeEnvironment } from '../src/node-environment.ts'
-import { createRuntimeProjectMetadata } from '../src/project-manager.ts'
+import { join, relative, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import yaml from 'js-yaml'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { parseDesktopRelease, type DesktopRelease } from '../src/release.ts'
 import {
   DESKTOP_HOST_PACKAGE,
   DESKTOP_HOST_RUNTIME_FILES,
-  DESKTOP_PACKAGES_DIR,
-  DESKTOP_PACKAGE_SET_FILE,
-  readDesktopCorePackageSet,
-  verifyDesktopCoreLockfile,
 } from '../src/core-package-set.ts'
 import { smokePrimaryRuntime } from './prepare-primary-runtime.ts'
 import { smokePreparedRuntime } from './smoke-prepared-runtime.ts'
 import { prepareRuntimeManifests } from './prepare-runtime-manifests.ts'
-import { prepareRuntimePatches, verifyRuntimePatches } from './prepare-runtime-patches.ts'
 import { writeDesktopRuntime, verifyDesktopRuntime } from '../src/runtime-tree.ts'
 import {
   resolveDesktopAppId,
   resolveMacOSSigningEnvironment,
-  resolveNpmRegistry,
 } from './desktop-release-environment.mjs'
 import {
   signMacOSRuntime,
@@ -38,13 +32,9 @@ import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const BUILD_PATHS = resolveDesktopTargetBuildPaths()
 const DSH_OUTPUT_ROOT = BUILD_PATHS.dsh
-const BUILD_ROOT = mkdtempSync(join(tmpdir(), 'dsh-desktop-runtime-'))
-const STORE_ROOT = join(BUILD_ROOT, 'store')
 const RUNTIME_ROOT = BUILD_PATHS.runtime
-const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
-const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
+const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
 const NODE = join(BUILD_PATHS.electron, process.platform === 'win32' ? 'electron.exe' : 'Electron.app/Contents/MacOS/Electron')
-const PNPM = join(RUNTIME_ROOT, 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs')
 
 function manifestVersion(path: string, subject: string): string {
   const manifest = JSON.parse(readFileSync(path, 'utf8')) as { version?: unknown }
@@ -68,39 +58,32 @@ function desktopRelease(): DesktopRelease {
   })
 }
 
-function runPnpm(args: readonly string[]): Promise<void> {
+function deployWorkspaceRuntime(destination: string): Promise<void> {
+  // pnpm distinguishes local source identities from registry package names when approving scripts.
+  const sources = {
+    '@deepseek-ai/dsh-subprocess-local': 'packages/subprocess/subprocess-local',
+    '@codexydsh/processes': 'packages/subprocess/codexy-processes',
+  }
+  const approvals = Object.fromEntries(Object.entries(sources).map(([name, directory]) => [
+    `${name}@${pathToFileURL(resolve(REPOSITORY_ROOT, directory)).href}`, true,
+  ]))
+  const pnpmfile = resolve(destination, '..', 'workspace-build-approvals.cjs')
+  writeFileSync(pnpmfile, `module.exports = { hooks: { updateConfig(config) { return { ...config, allowBuilds: { ...config.allowBuilds, ...${JSON.stringify(approvals)} } } } } }\n`)
   return new Promise((resolvePromise, reject) => {
-    const [command, ...commandArgs] = args
-    if (command === undefined) throw new Error('desktop runtime: pnpm command is required')
-    const registry = resolveNpmRegistry(process.env)
-    const config = join(PNPM_BUILD_STATE, 'config')
-    const userConfig = join(config, 'npmrc')
-    mkdirSync(config, { recursive: true })
-    writeFileSync(userConfig, '')
+    const pnpm = process.env.npm_execpath
+    if (pnpm === undefined || pnpm === '') {
+      reject(new Error('desktop runtime: invoke preparation through a pnpm package command'))
+      return
+    }
     const child = spawn(NODE, [
-      '--expose-internals',
-      PNPM,
-      `--config.registry=${registry}`,
-      `--config.store-dir=${STORE_ROOT}`,
+      pnpm, '--filter', DESKTOP_HOST_PACKAGE, 'deploy', '--prod',
+      '--config.node-linker=hoisted',
       '--config.enable-global-virtual-store=false',
-      `--config.userconfig=${userConfig}`,
-      command,
-      ...commandArgs,
+      '--pnpmfile', pnpmfile,
+      destination,
     ], {
-      cwd: BUILD_ROOT,
-      env: {
-        ...Object.fromEntries(Object.entries(process.env).filter(([name]) => (
-          name !== 'NODE_OPTIONS' && name !== 'NODE_PATH' && !/^DSH_DESKTOP_/u.test(name) && !/^(?:npm|pnpm|corepack)_/iu.test(name)
-        ))),
-        NPM_CONFIG_REGISTRY: registry,
-        NPM_CONFIG_STORE_DIR: STORE_ROOT,
-        NPM_CONFIG_USERCONFIG: userConfig,
-        ...desktopNodeEnvironment(NODE, join(RUNTIME_ROOT, 'bin'), {}),
-        PATH: `${join(RUNTIME_ROOT, 'bin')}${delimiter}${process.env.PATH ?? ''}`,
-        XDG_CACHE_HOME: join(PNPM_BUILD_STATE, 'cache'),
-        XDG_CONFIG_HOME: config,
-        XDG_STATE_HOME: join(PNPM_BUILD_STATE, 'state'),
-      },
+      cwd: REPOSITORY_ROOT,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       stdio: 'inherit',
     })
     child.once('error', reject)
@@ -111,43 +94,61 @@ function runPnpm(args: readonly string[]): Promise<void> {
   })
 }
 
+/**
+ * Copy a deployed Host closure into the resource layout consumed by Desktop.
+ * @param source - Isolated pnpm deployment rooted at the private Host package.
+ * @param output - Build-owned runtime resource directory.
+ * @param target - Runtime platform and architecture.
+ * @param officeEngine - Office engine selected for the target.
+ */
+export function materializeDesktopWorkspaceRuntime(
+  source: string, output: string, target: { platform: NodeJS.Platform; arch: string }, officeEngine: string,
+): void {
+  const modules = join(source, 'node_modules')
+  cpSync(modules, join(output, 'node_modules'), {
+    recursive: true, dereference: true,
+    filter: path => desktopRuntimeFileExclusion(relative(modules, path), target, officeEngine) === undefined,
+  })
+  // deploy's selected package is its root; Desktop addresses its Host beside the CLI in node_modules.
+  const host = join(output, 'node_modules', DESKTOP_HOST_PACKAGE)
+  mkdirSync(host, { recursive: true })
+  cpSync(join(source, 'package.json'), join(host, 'package.json'))
+  for (const file of DESKTOP_HOST_RUNTIME_FILES) {
+    mkdirSync(resolve(host, file, '..'), { recursive: true })
+    cpSync(join(source, file), join(host, file))
+  }
+}
+
+function sharedWorkspacePackages(modules: string): string[] {
+  const workspace = yaml.load(readFileSync(join(REPOSITORY_ROOT, 'pnpm-workspace.yaml'), 'utf8')) as { packages: string[] }
+  return globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: REPOSITORY_ROOT })
+    .map(path => (JSON.parse(readFileSync(join(REPOSITORY_ROOT, path), 'utf8')) as { name: string }).name)
+    .filter(name => existsSync(join(modules, name, 'package.json')))
+    .sort()
+}
+
 async function main(): Promise<void> {
+  const buildRoot = mkdtempSync(join(tmpdir(), 'codexydsh-desktop-runtime-'))
   try {
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:reset', async () => {
       rmSync(DSH_OUTPUT_ROOT, { recursive: true, force: true })
-      rmSync(PNPM_BUILD_STATE, { recursive: true, force: true })
-      mkdirSync(STORE_ROOT, { recursive: true })
     })
     const release = desktopRelease()
-    const patches = await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:stage-packages', async () => {
-      copyFileSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGE_SET_FILE), join(BUILD_ROOT, DESKTOP_PACKAGE_SET_FILE))
-      cpSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGES_DIR), join(BUILD_ROOT, DESKTOP_PACKAGES_DIR), { recursive: true })
-      createRuntimeProjectMetadata(BUILD_ROOT, release)
-      return prepareRuntimePatches(BUILD_ROOT, resolve(APP_ROOT, '..', '..'))
-    })
-    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:lockfile', () => runPnpm(['install', '--lockfile-only']))
-    verifyRuntimePatches(BUILD_ROOT, patches)
-    verifyDesktopCoreLockfile(
-      readFileSync(join(BUILD_ROOT, 'pnpm-lock.yaml'), 'utf8'),
-      readDesktopCorePackageSet(BUILD_ROOT, release.version),
-    )
-    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:install', () => runPnpm(['install', '--prod', '--frozen-lockfile', '--trust-lockfile']))
-    const packageSet = readDesktopCorePackageSet(BUILD_ROOT, release.version)
+    const deployed = join(buildRoot, 'deployed')
+    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:deploy-workspace', () => deployWorkspaceRuntime(deployed))
     const targetName = resolveDesktopBuildTarget()
     const target = { platform: process.platform, arch: desktopTargetPlatform(targetName).arch }
-    const modules = join(BUILD_ROOT, 'node_modules')
+    const modules = join(deployed, 'node_modules')
     const officeManifest = JSON.parse(readFileSync(join(modules, '@deepseek-ai/libreoffice-kit/package.json'), 'utf8'))
     const officeEngine = selectOfficeEngine(officeManifest, target)
     mkdirSync(DSH_OUTPUT_ROOT, { recursive: true })
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:materialize-modules', async () => {
-      cpSync(modules, join(DSH_OUTPUT_ROOT, 'node_modules'), {
-        recursive: true, dereference: true,
-        filter: source => desktopRuntimeFileExclusion(relative(modules, source), target, officeEngine) === undefined,
-      })
+      materializeDesktopWorkspaceRuntime(deployed, DSH_OUTPUT_ROOT, target, officeEngine)
     })
+    const sharedNames = sharedWorkspacePackages(join(DSH_OUTPUT_ROOT, 'node_modules'))
     writeFileSync(join(DSH_OUTPUT_ROOT, 'package.json'), `${JSON.stringify({
       name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
-      dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
+      dependencies: Object.fromEntries(sharedNames.map(name => [name, manifestVersion(join(DSH_OUTPUT_ROOT, 'node_modules', name, 'package.json'), name)])),
     }, undefined, 2)}\n`)
     for (const file of DESKTOP_HOST_RUNTIME_FILES) {
       if (!existsSync(join(DSH_OUTPUT_ROOT, 'node_modules', DESKTOP_HOST_PACKAGE, file))) {
@@ -164,7 +165,7 @@ async function main(): Promise<void> {
     }
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:manifests', () => prepareRuntimeManifests(DSH_OUTPUT_ROOT))
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:primary-smoke', async () => smokePrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime')))
-    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:write-descriptor', async () => writeDesktopRuntime(DSH_OUTPUT_ROOT, release, packageSet.packages.map(entry => entry.name), target))
+    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:write-descriptor', async () => writeDesktopRuntime(DSH_OUTPUT_ROOT, release, sharedNames, target))
     const descriptor = await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:verify-before-smoke', () => verifyDesktopRuntime(DSH_OUTPUT_ROOT, release.version, target))
     if (!process.argv.includes('--defer-runtime-smoke')) {
       await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:smoke', () => smokePreparedRuntime(DSH_OUTPUT_ROOT, NODE, RUNTIME_ROOT, descriptor))
@@ -176,8 +177,7 @@ async function main(): Promise<void> {
   } finally {
     let cleaned = false
     const cleanup = (): void => {
-      try { rmSync(BUILD_ROOT, { recursive: true, force: true }) }
-      finally { rmSync(PNPM_BUILD_STATE, { recursive: true, force: true }) }
+      rmSync(buildRoot, { recursive: true, force: true })
       cleaned = true
     }
     try { await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:cleanup', async () => cleanup()) }
@@ -185,4 +185,4 @@ async function main(): Promise<void> {
   }
 }
 
-await main()
+if (import.meta.main) await main()

@@ -1,0 +1,52 @@
+{
+  "name": "@codexydsh/processes",
+  "description": "Local-subprocess implementation of the DeepSeek Harness subprocess seam",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./runner": {
+      "types": "./lib/types/bin.d.ts",
+      "default": "./lib/bin.js"
+    },
+    "./package.json": "./package.json",
+    "./output": {
+      "types": "./lib/types/output.d.ts",
+      "default": "./lib/output.js"
+    }
+  },
+  "files": [
+    "lib",
+    "scripts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-lazy-require": "workspace:*",
+    "@deepseek-ai/dsh-win32-process": "workspace:*"
+  },
+  "dependencies": {
+    "koffi": "^3.1.0",
+    "node-pty": "1.2.0-beta.15"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-lazy-require": "workspace:*",
+    "@deepseek-ai/dsh-win32-process": "workspace:*"
+  },
+  "scripts": {
+    "postinstall": "node scripts/ensure-spawn-helper.mjs"
+  }
+}

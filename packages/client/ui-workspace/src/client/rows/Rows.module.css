@@ -106,6 +106,45 @@
   height: 20px;
 }
 
+/* The source label and actions overlay the same reserved width: titles never shift on hover. */
+.sourcedProject {
+  position: relative;
+  padding-right: 82px;
+}
+
+.sourcedProject .rowActions {
+  position: absolute;
+  right: 8px;
+  width: 66px;
+  justify-content: flex-end;
+}
+
+.hostBadge {
+  position: absolute;
+  right: 8px;
+  max-width: 66px;
+  box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-sm);
+  padding: 0 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.sourcedProject:hover .hostBadge,
+.sourcedProject.menuOpen .hostBadge,
+.sourcedProject:focus-within .hostBadge {
+  visibility: hidden;
+}
+
+.sourcedProject:focus-within .rowActions {
+  display: inline-flex;
+}
+
 /* Session cell (figma): pad 8, a 16px status slot, then a 4px title gap. */
 .sessionRow {
   height: 32px;

@@ -124,7 +124,7 @@ skill 可以是被扫描根目录顶层的目录 bundle `<name>/SKILL.md`，也�
 - [skill 子系统参考](../../../docs/subsystems/skills.zh.md)——注册表约定与本地发现优先级表。
 - [skill 包](../skill/README.zh.md)——该提供方注册到的注册表。
 - [tool-skill 包](../tool-skill/README.zh.md)——已发现 skill 如何到达会话目录与模型。
-- [home-paths 包](../../util/home-paths/README.zh.md)——`dshHome` 与 `agentsHome` 如何解析。
+- [home-paths 包](../../util/home-paths/README.md)——`dshHome` 与 `agentsHome` 如何解析。
 
 -----
 

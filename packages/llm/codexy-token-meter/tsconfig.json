@@ -1,0 +1,45 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../compaction/compaction"
+    },
+    {
+      "path": "../../compaction/compaction-image-offload"
+    },
+    {
+      "path": "../../core/codexy-runtime"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../util/values"
+    },
+    {
+      "path": "../codexy-retry"
+    },
+    {
+      "path": "../llm"
+    },
+    {
+      "path": "../token-meter"
+    }
+  ]
+}

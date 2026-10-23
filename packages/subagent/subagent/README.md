@@ -1,37 +1,35 @@
 ---
-description: "The subagent delegation seam for users and maintainers choosing a provider backend, composing delegation tools, or debugging child-agent runs."
+description: "面向用户与维护者的 subagent 委派 seam，用于选择提供方后端、组装委派工具或排查子 agent（智能体）运行问题。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-subagent
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+`dsh-subagent` 通过具名提供方委派工作，并收集受管理 activation 的结果。本地 spawn 和 fork 子级保留持久会话以接受后续消息；ACP、DSH SDK、Codex 与 Claude Code 执行一次。所有子级共享准入、取消、所有权与发现机制。使用时组合服务、提供方和委派工具。
 
-Use `dsh-subagent` to delegate work through named providers and collect managed activation results. Local spawn and fork children retain durable sessions for later messages; ACP, DSH SDK, Codex, and Claude Code execute once. Every child shares admission, cancellation, ownership, and discovery. Compose the service with a provider and a delegation tool.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Each start accepts an optional `cwd`; relative paths resolve against the parent's current working directory, and omission captures that current directory. The child keeps its parent's origin metadata and permission roots. A child-owned directory value follows any inherited history, survives continuation and restart, and is independent of later parent changes.
+每次启动可传入可选的 `cwd`；相对路径以父级当前工作目录解析，省略时捕获该当前目录。子级保留父级的起始目录元数据与权限根目录。子级自己的目录值位于继承历史之后，在继续与重启后保留，并独立于父级之后的目录变化。
 
-This package is the contract every delegation setup shares. You enable it by mounting the service together with one or more provider backends and the model-facing delegation tool; from then on, an agent can delegate work and the service routes each request to the named provider.
+本包是每个委派组合都共享的约定。你通过把服务与一个或多个提供方后端以及面向模型的委派工具一起挂载来启用它；此后 agent 即可委派工作，服务会把每个请求路由到具名提供方。
 
-### Enabling delegation
+### 启用委派
 
-Mount the service with a provider and the delegation tool. The provider registers under its configured name; each tool row selects one provider. A minimal setup:
+挂载服务、提供方与委派工具。提供方按配置名称注册，每个工具行选择一个提供方。最小配置如下：
 
 ```yaml
 - name: '@deepseek-ai/dsh-subagent'
@@ -42,186 +40,187 @@ Mount the service with a provider and the delegation tool. The provider register
     toolName: subagent
 ```
 
-The tool returns a child session id immediately. The parent receives a completion notice when the background activation settles. Mounting the service alone enables no delegation.
+工具立即返回子会话 ID，后台 activation 结算后父级收到完成通知。仅挂载服务本身不会启用委派。
 
-### Delegation settings
+### 委派设置
 
-The limits section on the **Plugins → Subagent** page edits the Host’s `subagent` settings section. User values override this plugin's composition; reset removes the user override. `maxDepth` defaults to `1` and supplies the delegation tools' depth when their own configuration omits it. An explicit tool depth, including `provider-managed`, takes precedence. Depth `0` disables delegation through tools inheriting this setting; depth `1` permits direct children only. Changes apply on the next delegation attempt. Direct service callers continue to supply their own optional request depth.
+**插件 → 子智能体**页面的限制部分编辑 Host 的 `subagent` 设置分节。用户值覆盖本插件的组合配置；恢复默认会删除用户覆盖。`maxDepth` 默认为 `1`，在委派工具自身未配置深度时提供默认值。工具显式指定的深度（包括 `provider-managed`）优先。深度 `0` 禁止继承此设置的工具委派；深度 `1` 只允许直接子代理。修改在下一次委派时生效。直接调用服务的调用方仍自行提供可选的请求深度。
 
-### Activation capacity
+### Activation 容量
 
-Set `maxActiveSubagents` on the host plugin to limit live and materializing children in each activation tree. It defaults to `8` and accepts positive safe integers. A top-level parent starts a pool shared by its local and external descendants; the root parent consumes no slot. Creation and cold resume reserve before yielding, and disposal returns the slot only after cleanup. Waiting parents, pending inbox work, and stopping activations remain counted. Sending to a resident child reuses its slot. Delegation depth is a separate policy.
+在 Host 插件上设置 `maxActiveSubagents`，限制每棵 activation 树中在线和正在创建的子级数量。默认值为 `8`，接受正安全整数。顶层父级建立由本地和外部后代共享的池，根父级不占名额。新建和冷恢复在让出执行前预留名额，资源释放完成后才归还。等待后代、有待处理收件箱内容以及正在停止的 activation 仍计入容量；向驻留子级发送消息复用其名额。委派深度是独立策略。
 
-The current `maxActiveSubagents` value is sampled before every new or cold-resumed Activation. Raising it admits more children in existing trees; lowering it leaves resident children running and refuses further admissions until usage is below the limit.
+每次新建或冷恢复 Activation 前都会读取当前 `maxActiveSubagents`。调高后已有树可接纳更多子代理；调低后驻留子代理继续运行，使用量降至上限以下前拒绝新接纳。
 
-At capacity, creation or cold resume rejects with `ACTIVATION_LIMIT_REACHED` (browser prompts receive `subagent/delivery-unavailable`): wait for a child to finish or continue using the existing agents. Admission does not queue, because a parent waiting for descendants must not wait for its own occupied slot. Slots are process-local and do not constrain cumulative Session history or token usage.
+容量耗尽时，新建或冷恢复以 `ACTIVATION_LIMIT_REACHED` 拒绝（浏览器消息返回 `subagent/delivery-unavailable`）：等待子代理完成，或继续使用现有代理。接纳不会排队，避免等待后代的父代理又等待自己占用的名额。名额仅存在于当前进程，不限制累计 Session 历史或 token 用量。
 
-### Local and external children
+### 本地与外部子级
 
-`startActivation({ provider, label, request, signal, delivery })` returns `{ childId, messageId?, result, dispose }`. Supplying `childId` selects a local backend and guarantees `messageId`. Local children accept later messages and can cold-resume; external children expose one execution and reject continuation. `request.agentOptions` overrides supported child model settings. `delivery: 'parent'` supplies the model-facing completion notice; `delivery: 'caller'` lets workflows await the result without a parent notice or initial return guidance. Local parent delivery requires persistence; caller delivery can use an ephemeral local session. Cold resume requires persistence and Session query.
+`startActivation({ provider, label, request, signal, delivery })` 返回 `{ childId, messageId?, result, dispose }`。提供 `childId` 会选择本地后端，并保证返回 `messageId`。本地子级接受后续消息并支持冷恢复；外部子级只暴露一次执行，拒绝继续输入。`request.agentOptions` 覆盖后端支持的子级模型设置。`delivery: 'parent'` 提供面向模型的完成通知；`delivery: 'caller'` 让工作流等待结果，不发送父级通知，也不附加初始返回指导。本地父级投递需要持久化，调用方投递可以使用临时本地会话；冷恢复需要持久化与 Session 查询服务。
 
-### Child presets
+### 子级 preset
 
-In-process spawn accepts an independent `agentPreset`; fork and external backends reject this option. Without a selection, a local child joins the parent's current preset revision. An explicit id mounts the currently available revision, even when that id matches the parent's. Configure model choices through [`dsh-tool-subagent`](../tool-subagent/README.md#selecting-a-child-preset) and persona and tools in the [preset composition](../../preset/agent-preset-registry/README.md). Cold resume preserves persona and tool restrictions recorded in historical child descriptors.
+进程内 spawn 接受独立的 `agentPreset`；fork 与外部后端拒绝此选项。省略选择时，本地子级加入父方当前的 preset 代际。显式 id 挂载当前可用代际，即使该 id 与父方相同。通过 [`dsh-tool-subagent`](../tool-subagent/README.zh.md#selecting-a-child-preset) 配置模型可选项，并在 [preset 组装](../../preset/agent-preset-registry/README.zh.md)中配置 persona 与工具。冷恢复保留历史子级 descriptor 记录的 persona 和工具限制。
 
-### Messaging, interrupting, and discovering
+### 消息、中断与发现
 
-Every exact live Agent can use `sendMessage()` with a direct continuable child; a resident continuable child can also use it with its direct parent. A working target receives the Agent message through Steer at its nearest step; an idle target starts a turn, and only a direct child can be cold-resumed. The parent can also interrupt a running descendant or list its children at any time. A browser continuation prompt independently selects Queue or Steer and may carry image parts: the Host admits and persists each image batch through the attachment store before the child inbox accepts the message, and refuses delivery when the child's declared model does not accept image input. Direct-child discovery reads the parent-owned `subagentCatalog` projection. `listChildren(parentSessionId, signal?)` owns a live-preferred Session observation and returns the catalog asynchronously without reading child logs. It forwards cancellation and releases the observation after materialization. Materialization preserves parent event order in O(D) time for D facts. External entries are leaves and require no child Session observation. Descendant discovery recursively reads local child catalogs in parent event order, observing each reachable Session once. It skips branches whose catalogs cannot be read and returns diagnostics for them; neither path loads or resumes a child Agent.
+每个确切在线 Agent 都可以对直接可继续 child 使用 `sendMessage()`；驻留的可继续 child 还可以对自己的直接 parent 使用它。正在工作的目标通过 Steer 在最近 step 接收 Agent 消息；空闲目标启动轮次，且只有直接 child 可以冷恢复。parent 也可以随时中断正在运行的后代或列举自己的子级。浏览器发出的继续执行 prompt 会独立选择 Queue 或 Steer，并且可以携带图片部分：Host 先通过附件存储完成整批图片的准入与持久化，子级 inbox 才接受这条消息；当子级声明的模型不接受图片输入时拒绝投递。 直接子级发现读取 parent 自有的 `subagentCatalog` projection。`listChildren(parentSessionId, signal?)` 持有一次优先实时来源的 Session 观察，异步返回目录，不读取子级日志。它转发取消信号，并在物化后释放观察。物化以 O(D) 时间保留 D 条事实的父日志事件顺序。外部条目是叶节点，不需要观察子 Session。后代发现按父事件顺序递归读取子级目录，每个可达 Session 观察一次。无法读取目录的分支会被跳过，并返回诊断；两条路径都不加载或恢复子级 Agent。
 
-### Failure and recovery
+### 失败与恢复
 
-Starting without the `agents` service rejects with `CONTINUATION_UNAVAILABLE`; an available runtime rejects a missing or replaced parent with `UNAUTHORIZED`. Providers implementing neither execution method are rejected at registration with `UNSUPPORTED_CAPABILITY`; unsupported requested capabilities reject creation with the same code. The caller signal cancels only unpublished work; after publication, `dispose()` cancels the exact activation and waits for its descendants, including pending startups, and their resource cleanup. `result` settles after teardown and notifications, carrying output, optional structured data, and a stop reason; capture failures reject it after teardown. Cleanup failures reject `dispose()` and mark the lifecycle end as failed; the result promise and parent notification retain the captured execution result.
+缺少 `agents` 服务时，启动请求以 `CONTINUATION_UNAVAILABLE` 拒绝；运行时可用但父级缺失或被替换时，以 `UNAUTHORIZED` 拒绝。未实现任何执行方法的提供方会在注册时以 `UNSUPPORTED_CAPABILITY` 被拒绝；请求不受支持的能力会以同一码使创建失败。调用方信号仅取消尚未发布的工作；发布后通过 `dispose()` 取消该次 activation，并等待其后代（包括正在启动的后代）及其资源清理完成。`result` 在清理与通知结束后完成，携带输出、可选结构化数据与停止原因；结果捕获故障在清理后使其拒绝。清理失败使 `dispose()` 拒绝，并将生命周期结束事件标记为失败；结果 promise 与父级通知保留已捕获的执行结果。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-This section explains how the service is built and where the observable behavior comes from; the full contract lives in [Use this package](#use-this-package).
+本节解释服务的构建方式以及可观察行为从何而来；完整约定见[使用本包](#use-this-package)。
 
-### Design concept
+### 设计理念
 
-- **One service, many providers.** The service is a named-provider registry; each backend registers under a unique name and a request picks one by name.
-- **One managed lifetime.** `SubagentManager` owns startup, message admission, capacity, parent relationships, and disposal. Each activation retains a local AgentHandle or external SubagentRun directly; local inbox and idle state belong only to the local variant.
-- **Fulfillment is publication.** `startActivation()` returns only after the child is accepted and its handle can cancel that exact execution.
-- **Trusted same-process values.** Requests, descriptors, and results are borrowed immutable; serialization and hostile-input validation belong at process and wire boundaries.
+- **一个服务，多个提供方。** 服务是具名提供方注册表；每个后端以唯一名称注册，请求按名称选择一个。
+- **统一受管理生命周期。** `SubagentManager` 统一管理启动、消息准入、容量、父子关系与释放。每条 activation 直接持有本地 AgentHandle 或外部 SubagentRun；本地 inbox 与空闲状态仅属于本地分支。
+- **兑现即发布。** `startActivation()` 仅在子级已接受且句柄可取消该次执行后返回。
+- **同进程值可信。** 请求、描述符与结果按不可变约定借用；序列化与不可信输入校验属于进程与协议边界。
 
-### Source map
+### 源码地图
 
-| File | Role |
+| 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Service entry: provider registry, start and continuation API, lifecycle events |
-| [`src/manager.ts`](src/manager.ts) | Unified startup, message admission, cold resume, parent ownership, settlement, and disposal |
-| [`src/activation.ts`](src/activation.ts) | Execution records, capacity slots, child locks, and local output capture |
-| [`src/continuation-messages.ts`](src/continuation-messages.ts) | Adjacent-Agent messages, return guidance, and settlement notices |
-| [`src/internal.ts`](src/internal.ts) | Host-only Queue and Steer adapters plus standard adjacent-Agent messaging markers |
-| [`src/structured.ts`](src/structured.ts) | Activation-scoped structured capture and guards |
-| [`src/types.ts`](src/types.ts) | Public request, result, and provider contracts |
-| [`src/descriptor.ts`](src/descriptor.ts) | Versioned `subagent/descriptor` session-event vocabulary |
-| [`src/catalog.ts`](src/catalog.ts) | Parent-owned `subagent/catalog` event and chunked host projection |
-| [`src/child-agent.ts`](src/child-agent.ts) | Child composition, delegated policy, depth helpers |
-| [`src/list-children.ts`](src/list-children.ts) | Direct and recursive parent-catalog reads |
-| [`src/control.ts`](src/control.ts) | Browser control request validation and stable failure codes |
-| [`src/control-types.ts`](src/control-types.ts) | Client-safe catalog row, control requests, receipts, and failures |
-| [`src/archive-admission.ts`](src/archive-admission.ts) | The `subagent` family of the Workspace registry's archive admission: running descendants and their parent-cause cancel |
+| [`src/index.ts`](src/index.ts) | 服务入口：提供方注册表、启动与继续 API、生命周期事件 |
+| [`src/manager.ts`](src/manager.ts) | 统一管理启动、消息准入、冷恢复、父子所有权、结算与释放 |
+| [`src/activation.ts`](src/activation.ts) | 执行期记录、容量槽、子级锁与本地输出捕获 |
+| [`src/continuation-messages.ts`](src/continuation-messages.ts) | 相邻 Agent 消息、返回指引与结算通知 |
+| [`src/internal.ts`](src/internal.ts) | Host 专用 Queue 与 Steer 适配器，以及标准相邻 Agent 消息标记 |
+| [`src/structured.ts`](src/structured.ts) | Activation 局部结构化捕获与保护 |
+| [`src/types.ts`](src/types.ts) | 公开的请求、结果与提供方约定 |
+| [`src/descriptor.ts`](src/descriptor.ts) | 版本化的 `subagent/descriptor` 会话事件词汇 |
+| [`src/catalog.ts`](src/catalog.ts) | parent 自有的 `subagent/catalog` 校验与分块 host projection |
+| [`src/projection-types.ts`](src/projection-types.ts) | client-safe 的目录事件与投影词汇，通过 `/client` 导出，不引入 Host 运行时 |
+| [`src/child-agent.ts`](src/child-agent.ts) | 子级组装、委派策略、深度辅助函数 |
+| [`src/list-children.ts`](src/list-children.ts) | 直接与递归的 parent 目录读取 |
+| [`src/control.ts`](src/control.ts) | 浏览器控制请求校验与稳定失败分码 |
+| [`src/control-types.ts`](src/control-types.ts) | client-safe 的目录行、控制面请求、回执与失败 |
+| [`src/archive-admission.ts`](src/archive-admission.ts) | Workspace 注册表归档准入中的 `subagent` 族：运行中的子孙及其父级取消 |
 
-### Provider preparation and structured output
+### 提供方准备与结构化输出
 
-The service validates requested capabilities before creation. Local providers supply only `prepareContinuable()`: spawn returns fresh state and fork returns a completed-turn seed. The manager captures the parent model settings, delegated permissions, and composition before creating the child. External providers retain `start()` as a transport adapter and retain their own permission systems. The common manager owns their published execution. Structured tools, instructions, validation, and terminal guards belong to one local activation; they are not persisted as resume configuration. The child can submit its structured result after consuming accepted input and releasing owned descendants. Staging a result closes further input through tool-result policy and any enclosing PTC execution; a rejected result reopens input, while a committed result keeps it closed. Later cold resume has no structured schema.
+服务在创建前校验请求能力。本地提供方只提供 `prepareContinuable()`：spawn 返回全新状态，fork 返回已完成轮次的初始内容。管理器在创建子级前捕获父级模型设置、委派权限和组合。外部提供方保留 `start()` 作为传输适配器，并保留各自的权限系统；统一管理器拥有已发布的执行。结构化工具、指令、校验与终止保护仅属于一次本地 activation，不作为恢复配置持久化。子代理只能在消费已接受的输入且所属后代释放后提交结构化结果。结果暂存后，在工具结果策略及外层 PTC 执行完成前拒绝继续输入；结果被拒绝后重新开放输入，提交成功后则保持关闭。后续冷恢复不带结构化 schema。
 
-External providers mint a fresh `SubagentRun.id` for each execution in the runtime's shared Session id namespace, across all parents and providers. A collision with a resident Agent, Session, or activation rejects startup with `DUPLICATE_CHILD` and disposes the new external handle without replacing the existing execution.
+外部提供方为每次执行生成新的 `SubagentRun.id`，在运行时共享的 Session id 命名空间中跨所有父级和提供方保持唯一。与驻留 Agent、Session 或 activation 冲突时，启动以 `DUPLICATE_CHILD` 拒绝，并释放新的外部句柄，不替换已有执行。
 
-### Activation settlement
+### Activation 结算
 
-The manager reserves child identity and capacity, materializes a local Agent or external execution, and accepts the initial task. Local admission closes after Agent activity, pending input, and owned descendants finish, with activity revalidated after the final Session flush. Both local and external activations deliver their result after handle cleanup, capacity release, and settlement notifications. Host waits join progressing descendants and their cleanup, including failed executions; idle parked subtrees remain resident without delaying host completion. Closing admission and disposing the handle prevent late work from entering a released Agent. Parent delivery emits its notice after settlement; caller delivery leaves collection to the awaiting workflow. Headless hosts repeat `agent.whenIdle()` and `waitForChildren(agent)` until no child work remains and the parent stays idle with an unchanged Session sequence across the child check, so completion notices can produce the final parent answer.
+管理器预留子级身份与容量，创建本地 Agent 或外部执行，并接受初始任务。本地 Agent 活动、待处理输入及所拥有的后代均结束后，管理器在最终 Session flush 后重新验证活动状态并关闭准入。本地与外部 activation 都在句柄清理、容量归还及结算通知结束后交付结果。宿主等待会汇合仍在推进的后代及其清理，包括失败的执行；空闲停放子树继续驻留，但不延迟宿主完成。关闭准入并释放句柄可防止迟到工作进入已释放的 Agent。父级投递在结算后发送通知；调用方投递由等待中的工作流收集。Headless 宿主交替等待 `agent.whenIdle()` 与 `waitForChildren(agent)`，直至没有子级工作，且父级在检查子级期间保持空闲、Session 序号不变，让完成通知可驱动父级生成最终答案。
 
-A local Agent failure without a subsequently committed `turn/end` settles as `error` after its owned descendants finish. Unclaimed input cannot keep that failed activation resident. A later committed turn ending supersedes the live failure and supplies the recovered outcome.
+本地 Agent 发生失败且后续没有成功提交 `turn/end` 时，会在所拥有的后代结束后以 `error` 结算。未认领的输入不会使该失败 activation 一直驻留。后续成功提交的轮次结束记录会取代实时失败，提供恢复后的结果。
 
-Successful local creation appends a `subagent/catalog` fact to the parent Session regardless of result delivery. External creation appends a catalog fact only with `delivery: 'parent'`; caller-owned external executions retain their caller's membership records. External entries use `mode: 'external'` to identify children without a local Session. Catalog entries record membership once at creation and carry no execution status. Complete results go to the caller or the parent completion notice. Projections exclude inherited facts. Direct lists read one parent projection, so completed local workflow children remain discoverable and can be opened or continued. Catalog payload v0 records local modes; v1 also accepts unknown mode; v2 records external executions. Readers support all three versions. Historical migration appends a v1 `subagent/catalog` from a readable child header when its descriptor is unavailable; local creation retains v0. Its `mode: 'unknown'` projection keeps the child visible without claiming continuation support; an existing complete entry remains authoritative.
+本地创建成功后，无论结果交付给谁，都会向父 Session 追加 `subagent/catalog` 事实。外部创建仅在使用 `delivery: 'parent'` 时追加目录事实；调用方拥有的外部执行保留调用方自己的成员记录。外部条目以 `mode: 'external'` 标记没有本地 Session 的子级。目录仅在创建时记录一次成员关系，不携带执行状态。完整结果交给调用方或父级完成通知。投影排除继承事实。直接列表读取一个父级投影，因此已完成的本地工作流子级仍可被发现、打开或继续。Catalog 载荷 v0 记录本地模式，v1 还接受未知模式，v2 记录外部执行，读取器支持三版。历史迁移在 descriptor 不可用时根据可读子 header 追加 v1 `subagent/catalog`；本地创建保留 v0。其 `mode: 'unknown'` 投影让子会话保持可见，但不表示支持继续执行；已有完整条目仍具有权威性。
 
 <a id="restoring-child-composition"></a>
-### Restoring child composition
+### 恢复子级组装
 
-An independently selected spawn records `agent-preset/selected` before its first own `subagent/descriptor`. Cold resume excludes the inherited event prefix and checks that ordering, then reads the preset id from the existing `agentPreset` projection. It mounts that id without requiring the original subagent provider to remain registered. A missing or broken selected preset rejects restoration; it does not fall back to the parent or deployment default.
+独立选择的 spawn 在首条自有 `subagent/descriptor` 之前记录 `agent-preset/selected`。冷恢复排除继承事件前缀并检查此顺序，再从已有 `agentPreset` 投影读取 preset id。恢复挂载该 id，不要求原始 subagent 提供方仍然注册。所选 preset 缺失或损坏时拒绝恢复，不回退到父方或部署默认值。
 
-Logs without that selection before the first own descriptor, including historical spawn and fork logs, retain `composeFrom` of the parent's current composition. A header preset id, an inherited selection, or a selection after the descriptor does not opt a child into independent restoration, including a fork with no inherited events. Session and descriptor formats are unchanged. Independent cold resume uses the currently registered preset definition, without preserving an earlier revision across restarts.
+首条自有 descriptor 前没有该选择的日志，包括历史 spawn 与 fork 日志，继续通过 `composeFrom` 加入父方当前组装。header 中的 preset id、继承的选择或 descriptor 之后的选择，都不会让子级采用独立恢复；没有继承事件的 fork 也遵守此规则。Session 与 descriptor 格式不变。独立冷恢复使用当前注册的 preset 定义，不跨重启保留旧代际。
 
-### Ownership and invariants
+### 所有权与不变式
 
-- **The manager owns accepted work** — unpublished failures roll back; published handles cancel their exact activation and await child-first disposal.
-- **Registration is effect-scoped** — removing a provider blocks new starts but never revokes accepted runs.
-- **Agent-message authority is exact adjacency** — `sendMessage()` requires the exact live sender; every sender may target a direct continuable child, while only a sender with a resident continuable Activation may target its direct parent.
-- **The descriptor is log-only** — a session event absent from model history and retained across compaction; the writer records the resolved child provider, model, and reasoning effort for cold resume. Historical one-shot descriptors remain readable.
-- **This runtime answers archive admission for children** ([seam](../../workspace/workspace/README.md)) — `workspace/session-activity` reports the live subagent descendants inside a turn as the `subagent` family, found by the durable lineage this package records (`parentSession` with the subagent origin, any depth, never a fork) and labelled from each child's descriptor through a live Session observation when the Session query service is composed, otherwise by id; `workspace/session-stop` cancels each of them with the parent cause, one at a time, so one child refusing its cancel is logged while its siblings still stop. The parent's own turn, its jobs, and the archived-lineage step gate belong to the API Session Controller.
+- **管理器拥有已接受工作**——未发布的失败会回滚；已发布句柄取消对应 activation，并等待子级优先释放。
+- **注册受 effect 作用域约束**——移除提供方会阻止新启动，但绝不撤销已接受的运行。
+- **Agent 消息权限基于确切相邻关系**——`sendMessage()` 要求确切在线 sender；每个 sender 都可以指定直接可继续 child，只有具备驻留可继续 Activation 的 sender 可以指定自己的直接 parent。
+- **描述符仅进日志**——它是会话事件，不进入模型历史，并跨压缩（compaction）保留；写入器记录解析后的子级提供方、模型与推理强度，用于冷恢复。历史 one-shot 描述符仍可读取。
+- **本 runtime 为子代理回答归档准入**（[接缝](../../workspace/workspace/README.zh.md)）——`workspace/session-activity` 把回合中的在线子代理子孙作为 `subagent` 族报告：按本包记录的持久化血缘查找（带 subagent 来源的 `parentSession`，任意深度，从不包括 fork），组合了 Session query 服务时经一次活会话 observation 从各 child 的描述符取名称，否则只报 id；`workspace/session-stop` 以父级原因逐个取消它们，一个拒绝取消的 child 只记日志，其兄弟仍会停止。父级自身的回合、它的任务以及已归档血缘的步骤门禁归 API Session Controller。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the package-level contract is not enough. They move from the shared seam to the backends, the model-facing tools, and the design decisions.
+当包级约定不够用时阅读以下页面。它们从共享 seam 逐步进入后端、面向模型的工具与设计决策。
 
-- [Subagent subsystem](../../../docs/subsystems/subagent.md) — the service contract, provider contract, and terminal result semantics.
-- [historical Subagent capability seam](../../../.agents/notes/archived/feature/2026-06-21-subagent-capability-seam.md) — the design record for the delegation capability family.
-- [Continuable subagents](../../../.agents/notes/implemented/feature/2026-07-28-continuable-subagent-conversations.md) — durable children that accept follow-up turns.
-- [In-process spawn backend](../subagent-spawn-in-process/README.md) — the simplest provider to compose.
-- [Auto review](../../experimental/auto-review/README.md) — the current-session authorization mode inherited only by in-process DSH children.
-- [Out-of-process ACP backend](../subagent-acp/README.md) — children with their own runtime over the Agent Client Protocol.
-- [DeepSeek input conversion](../../llm/llm-deepseek/README.md#model-experience) — provider replay rules for saved settlement notices.
-- [tool-subagent-control README](../tool-subagent-control/README.md) — the follow-up, interrupt, and listing surface.
+- [Subagent 子系统](../../../docs/subsystems/subagent.zh.md)——服务约定、提供方约定与终态结果语义。
+- [历史Subagent 能力 seam](../../../.agents/notes/archived/feature/2026-06-21-subagent-capability-seam.md)——委派能力家族的设计记录。
+- [可继续的 subagent](../../../.agents/notes/implemented/feature/2026-07-28-continuable-subagent-conversations.zh.md)——接受后续轮次的持久子级。
+- [进程内 spawn 后端](../subagent-spawn-in-process/README.zh.md)——最容易组合的提供方。
+- [Auto review](../../experimental/auto-review/README.zh.md)——只有进程内 DSH 子级继承的当前会话授权模式。
+- [进程外 ACP 后端](../subagent-acp/README.zh.md)——经 Agent Client Protocol 拥有自有运行时的子级。
+- [DeepSeek 输入转换](../../llm/llm-deepseek/README.zh.md#model-experience)——已保存结算通知的提供方回放规则。
+- [tool-subagent-control README](../tool-subagent-control/README.zh.md)——后续消息、中断与列举面。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-### Settlement notice
+### 结算通知
 
-#### What the model sees
+#### 模型看到什么
 
-Parent delivery emits a user-role status notice containing the child’s nonempty final text blocks, regardless of `send_message` availability or use. External notices also state that further messages are unsupported. Reasoning and other nontext blocks are excluded. Every parent notice includes available structured output as `Structured result: <JSON>` and the provider’s safe diagnostic as a separate text block. Empty closing text is reported as `It left no closing message.` Caller delivery emits no notice; SDK lifecycle notifications retain complete child output when cleanup succeeds.
+父级投递发送包含子级最终输出中非空文本块的 user-role 状态通知，不受 `send_message` 是否可用或是否调用影响。外部通知还说明不支持后续消息。推理及其他非文本块被排除。每条父级通知都会以 `Structured result: <JSON>` 附带可用的结构化输出，并以独立文本块附带提供方安全诊断。收尾文本为空时，通知使用 `It left no closing message.`。调用方投递不发送通知；清理成功时 SDK 生命周期通知保留完整子级输出。
 
-#### Token effect
+#### Token 影响
 
-One notice per settled activation using parent delivery. Caller delivery adds no completion message; its consumer owns result presentation.
+父级投递为每个结算的 activation 添加一条通知。调用方投递不添加完成消息，由其消费者负责展示结果。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Append-only in the parent: the notice follows its reusable request prefix. Reaching an idle parent starts one independent model request; reaching a busy one does not.
+在父级中仅追加：通知位于其可复用请求前缀之后。到达空闲父级会启动一次独立的模型请求，到达繁忙父级则不会。
 
-### Child delegation-scope statement
+### 子级委派范围声明
 
-#### What the model sees
+#### 模型看到什么
 
-Every in-process child's runtime-context snapshot carries the `subagent:delegation` statement below, after the sandbox-policy and approval-policy sentences.
+每个进程内子 agent 的运行时上下文快照都携带下方的 `subagent:delegation` 声明，位于沙箱策略与审批策略语句之后。
 
-##### The delegation-scope statement
+##### 委派范围声明
 
 ```markdown
 You are a delegated subagent: your permission scope was fixed when you were started and cannot be widened from inside this session — operations that require approval are rejected automatically. When the job needs access beyond that scope, do not retry the denied operation; state the limitation in your reply so the delegating agent can handle it.
 ```
 
-#### Token effect
+#### Token 影响
 
-One fixed statement in each child's runtime-context snapshot; none in the parent's requests.
+每个子 agent 的运行时上下文快照中一条固定声明；父级请求中没有任何新增。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-Prefix-stable within a child: the statement never changes during the child's lifetime, so it is written once into the first runtime-context snapshot. Parent-side, no direct invalidation; the named tool consumers own any request-prefix changes.
+子级内部前缀稳定：该声明在子 agent 生命周期内绝不变化，因此只写入第一份运行时上下文快照一次。父级侧不会直接使缓存失效；具名工具消费方共同负责请求前缀的任何变化。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define when the seam is a poor fit or needs special operational care. They are current package constraints, not a general delegation comparison or a task backlog.
+这些限制说明该 seam 何时不合适，或何时需要特别的运维注意。它们是当前包约束，不是通用委派对比或任务积压。
 
-- **Descendant reads are sequential** — each reachable catalog, including one-shot children, takes one observation. A cold Session without a valid prepared observation requires a full-log read; large cold trees can accumulate storage latency.
-- **External children execute once** — ACP, DSH SDK, Codex, and Claude Code have no local child Session and accept no follow-up input. Their parent-owned records remain discoverable after disposal.
-- **Adjacent model messaging only** — `sendMessage()` requires an exact live sender; every sender may target a direct continuable child, while only a sender with a resident continuable Activation may target its direct parent. Browser prompts use a separate human Queue-or-Steer control path.
-- **A direct parent must remain live for child-to-parent delivery** — the service has no durable parent mailbox; a missing parent rejects the message instead of accepting work it cannot wake.
-- **Wake gap during cancellation convergence** — a follow-up accepted after an interrupt signal but before the Agent becomes idle stays queued until another waking send.
-- **Pending injected context retains an Activation** — settlement conservatively treats every Inbox occurrence as unfinished. Context parked after the Agent becomes idle keeps the child and its live ancestors resident until a waking delivery claims it, a queue mutation removes it, or manager teardown discards it. Host completion joins active work, pending child creation, and resource cleanup, but does not wait for a subtree containing only idle parked inboxes; it neither completes those activation results nor discards their messages.
-- **Process-local residency** — the Activation inbox and ownership graph do not coordinate two harness processes; concurrent access to one persistence store needs a durable mailbox and cross-process lease protocol.
-- **No replay of accepted-but-unlogged messages** — a crash can lose an accepted prompt that never reached the child's session log; the lost message is not replayed automatically.
-- **No durable parent mailbox** — child-to-parent messages require a resident continuable child and live direct parent, and provide acceptance identity rather than exactly-once delivery.
-- **Lifecycle events are observe-only** — a run-affecting `subagent/end` continuation or decision API waits for a concrete consumer.
+- **后代读取串行执行**——每个可达目录（包括一次性子级）都需要一次观察。冷 Session 缺少有效的 prepared 观察时需要读取完整日志；大型冷会话树可能累积存储延迟。
+- **外部子级执行一次**——ACP、DSH SDK、Codex 与 Claude Code 没有本地子 Session，也不接受后续输入。释放后仍可发现父级拥有的执行记录。
+- **仅允许相邻模型消息**——`sendMessage()` 要求确切在线 sender；每个 sender 都可以指定直接可继续 child，只有具备驻留可继续 Activation 的 sender 可以指定自己的直接 parent。浏览器提示使用独立的人类 Queue 或 Steer 控制路径。
+- **child 到 parent 的投递要求直接 parent 保持在线**——服务没有持久 parent mailbox；parent 缺失时会拒绝消息，而非接受无法唤醒的工作。
+- **取消收敛期间存在唤醒缺口**——中断信号发出后、Agent 进入 idle 前被接受的后续消息会保持排队，直到另一条唤醒发送到达。
+- **待处理的注入上下文会保留 Activation**——settlement 会保守地把每个 Inbox occurrence 都视为未完成。Agent 进入 idle 后停放的上下文会让 child 及其在线祖先继续驻留，直到唤醒投递将其 claim、queue 变更将其移除，或 manager teardown 将其丢弃。宿主完成检查等待活动工作、待创建子级与资源清理，但不会等待仅包含空闲停放 Inbox 的子树；它既不结算这些 activation 的结果，也不丢弃其消息。
+- **驻留仅限进程内**——Activation inbox 与所有权图不会在两个 harness 进程之间协调；对单个持久化存储的并发访问需要持久化邮箱与跨进程租约协议。
+- **不回放已接受但未记录的消息**——崩溃可能丢失从未写入子会话日志、已被接受的提示词；丢失的消息不会自动回放。
+- **没有持久化 parent mailbox**——child 到 parent 的消息要求驻留的可继续 child 与在线直接 parent，提供的是接受标识，不保证恰好一次投递。
+- **生命周期事件只供观察**——影响运行的 `subagent/end` 延续或决策接口仍需等待具体消费方。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-This Dev Note is working context for maintainers: open questions and undecided directions. It is explicitly non-authoritative — shipped behavior and limits live in the sections above and in the package code.
+本开发备注是维护者的工作上下文：开放问题与尚未决定的探索方向。它明确不具权威性——已交付的行为与限制以上文和包代码为准。
 
-- **Cross-process continuation** — a durable mailbox and lease protocol would let two harness processes share one persistence store.
-- **Continuable ACP children** — requires persisting the remote session id and a per-child continuation advertisement.
-- **Host-user delivery** — a future host adapter needs a concrete authenticated interaction before the seam gains a user delivery capability.
+- **跨进程继续执行**——持久化邮箱与租约协议可让两个 harness 进程共享一个持久化存储。
+- **可继续 ACP 子级**——需要持久化远程会话 id 与逐子级的继续执行能力声明。
+- **host-user 投递**——未来的 host 适配器需要具体的经认证交互，该 seam 才能获得用户投递能力。
 
 </details>

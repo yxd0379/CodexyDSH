@@ -1,0 +1,10 @@
+- insert:
+    - id: codexy-headless-startup
+      name: '@codexydsh/headless/startup'
+    - id: codexy-headless-runner
+      name: '@codexydsh/headless'
+      inject: [ headlessStartup ]
+      config:
+        task: !!js ctx.headlessStartup.task
+        sessionId: !!js ctx.headlessStartup.sessionId
+        json: !!js ctx.headlessStartup.json

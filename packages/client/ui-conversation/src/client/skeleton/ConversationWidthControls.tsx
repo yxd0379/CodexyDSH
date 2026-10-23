@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
+import { storageKey } from '@deepseek-ai/dsh-client-store'
 import type { ConversationWidthControlsProps } from '../contract/slots.ts'
 import css from './ConversationRoot.module.css'
 
@@ -13,8 +14,8 @@ const WHEEL_DELTA_PAGE = 2
 const FALLBACK_WHEEL_LINE_PX = 16
 
 /** Read a valid persisted width preference, or null when absent or corrupt. */
-function readWidthPreference(): number | null {
-  const raw = localStorage.getItem(WIDTH_PREF_KEY)
+function readWidthPreference(baseURI: string): number | null {
+  const raw = localStorage.getItem(storageKey(WIDTH_PREF_KEY, baseURI))
   if (raw === null) return null
   const value = Number(raw)
   return Number.isFinite(value) && value > 0 ? value : null
@@ -138,7 +139,7 @@ export function ConversationWidthControls({ container, phase }: ConversationWidt
     const target = container.parentElement ?? container
     const column = container.offsetWidth
     target.style.setProperty('--dsh-conversation-column-width', `${column}px`)
-    const preference = readWidthPreference()
+    const preference = readWidthPreference(container.ownerDocument.baseURI)
     if (preference === null) target.style.removeProperty('--dsh-chat-user-width')
     else target.style.setProperty('--dsh-chat-user-width', `${resolveContentWidth(column, preference)}px`)
   }, [])
@@ -153,7 +154,7 @@ export function ConversationWidthControls({ container, phase }: ConversationWidt
 
   const onStart = useCallback((): number => {
     if (container === null) return 680
-    return resolveContentWidth(container.offsetWidth, readWidthPreference())
+    return resolveContentWidth(container.offsetWidth, readWidthPreference(container.ownerDocument.baseURI))
   }, [container])
   const onDrag = useCallback((width: number): void => {
     if (container === null) return
@@ -162,7 +163,7 @@ export function ConversationWidthControls({ container, phase }: ConversationWidt
   }, [container])
   const onCommit = useCallback((width: number): void => {
     if (container === null) return
-    localStorage.setItem(WIDTH_PREF_KEY, `${resolveContentWidth(container.offsetWidth, width)}`)
+    localStorage.setItem(storageKey(WIDTH_PREF_KEY, container.ownerDocument.baseURI), `${resolveContentWidth(container.offsetWidth, width)}`)
   }, [container])
   const onEnd = useCallback((): void => {
     if (container !== null) publishWidths(container)

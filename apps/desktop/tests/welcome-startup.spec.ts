@@ -1,7 +1,10 @@
 vi.mock('../src/web-document.ts', () => ({ authenticateWebHost: async () => 'test-cookie', serveWebDocument: vi.fn(), forwardWebRequest: vi.fn() }))
 /** Welcome startup uses the Host before transitioning to the workspace. */
 
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import type { DesktopLocale } from '../src/locale.ts'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
@@ -30,7 +33,7 @@ const state = vi.hoisted(() => ({
   openDevTools: vi.fn(),
   closeWelcome: vi.fn(),
   welcomeLocale: undefined as DesktopLocale | undefined,
-  preference: 'zh',
+  userData: '',
   hasApiKey: false,
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   listeners: new Map<string, (...args: unknown[]) => void>(),
@@ -51,6 +54,9 @@ vi.mock('electron', () => ({
   app: {
     isPackaged: false,
     name: 'Harness',
+    setName: vi.fn(),
+    setPath: vi.fn(),
+    commandLine: { getSwitchValue: () => '' },
     requestSingleInstanceLock: () => true,
     setAsDefaultProtocolClient: vi.fn(),
     whenReady: () => Promise.resolve(),
@@ -58,7 +64,7 @@ vi.mock('electron', () => ({
     getVersion: () => '1.0.0',
     setAboutPanelOptions: vi.fn(),
     getAppPath: () => '/development-app',
-    getPath: (name: string) => name === 'userData' ? '/desktop-user-data' : `/development-${name}`,
+    getPath: (name: string) => name === 'userData' ? state.userData : `/development-${name}`,
     setAppLogsPath: vi.fn(),
     getPreferredSystemLanguages: () => ['en-US'],
     on: (name: string, callback: (...args: unknown[]) => void) => { state.appListeners.set(name, callback) },
@@ -101,7 +107,10 @@ vi.mock('electron', () => ({
 // The Windows tray relabels through Menu as well; keep the menu call counts below platform-neutral.
 vi.mock('../src/tray.ts', () => ({ DesktopTray: class { relabel() {} dispose() {} } }))
 
-vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: '/profile' }) }))
+vi.mock('../src/paths.ts', () => ({
+  resolveDesktopPaths: () => ({ profile: '/profile' }),
+  resolveDesktopUserData: () => state.userData,
+}))
 vi.mock('../src/settings.ts', () => ({ readDesktopSettings: () => ({ updates: { allowTestAuthPopupWindow: false } }) }))
 vi.mock('../src/login-shell-environment.ts', async importOriginal => ({
   ...await importOriginal<typeof import('../src/login-shell-environment.ts')>(),
@@ -117,7 +126,7 @@ vi.mock('../src/host-process.ts', () => ({
     stop = state.stopHost
     fetch() {
       return Promise.resolve(Response.json({
-        loggedIn: false, hasApiKey: state.hasApiKey, writable: true, localePreference: state.preference,
+        loggedIn: false, hasApiKey: state.hasApiKey, writable: true,
       }))
     }
   },
@@ -125,10 +134,9 @@ vi.mock('../src/host-process.ts', () => ({
 vi.mock('../src/welcome-backend.ts', () => ({
   connectDesktopWelcome: async () => ({
     analyticsEnabled: async () => false,
-    readLocalePreference: async () => state.preference,
     read: async () => {
       await state.beforeRead()
-      return { loggedIn: false, hasApiKey: state.hasApiKey, writable: true, localePreference: state.preference }
+      return { loggedIn: false, hasApiKey: state.hasApiKey, writable: true }
     },
     save: async () => ({ ok: true }),
     account: {
@@ -175,7 +183,9 @@ afterEach(() => {
 it.each([false, true])('starts welcome onboarding without carrying update focus into login or skip (Windows update=%s)', async (updated) => {
   vi.resetModules()
   vi.clearAllMocks()
-  state.preference = 'zh'
+  const userData = mkdtempSync(join(tmpdir(), 'codexydsh-welcome-'))
+  state.userData = userData
+  onTestFinished(() => rmSync(userData, { recursive: true, force: true }))
   state.hasApiKey = false
   state.operations = undefined
   state.accountState.mockResolvedValue({ status: 'signed-out', attempt: null, links: { usageUrl: '', topUpUrl: '' } })
@@ -197,7 +207,7 @@ it.each([false, true])('starts welcome onboarding without carrying update focus 
   state.beforeWelcome.mockReturnValueOnce(loading.promise)
   const activate = () => {
     state.appListeners.get('second-instance')!()
-    state.appListeners.get('open-url')!({ preventDefault: vi.fn() }, 'dsh://open')
+    state.appListeners.get('open-url')!({ preventDefault: vi.fn() }, 'codexydsh://open')
   }
   await import('../src/main.ts')
   await vi.waitFor(() => { expect(state.beforeRead).toHaveBeenCalledOnce() })
@@ -250,20 +260,7 @@ it.each([false, true])('starts welcome onboarding without carrying update focus 
   expect(state.stopHost).not.toHaveBeenCalled()
   const contents = state.contents as { mainFrame: { url: string }; send: ReturnType<typeof vi.fn> }
   expect(contents.send).toHaveBeenCalledWith(DESKTOP_IPC.enterWorkspace)
-  const event = { sender: contents, senderFrame: contents.mainFrame }
-  const bootstrap = state.handlers.get(DESKTOP_IPC.localeBootstrap)!
-  expect(await bootstrap(event)).toEqual({ languages: ['en-US'], preference: 'zh' })
-  state.preference = 'en'
-  expect(await bootstrap(event)).toEqual({ languages: ['en-US'], preference: 'en' })
-  const changed = state.listeners.get(DESKTOP_IPC.localeChanged)!
-  const initialMenus = state.menu.mock.calls.length
-  changed({ ...event, senderFrame: {} }, 'en')
-  changed(event, 42)
-  expect(state.menu).toHaveBeenCalledTimes(initialMenus)
-  changed(event, 'en')
-  expect(state.dialogLocale!().id).toBe('en')
-  expect(state.menu).toHaveBeenCalledTimes(initialMenus + 1)
-  expect(await bootstrap(event)).toEqual({ languages: ['en-US'], preference: 'en' })
+  expect(state.dialogLocale!().id).toBe('zh-CN')
   const welcomeCount = state.beforeWelcome.mock.calls.length
   state.hasApiKey = true
   state.accountListener!({ ...account, status: 'credential-stored', attempt: null })
@@ -290,13 +287,12 @@ it.each([false, true])('starts welcome onboarding without carrying update focus 
   state.focusWorkspace.mockClear()
   vi.stubEnv('DSH_DESKTOP_OPEN_DEVTOOLS', '1')
   state.accountListener!({ ...account, status: 'credential-stored', attempt: { id: attemptId, phase: 'succeeded' } })
-  await vi.waitFor(() => { expect(state.showInactiveWorkspace).toHaveBeenCalledOnce() })
-  expect(state.showWorkspace).not.toHaveBeenCalled()
-  expect(state.focusWorkspace).not.toHaveBeenCalled()
+  await vi.waitFor(() => { expect(state.focusWorkspace).toHaveBeenCalledOnce() })
+  expect(state.showWorkspace).toHaveBeenCalled()
+  expect(state.showInactiveWorkspace).not.toHaveBeenCalled()
   expect(state.moveTopWorkspace).not.toHaveBeenCalled()
-  expect(state.openDevTools).not.toHaveBeenCalled()
-  state.appListeners.get('open-url')!({ preventDefault: vi.fn() }, 'dsh://open')
-  expect(state.showWorkspace).toHaveBeenCalledOnce()
-  expect(state.focusWorkspace).toHaveBeenCalledOnce()
+  expect(state.openDevTools).toHaveBeenCalledOnce()
+  state.appListeners.get('open-url')!({ preventDefault: vi.fn() }, 'codexydsh://open')
+  expect(state.focusWorkspace).toHaveBeenCalledTimes(2)
 
 })

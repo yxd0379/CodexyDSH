@@ -17,7 +17,7 @@ async function bench() {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const locale = new LocaleRuntime(ctx)
-  locale.setLocale('zh')
+
   ctx.provide('locale', locale)
   return { ctx, slots: ctx.get('slots') as SlotRegistry }
 }

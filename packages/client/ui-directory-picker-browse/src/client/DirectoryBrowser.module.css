@@ -43,6 +43,23 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.locationRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.locationLabel {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.locationButton {
+  justify-content: space-between;
+  min-width: 180px;
+  max-width: 100%;
+}
+
 /* The bar IS the editor's box in both modes: it carries the rounded outline
  * and the inner padding, the crumbs and the input sit inside it, and hovering
  * the edit zone lights the whole row rather than the remainder right of the

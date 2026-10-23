@@ -5,13 +5,12 @@ import type { CrashReportSource } from '../src/crash-report.ts'
 import { resolveDesktopLocale } from '../src/locale.ts'
 
 function fixture(
-  locale = 'en',
   writeReport: (error: unknown, source: CrashReportSource) => Promise<string | undefined> = async () => undefined,
 ) {
   const choice = Promise.withResolvers<{ response: number; checkboxChecked: boolean }>()
   const stopped = Promise.withResolvers<undefined>()
   const operations = {
-    messages: () => resolveDesktopLocale(locale).messages,
+    messages: () => resolveDesktopLocale().messages,
     show: vi.fn((_options: MessageBoxOptions) => choice.promise),
     stop: vi.fn(() => stopped.promise),
     disablePlugins: vi.fn(async () => {}),
@@ -27,12 +26,12 @@ async function shown(operations: { show: ReturnType<typeof vi.fn> }): Promise<vo
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalled() })
 }
 
-const REPORT_PATH = 'C:\\Users\\someone\\AppData\\Roaming\\DeepSeek Harness\\logs\\crash-2026-09-22T10-30-00-000Z-host.log'
+const REPORT_PATH = 'C:\\Users\\someone\\AppData\\Roaming\\CodexyDSH\\logs\\crash-2026-09-22T10-30-00-000Z-host.log'
 
 afterEach(() => { vi.restoreAllMocks() })
 
-it.each(['en', 'zh-CN'])('offers only exit and restart for a listener conflict in %s', async (locale) => {
-  const { operations, choice, stopped, recovery } = fixture(locale)
+it('offers only exit and restart for a listener conflict', async () => {
+  const { operations, choice, stopped, recovery } = fixture()
   const pending = recovery.report(new AggregateError([
     new Error('webserver (@deepseek-ai/dsh-host-webserver): Error: listen EADDRINUSE: address already in use 127.0.0.1:19387'),
   ], 'required startup failure'), 'host')
@@ -40,7 +39,7 @@ it.each(['en', 'zh-CN'])('offers only exit and restart for a listener conflict i
   const options = operations.show.mock.calls[0]![0]
   expect(options.buttons).toEqual([operations.messages().exitApplication, operations.messages().restartApplication])
   await expect([options.title, options.message, options.detail, ...options.buttons!].join('\n') + '\n')
-    .toMatchFileSnapshot(`expected/fatal-address-in-use-${locale}.txt`)
+    .toMatchFileSnapshot(`expected/fatal-address-in-use-zh-CN.txt`)
   choice.resolve({ response: 1, checkboxChecked: false })
   stopped.resolve(undefined)
   await pending
@@ -62,13 +61,13 @@ it.each(['win32', 'darwin', 'linux'] as const)('offers the same listener conflic
   await pending
 })
 
-it.each(['en', 'zh-CN'])('records the %s native recovery dialog', async (locale) => {
-  const { operations, choice, stopped, recovery } = fixture(locale)
+it('records the Chinese native recovery dialog', async () => {
+  const { operations, choice, stopped, recovery } = fixture()
   const pending = recovery.report(new AggregateError([new Error('Plugin initialization failed')], 'Desktop Host failed'), 'main')
   await shown(operations)
   const options = operations.show.mock.calls[0]![0]
   await expect([options.title, options.message, options.detail, ...options.buttons!].join('\n') + '\n')
-    .toMatchFileSnapshot(`expected/fatal-dialog-${locale}.txt`)
+    .toMatchFileSnapshot(`expected/fatal-dialog-zh-CN.txt`)
   choice.resolve({ response: 0, checkboxChecked: false })
   stopped.resolve(undefined)
   await pending
@@ -129,9 +128,9 @@ it('allows exit after shutdown cleanup fails', async () => {
   expect(operations.exit).toHaveBeenCalledOnce()
 })
 
-it.each(['en', 'zh-CN'])('bounds long diagnostics and recovery-operation errors in %s', async (locale) => {
+it('bounds long diagnostics and recovery-operation errors', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  const { operations, stopped, recovery } = fixture(locale)
+  const { operations, stopped, recovery } = fixture()
   operations.show.mockResolvedValueOnce({ response: 2, checkboxChecked: false })
     .mockResolvedValueOnce({ response: 0, checkboxChecked: false })
   operations.disablePlugins.mockRejectedValueOnce(new Error('read-only\n'.repeat(5000) + 'final write failure'))
@@ -148,8 +147,8 @@ it.each(['en', 'zh-CN'])('bounds long diagnostics and recovery-operation errors 
   expect(operations.show.mock.calls[1]![0].detail).toContain('final write failure')
 })
 
-it.each(['en', 'zh-CN'])('names the report file even when the error is short enough to show whole, in %s', async (locale) => {
-  const { operations, choice, stopped, recovery } = fixture(locale, async () => REPORT_PATH)
+it('names the report file even when the error is short enough to show whole', async () => {
+  const { operations, choice, stopped, recovery } = fixture(async () => REPORT_PATH)
   const pending = recovery.report(new Error('Desktop Host failed\nPlugin initialization failed'), 'host')
   await shown(operations)
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalledOnce() })
@@ -158,14 +157,14 @@ it.each(['en', 'zh-CN'])('names the report file even when the error is short eno
   expect(options.detail).not.toContain(operations.messages().diagnosticTruncated)
   expect(options.detail).toContain(REPORT_PATH)
   await expect([options.title, options.message, options.detail, ...options.buttons!].join('\n') + '\n')
-    .toMatchFileSnapshot(`expected/fatal-dialog-with-report-${locale}.txt`)
+    .toMatchFileSnapshot(`expected/fatal-dialog-with-report-zh-CN.txt`)
   choice.resolve({ response: 0, checkboxChecked: false })
   stopped.resolve(undefined)
   await pending
 })
 
 it('keeps the report line inside the detail budget when the error is long', async () => {
-  const { operations, choice, stopped, recovery } = fixture('en', async () => REPORT_PATH)
+  const { operations, choice, stopped, recovery } = fixture(async () => REPORT_PATH)
   const pending = recovery.report(new Error('😀'.repeat(32768) + '\nfinal backend failure'), 'web-boot')
   await shown(operations)
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalledOnce() })
@@ -183,7 +182,7 @@ it('keeps the report line inside the detail budget when the error is long', asyn
 })
 
 it('names the report file in the listener-conflict dialog too', async () => {
-  const { operations, choice, stopped, recovery } = fixture('en', async () => REPORT_PATH)
+  const { operations, choice, stopped, recovery } = fixture(async () => REPORT_PATH)
   const pending = recovery.report(new Error('listen EADDRINUSE: address already in use 127.0.0.1:19387'), 'host')
   await shown(operations)
   await vi.waitFor(() => { expect(operations.show).toHaveBeenCalledOnce() })
@@ -198,7 +197,7 @@ it('names the report file in the listener-conflict dialog too', async () => {
 it('shows the dialog without a path when the report write fails or returns nothing', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   for (const writeReport of [async () => undefined, async () => { throw new Error('disk full') }]) {
-    const { operations, choice, stopped, recovery } = fixture('en', writeReport)
+    const { operations, choice, stopped, recovery } = fixture(writeReport)
     const pending = recovery.report(new Error('fatal'), 'main')
     await shown(operations)
     await vi.waitFor(() => { expect(operations.show).toHaveBeenCalledOnce() })
@@ -212,7 +211,7 @@ it('shows the dialog without a path when the report write fails or returns nothi
 it('does not wait longer than the report deadline before showing the dialog', async () => {
   vi.useFakeTimers()
   try {
-    const { operations, choice, stopped, recovery } = fixture('en', () => new Promise<string>(() => {}))
+    const { operations, choice, stopped, recovery } = fixture(() => new Promise<string>(() => {}))
     const pending = recovery.report(new Error('fatal'), 'main')
     await vi.advanceTimersByTimeAsync(CRASH_REPORT_WAIT_MS - 1)
     expect(operations.show).not.toHaveBeenCalled()
@@ -229,7 +228,7 @@ it('does not wait longer than the report deadline before showing the dialog', as
 
 it('writes the report once for the first fatal failure and not for the recovery-failure redisplay', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  const { operations, stopped, recovery } = fixture('en', async () => REPORT_PATH)
+  const { operations, stopped, recovery } = fixture(async () => REPORT_PATH)
   operations.show.mockResolvedValueOnce({ response: 2, checkboxChecked: false })
     .mockResolvedValueOnce({ response: 0, checkboxChecked: false })
   operations.disablePlugins.mockRejectedValueOnce(new Error('profile is read-only'))

@@ -5,13 +5,13 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { todoCallDefinition, todoHistoryView, todoWriteDefinition, type TodoHistory } from '../src/client/tool/models/todo-history.ts'
 import { todoDiffModel } from '../src/client/tool/models/todo-diff-model.ts'
 import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 
-const t = makeTranslate(en, commonEn)
+const t = makeTranslate(en, commonZh)
 const first = [{ content: 'Build', status: 'in_progress' }, { content: 'Review', status: 'pending' }, { content: 'Old task', status: 'pending' }] as const
 const second = [{ content: 'Build', status: 'completed' }, { content: 'Review', status: 'pending' }, { content: 'Publish', status: 'pending' }] as const
 

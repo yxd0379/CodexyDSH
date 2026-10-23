@@ -40,7 +40,7 @@ import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-ll
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
-import { Remote, RemoteError, TypertRemoteService, principalOf, type Principal } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError, TypertRemoteService, principalOf, type Principal } from '@deepseek-ai/dsh-typert-protocol'
 import {
   rejectPrompt, validateControlRequest,
 } from './control.ts'
@@ -444,7 +444,6 @@ export class SubagentRuntime extends TypertRemoteService {
    *   `subagent/not-resumable`, `subagent/unauthorized`,
    *   `subagent/delivery-unavailable`, `gateway/cancelled`, or `gateway/internal`.
    */
-  @Remote('prompt')
   async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt> {
     const { parentSessionId, childSessionId, clientTimeZone, delivery } = request
     validateControlRequest('subagent.prompt', request)
@@ -513,7 +512,6 @@ export class SubagentRuntime extends TypertRemoteService {
    *   `subagent/unauthorized` when the address does not own the live target,
    *   otherwise `gateway/internal`.
    */
-  @Remote('interruptByParent')
   interruptByParent(
     childSessionId: SessionId,
     parentSessionId: SessionId,

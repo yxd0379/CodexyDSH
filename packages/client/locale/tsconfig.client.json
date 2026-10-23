@@ -13,25 +13,13 @@
       "path": "../../util/package-manifest"
     },
     {
-      "path": "../../../vendor/schemastery"
-    },
-    {
-      "path": "../store"
-    },
-    {
       "path": "../ui-renderer"
-    },
-    {
-      "path": "../ui-primitives"
     },
     {
       "path": "../ui-slots"
     },
     {
       "path": "../../../vendor/cordis"
-    },
-    {
-      "path": "../ui-settings/tsconfig.client.json"
     }
   ],
   "exclude": [

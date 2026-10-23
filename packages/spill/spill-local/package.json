@@ -33,6 +33,7 @@
     "@deepseek-ai/cordis": "workspace:~"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-spill": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~"
   },
   "devDependencies": {

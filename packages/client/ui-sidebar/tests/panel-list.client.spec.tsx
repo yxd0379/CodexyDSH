@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { IconGlobeOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ILayout, MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -36,11 +35,12 @@ async function bench(collapsed = false) {
   const runtime = await SlotTestRuntime.create()
   runtimes.add(runtime)
   const locale = new LocaleRuntime(runtime.ctx)
-  locale.setLocale('en')
+
   const layout = {
     panelInfo: runtime.panelInfo,
     beginNavigation: vi.fn(() => new AbortController().signal),
     toggleSidebar: vi.fn(),
+    setSidebarVisible: vi.fn(),
     selectPanel: vi.fn((activePanelId: MainPanelId | null) => { runtime.panelInfo.set({ activePanelId }) }),
     openRightbar: vi.fn(),
     closeRightbar: vi.fn(),
@@ -52,9 +52,9 @@ async function bench(collapsed = false) {
       ctx.provide('layout', layout)
       ctx.provide('uiWorkspace', { startSession: vi.fn() } as never)
       ctx.provide('locale', locale)
-      ctx.effect(() => locale.register('common', { zh: commonZh, en: commonEn }), 'panel test: common locale')
+      ctx.effect(() => locale.register('common', 'zh', commonZh), 'panel test: common copy')
       ctx.effect(() => locale.register('sidebar-panel-test', {
-        zh: { alpha: '甲面板' }, en: { alpha: 'Alpha panel' },
+        zh: { alpha: '甲面板' }, en: { alpha: '甲面板' },
       }), 'panel test: panel locale')
       ctx.slots.installLocale(locale)
       ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'conversation' }, () => (
@@ -129,14 +129,14 @@ describe('sidebar global panels', () => {
     expect(view.getByText('Conversation content')).toBeTruthy()
 
     const { alpha, beta } = await mountPanels(runtime, locale)
-    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
+    const navigation = await view.findByRole('navigation', { name: '全局面板' })
     expect(within(navigation).getAllByRole('button')).toHaveLength(2)
-    fireEvent.click(within(navigation).getByRole('button', { name: 'Alpha panel' }))
+    fireEvent.click(within(navigation).getByRole('button', { name: '甲面板' }))
     expect(view.getByRole('heading', { name: 'Alpha content' })).toBeTruthy()
 
     await alpha.dispose()
     await waitFor(() => {
-      expect(view.queryByRole('button', { name: 'Alpha panel' })).toBeNull()
+      expect(view.queryByRole('button', { name: '甲面板' })).toBeNull()
       expect(view.queryByRole('heading', { name: 'Alpha content' })).toBeNull()
     })
     expect(runtime.slots.entries('main').map(entry => entry.options.key)).toEqual(['conversation', BETA])
@@ -154,10 +154,10 @@ describe('sidebar global panels', () => {
   it.each([false, true])('renders ordered rows, icon sizes, and tooltip labels with collapsed=%s', async (collapsed) => {
     const { runtime, locale, view } = await bench(collapsed)
     await mountPanels(runtime, locale)
-    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
+    const navigation = await view.findByRole('navigation', { name: '全局面板' })
     const rows = within(navigation).getAllByRole('button')
-    expect(rows.map(row => row.getAttribute('aria-label'))).toEqual(['Beta panel', 'Alpha panel'])
-    for (const [id, label] of [[BETA, 'Beta panel'], [ALPHA, 'Alpha panel']] as const) {
+    expect(rows.map(row => row.getAttribute('aria-label'))).toEqual(['Beta panel', '甲面板'])
+    for (const [id, label] of [[BETA, 'Beta panel'], [ALPHA, '甲面板']] as const) {
       const row = within(navigation).getByRole('button', { name: label })
       expect(row.getAttribute('aria-current')).toBeNull()
       expect(row.textContent).toBe(collapsed ? '' : label)
@@ -179,15 +179,15 @@ describe('sidebar global panels', () => {
   it('keeps registration order when panel rows have equal order', async () => {
     const { runtime, locale, view } = await bench()
     await mountPanels(runtime, locale, 20)
-    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
-    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual(['Alpha panel', 'Beta panel'])
+    const navigation = await view.findByRole('navigation', { name: '全局面板' })
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual(['甲面板', 'Beta panel'])
   })
 
   it('selects registered main content and keeps a repeated selection active', async () => {
     const { runtime, locale, layout, view } = await bench()
     await mountPanels(runtime, locale)
-    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
-    const alpha = within(navigation).getByRole('button', { name: 'Alpha panel' })
+    const navigation = await view.findByRole('navigation', { name: '全局面板' })
+    const alpha = within(navigation).getByRole('button', { name: '甲面板' })
     const beta = within(navigation).getByRole('button', { name: 'Beta panel' })
     fireEvent.click(alpha)
     expect(layout.selectPanel).toHaveBeenLastCalledWith(ALPHA)
@@ -214,12 +214,11 @@ describe('sidebar global panels', () => {
     expect(view.getByRole('heading', { name: 'Beta content' })).toBeTruthy()
   })
 
-  it('refreshes locale labels without re-registering icons or changing plain labels', async () => {
+  it('resolves Chinese labels without changing plain labels or icon registrations', async () => {
     const { runtime, locale, view } = await bench()
     await mountPanels(runtime, locale)
-    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
+    const navigation = await view.findByRole('navigation', { name: '全局面板' })
     const entries = runtime.slots.entries('sidebar.panellist')
-    act(() => { locale.setLocale('zh') })
     await waitFor(() => {
       expect(within(navigation).getByRole('button', { name: '甲面板' }).textContent).toBe('甲面板')
     })
@@ -229,10 +228,10 @@ describe('sidebar global panels', () => {
 
   it('uses an omitted label and order as the panel id and order zero', async () => {
     const { runtime, view } = await bench()
-    await mountPanel(runtime, { id: ALPHA, heading: 'Alpha content', label: 'Alpha panel', order: 20 })
+    await mountPanel(runtime, { id: ALPHA, heading: 'Alpha content', label: '甲面板', order: 20 })
     await mountPanel(runtime, { id: BETA, heading: 'Beta content' })
-    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
-    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual([BETA, 'Alpha panel'])
+    const navigation = await view.findByRole('navigation', { name: '全局面板' })
+    expect(within(navigation).getAllByRole('button').map(row => row.textContent)).toEqual([BETA, '甲面板'])
     fireEvent.click(within(navigation).getByRole('button', { name: BETA }))
     expect(view.getByRole('heading', { name: 'Beta content' })).toBeTruthy()
   })
@@ -240,8 +239,8 @@ describe('sidebar global panels', () => {
   it.each([false, true])('keeps main selection while DOM focus moves between controls with collapsed=%s', async (collapsed) => {
     const { runtime, locale, layout, view } = await bench(collapsed)
     await mountPanels(runtime, locale)
-    const navigation = await view.findByRole('navigation', { name: 'Global panels' })
-    const alpha = within(navigation).getByRole('button', { name: 'Alpha panel' })
+    const navigation = await view.findByRole('navigation', { name: '全局面板' })
+    const alpha = within(navigation).getByRole('button', { name: '甲面板' })
     const beta = within(navigation).getByRole('button', { name: 'Beta panel' })
     act(() => { alpha.focus() })
     expect(document.activeElement).toBe(alpha)
@@ -267,13 +266,12 @@ describe('sidebar global panels', () => {
   it('disposes the sidebar while retaining independently owned main panel bodies', async () => {
     const { runtime, locale, sidebar, view } = await bench()
     await mountPanels(runtime, locale)
-    fireEvent.click(await view.findByRole('button', { name: 'Alpha panel' }))
+    fireEvent.click(await view.findByRole('button', { name: '甲面板' }))
     await sidebar.dispose()
     expect(view.queryByRole('navigation')).toBeNull()
     expect(runtime.slots.spec('sidebar.panellist')).toBeUndefined()
     expect(runtime.slots.entries('sidebar.panellist')).toEqual([])
     expect(view.getByRole('heading', { name: 'Alpha content' })).toBeTruthy()
-    act(() => { locale.setLocale('zh') })
     expect(view.queryByRole('navigation')).toBeNull()
   })
 })

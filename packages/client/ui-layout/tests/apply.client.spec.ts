@@ -93,6 +93,19 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('shell.leading')).toEqual({ kind: 'single', scope: 'root' })
   })
 
+  it('passes the left-navigation shortcut through while its surface is hidden', async () => {
+    const { ctx } = await bench()
+    const register = vi.spyOn(ctx.get('shortcuts'), 'register')
+    await ctx.plugin({ inject: [...inject], apply }).await()
+    const command = register.mock.calls.map(([value]) => value).find(value => value.id === 'sidebar.left.toggle')
+    const input = { region: 'page' as const, modal: null, target: null }
+    expect(command?.resolve(input).status).toBe('handled')
+    ctx.get('layout').setSidebarVisible(false)
+    expect(command?.resolve(input).status).toBe('pass')
+    ctx.get('layout').setSidebarVisible(true)
+    expect(command?.resolve(input).status).toBe('handled')
+  })
+
   it('shares a pre-created instance between service actions, root rendering, and panelInfo', async () => {
     const { ctx, slots, rendererHost } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })

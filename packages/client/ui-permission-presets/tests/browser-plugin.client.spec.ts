@@ -27,7 +27,7 @@ import {
 import { PermissionSelect } from '../src/client/PermissionSelect.tsx'
 import type { PermissionSelectInjected } from '../src/client/PermissionSelect.tsx'
 import { apply, inject } from '../src/client/index.ts'
-import { accessEn, accessZh } from '../src/client/locales.ts'
+import { accessZh } from '../src/client/locales.ts'
 
 const sid = (k: string): SessionId => k as SessionId
 
@@ -49,7 +49,7 @@ async function bench() {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry)
   const locale = new LocaleRuntime(ctx)
-  locale.setLocale('en')
+
   ctx.provide('locale', locale)
   const mock = RemoteMock.create().load(remoteDefaultResponses)
   onTestFinished(() => { mock.assertNoUnmatched() })
@@ -203,36 +203,27 @@ describe('ui-permission browser plugin', () => {
     expect(again.find(option => option.id === 'workspace-write')?.active).toBe(true)
     expect(again.find(option => option.id === 'read-only')?.detail).toBe('Reads only.')
     expect(again.find(option => option.id === 'auto')?.detail)
-      .toBe('Run without a sandbox after an experimental same-model review of every native tool call and PTC inner call.')
-    // English built-ins use product labels; other kebab-case names title-case.
-    expect(again.map(option => option.label)).toEqual(['Read Only', 'Workspace Write', 'Full access', 'Auto review'])
+      .toBe(accessZh['auto.description'])
+    // 内置权限使用中文产品文案；用户提供的名称保持原样。
+    expect(again.map(option => option.label)).toEqual(['仅可查看', '工作区内修改', '完全权限', '自动审查'])
     expect(again.find(option => option.id === 'danger-full-access')?.confirmation).toEqual({
-      title: 'Enable Full access?',
-      description: accessEn['confirm.description'],
-      acknowledgeLabel: 'I understand the risks and want to continue',
-      cancelLabel: 'Cancel',
-      confirmLabel: 'Enable Full access',
+      title: accessZh['confirm.title'],
+      description: accessZh['confirm.description'],
+      acknowledgeLabel: accessZh['confirm.acknowledge'],
+      cancelLabel: accessZh['confirm.cancel'],
+      confirmLabel: accessZh['confirm.enable'],
     })
     expect(again.find(option => option.id === 'auto')).toMatchObject({
       badge: 'EXP',
       confirmation: {
-        title: 'Enable Auto review (experimental)?',
-        description: accessEn['auto.confirm.description'],
-        acknowledgeLabel: 'I understand these risks and want to continue',
-        cancelLabel: 'Cancel',
-        confirmLabel: 'Enable Auto review',
+        title: accessZh['auto.confirm.title'],
+        description: accessZh['auto.confirm.description'],
+        acknowledgeLabel: accessZh['auto.confirm.acknowledge'],
+        cancelLabel: accessZh['confirm.cancel'],
+        confirmLabel: accessZh['auto.confirm.enable'],
       },
     })
-    b.locale.setLocale('zh')
-    const localized = await b.popup().options(proj, new AbortController().signal)
-    expect(localized.map(option => option.label)).toEqual(['仅可查看', '工作区内修改', '完全权限', '自动审查'])
-    expect(localized.find(option => option.id === 'danger-full-access')?.confirmation).toEqual({
-      title: '确认启用完全权限？',
-      description: accessZh['confirm.description'],
-      acknowledgeLabel: '我已了解风险，并愿意继续',
-      cancelLabel: '取消',
-      confirmLabel: '启用完全权限',
-    })
+
     b.setCatalog({ ...CATALOG, options: [
       { value: 'workspace-write', name: 'Project Files' },
       { value: 'danger-full-access', name: 'Operator Mode' },
@@ -304,7 +295,6 @@ describe('ui-permission browser plugin', () => {
 
   it('localizes the Auto description instead of displaying host English copy', async () => {
     const b = await bench()
-    b.ctx.locale.setLocale('zh')
     const proj = { sessionId: sid('s1') }
     b.values.set(sid('s1'), { currentValue: 'workspace-write' })
     const options = await b.popup().options(proj, new AbortController().signal)

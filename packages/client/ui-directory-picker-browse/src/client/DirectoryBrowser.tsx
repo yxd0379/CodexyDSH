@@ -38,11 +38,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconCheckOutlineRegular, IconChevronRightOutlineRegular, IconEditOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
-  IconPlusOutlineRegular, Modal,
+  IconPlusOutlineRegular, IconChevronDownOutlineRegular, Menu, Modal,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
 import type { Translate } from '@deepseek-ai/dsh-client-locale/client'
 import css from './DirectoryBrowser.module.css'
+import type { DirectoryPickerLocationInfo } from './locations.ts'
 
 /** Owner-supplied browser props: browse calls, pick semantics, and copy. */
 export interface DirectoryBrowserProps {
@@ -69,6 +70,12 @@ export interface DirectoryBrowserProps {
   busy: boolean
   /** Localized copy. */
   t: Translate
+  /** Available filesystem identities; omission keeps the original local-only dialog. */
+  locations?: readonly DirectoryPickerLocationInfo[]
+  /** Selected filesystem; used only by the location menu. */
+  locationId?: string
+  /** Switch the filesystem displayed by the owner flow. */
+  onLocationChange?: (id: string) => void
 }
 
 /** Failure text from the injected directory operation. */
@@ -270,7 +277,8 @@ function LevelColumn({ entries, selectedPath, busy, onPick, showHidden, filterPr
  * @param props - owner-controlled browser props.
  * @returns the dialog element (null while closed, via Modal).
  */
-export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t }: DirectoryBrowserProps) {
+export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t, locations, locationId, onLocationChange }: DirectoryBrowserProps) {
+  const [locationMenuOpen, setLocationMenuOpen] = useState(false)
   // Miller state: the listed level, the selected row in it, and the selected
   // folder's own listing (the right column; null while nothing is selected).
   const [parent, setParent] = useState<DirectoryListing | null>(null)
@@ -817,6 +825,34 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       >
         <div className={css.header}>
           <h2 className={css.title}>{t('browser.title')}</h2>
+          {locations !== undefined && locations.length > 1 && onLocationChange !== undefined && (
+            <div className={css.locationRow}>
+              <span className={css.locationLabel}>{t('browser.location')}</span>
+              <Menu
+                open={locationMenuOpen}
+                onClose={() => { setLocationMenuOpen(false) }}
+                selectedId={locationId}
+                items={locations.map(item => ({ id: item.id, label: item.label }))}
+                onSelect={(id) => { setLocationMenuOpen(false); onLocationChange(id) }}
+                portal
+                anchor={(
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={css.locationButton}
+                    aria-label={t('browser.location')}
+                    aria-haspopup="menu"
+                    aria-expanded={locationMenuOpen}
+                    disabled={busy || creatingFolder}
+                    onClick={() => { setLocationMenuOpen(value => !value) }}
+                  >
+                    <span>{locations.find(item => item.id === locationId)?.label}</span>
+                    <IconChevronDownOutlineRegular size={14} />
+                  </Button>
+                )}
+              />
+            </div>
+          )}
           <div className={css.crumbBar}>
             {pathDraft === null
               ? (

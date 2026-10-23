@@ -52,6 +52,9 @@
     "lib/types/**/*.d.ts"
   ],
   "dependencies": {
+    "@codexydsh/remote": "workspace:*",
+    "@codexydsh/permissions": "workspace:*",
+    "@codexydsh/delegation": "workspace:*",
     "@deepseek-ai/dsh-deque": "workspace:*",
     "@deepseek-ai/dsh-util-values": "workspace:*"
   },

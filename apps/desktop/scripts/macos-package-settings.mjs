@@ -36,12 +36,15 @@ export function resolveMacOSPackageSettings(environment) {
  * @returns {NodeJS.ProcessEnv} Child environment; explicit routing bypasses only local hosts.
  */
 export function macOSDownloadEnvironment(environment, proxyUrl) {
-  if (proxyUrl === undefined) return { ...environment }
+  if (proxyUrl === undefined) {
+    const hasHttpProxy = Object.entries(environment).some(([name, value]) => /^(?:http|https)_proxy$/iu.test(name) && value)
+    return { ...environment, ...(hasHttpProxy && environment.NODE_USE_ENV_PROXY === undefined ? { NODE_USE_ENV_PROXY: '1' } : {}) }
+  }
   return {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) =>
       !/^(?:(?:https?|all|no)_proxy|npm_config_(?:https?_proxy|proxy|noproxy)|ELECTRON_GET_USE_PROXY)$/iu.test(name))),
     HTTP_PROXY: proxyUrl, HTTPS_PROXY: proxyUrl, http_proxy: proxyUrl, https_proxy: proxyUrl,
     NO_PROXY: 'localhost,127.0.0.1,::1', no_proxy: 'localhost,127.0.0.1,::1',
-    ELECTRON_GET_USE_PROXY: '1',
+    ELECTRON_GET_USE_PROXY: '1', NODE_USE_ENV_PROXY: '1',
   }
 }

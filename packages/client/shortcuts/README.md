@@ -1,92 +1,92 @@
 ---
-description: "Customize application keyboard commands for each device"
+description: "为每台设备自定义应用键盘命令"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-client-shortcuts
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+为每台设备自定义应用键盘命令。桌面端和 Web 按接收输入的设备选择不同默认键位。自定义键位在同一设备重新加载后保留。命令随所属插件卸载而移除，保存的覆盖仍保留供重新安装使用。
 
-Customize application keyboard commands for each device. Desktop and Web choose separate defaults for the receiving device. Custom bindings survive reloads on the same device. Commands disappear when their owning plugin unloads, while their saved overrides remain available for reinstallation.
+Windows 在修饰键之间及第一个普通键之前使用 ` + `。Windows 和 macOS Desktop 上同时按下的两个普通键均并排显示，如 `F G`，提示和快捷键速查保持一致。
 
-Windows uses ` + ` between modifiers and the first ordinary key. Two simultaneous ordinary keys appear side by side, such as `F G`, on Windows and macOS Desktop, including tooltips and the shortcut reference.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用此包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步阅读](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用此包
 
-The Web app bundle mounts this package automatically. Feature plugins register commands through `ctx.shortcuts` inside `ctx.effect()`. Each command declares defaults for explicit `desktop:macos`, `desktop:windows`, `desktop:linux`, `web:macos`, `web:windows`, and `web:linux` profiles; an omitted profile is unbound. The service accepts physical `code` values, expands `primary` to the device modifier, and rejects duplicate ids and overlapping default combinations across supported profiles. Labels, keycaps, modified flags, and binding conflicts share one observable catalog. Command owners resolve the current target before executing an action.
+Web 应用 bundle 自动挂载此包。功能插件在 `ctx.effect()` 中通过 `ctx.shortcuts` 注册命令。每个命令为 `desktop:macos`、`desktop:windows`、`desktop:linux`、`web:macos`、`web:windows` 和 `web:linux` 显式声明默认值；省略的配置不绑定按键。服务接收物理 `code`，按设备展开 `primary`，并拒绝重复 ID 和任一支持配置中重叠的默认键位。同一可观察目录提供名称、键帽、已修改标记和键位冲突。命令 owner 在执行操作前解析当前目标。
 
-Feature plugins contribute read-only sequences through `registerFixed()` and observe locally arbitrated input through `observeFixedInput()`. Fixed rows follow the owning registration and locale; owners may use the `application` display group without making the action editable. Each action declares at least one physical combination and has no saved overrides. These combinations participate in conflict checks and cannot be assigned to editable commands. The Host's `stopSequenceMs` setting controls the maximum double-Escape interval, defaults to 500 milliseconds, and accepts integers from 1 to 2,147,483,646 so expiry stays within the browser timer limit; pages adopt the validated value on load.
+功能插件通过 `registerFixed()` 贡献只读序列，通过 `observeFixedInput()` 观察局部控件处理后的输入。固定操作行随所属注册和语言变化；owner 可使用 `application` 展示分组，操作仍不可编辑。每个操作至少声明一个物理按键组合，不保存覆盖配置。这些组合参与冲突校验，不能分配给可编辑命令。Host 的 `stopSequenceMs` 配置控制连续两次 Esc 的最大间隔，默认为 500 毫秒，只接受 1 至 2,147,483,646 的整数，确保过期计时不超过浏览器定时器上限；页面加载时采用已校验的值。
 
-Preferences store only overrides: a missing command inherits its default, `null` clears its binding, and restoring a default removes its override. Restore All affects only the current runtime/platform profile. Web uses origin-local `dsh.keybindings.v1` storage; Desktop uses Electron's device-local `userData/keybindings.json`, independently of Harness home and workspace settings. The schema version is independent of Session data. macOS and Windows Desktop read version 1 without rewriting it and save version 2 on the next successful edit; version 2 adds optional `secondCode`. Web and Linux retain their existing binding restrictions.
+偏好只保存覆盖：缺少命令表示继承默认，`null` 表示清除绑定，恢复默认则删除覆盖。全部恢复只影响当前运行端／平台配置。Web 使用同 origin 的 `dsh.keybindings.v1` 存储；Desktop 使用 Electron 设备本地的 `userData/keybindings.json`，与 Harness home 和工作区设置独立。其 schema 版本与 Session 数据无关。 macOS 和 Windows Desktop 读取版本 1 时不重写，在下次成功编辑时保存为版本 2；版本 2 增加可选的 `secondCode`。Web 和 Linux 保留原有绑定限制。
 
-Windows and macOS Desktop accept one or two distinct supported non-modifier keys, with zero to four modifiers. Two-key bindings require overlapping presses in either order; sequential presses do not match. Modifier-only bindings are rejected. A single key and a pair containing that key conflict when their modifiers match, including keys reserved by fixed actions. Previously saved bindings that overlap a mounted fixed action remain visible but cannot execute. All effective bindings, including Command+C and Ctrl+C, take priority over native actions, editors, terminals, embedded pages, and modal controls. Recording and input-method composition remain protected. A pair takes priority only once both keys are held; the first key retains its normal behavior and may insert a character.
+Windows 和 macOS Desktop 接受一至两个不同的受支持非修饰键，可搭配零至四个修饰键。双键绑定要求按住时间重叠，顺序不限；先后按键不匹配。仅含修饰键的绑定会被拒绝。同一修饰键集合下，单键与包含该键的双键组合冲突，包括固定操作占用的按键。已保存的绑定若与当前挂载的固定操作冲突，会保留显示但不能执行。包括 Command+C 和 Ctrl+C 在内的所有有效绑定优先于原生操作、编辑器、终端、内嵌页面和模态控件。录制和输入法组合状态仍受保护。只有两个键都按住时，双键组合才优先接管；第一个键仍正常处理，可能输入一个字符。
 
-Bindings activate after the first read. Failed reads preserve the last accepted configuration, or use defaults when none exists. Edits, including Restore All, remain disabled while preferences are unreadable. Repair the stored document and reopen the application; reset operations never replace unreadable or future-version data. Write failures preserve active bindings and drafts. Another browser tab's update invalidates open drafts; saving requires reviewing the latest configuration. Browser writes reread first, but simultaneous cross-tab writes remain last-writer-wins.
+首次读取完成后激活键位。读取失败保留上次接受的配置；没有已接受配置时使用默认值。偏好不可读时，编辑和全部恢复均保持禁用。修复存储文档后重新打开应用；重置操作不会替换不可读或未来版本的数据。写入失败保留有效键位和草稿。其他浏览器标签页的更新使打开的草稿过期，保存前需要核对最新配置。浏览器写入前重新读取，但同时跨标签页写入仍采用最后一次成功写入。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The Host build emits the Node entry and `./protocol` before Desktop bundles its keyboard integration; the Client pass emits the browser bundle.
+Host 构建在 Desktop 打包键盘集成之前生成 Node 入口和 `./protocol`；Client 阶段生成浏览器 bundle。
 
-Windows and macOS Desktop intercept complete accepted combinations before local handlers and forward them through the trusted preload. Desktop startup requires the native keyboard bridge on every platform. On Windows and macOS, only native input dispatches configurable commands; DOM input continues to feed fixed actions. The adapter intercepts a key release only when it intercepted that key’s initial press. Default and user-saved bindings have identical priority, including over modal controls. Other environments dispatch after local handlers and respect their declared regions. Composition, dead keys, AltGraph, and consumed input pass through; macOS Web can consume a bound Option+Command+N reported as a dead key outside composition without guarding the next input. Web and Linux modal layers block background commands. Owned repeats remain consumed without rerunning the action. The context carries the original DOM input element, including elements inside a shadow root. Owners synchronously resolve their target and retain responsibility for action errors. `ctx.shortcuts.closeWindow()` owns the Desktop keyboard bridge and sends its current accepted revision; Web calls and bridge request failures reject. The pure `./protocol` export has no React, DOM, or Electron dependency and shares validation and serialized persistence between adapters. Explicit overrides displace conflicting new defaults; conflicting explicit overrides are all disabled. Desktop rejects stale revisions and restricts IPC to the current product window and top frame. Rejected adapter calls are logged and returned as save failures; errors while publishing an accepted command catalog propagate to the caller.
+Windows 和 macOS Desktop 在局部处理器之前拦截已接受的完整组合，通过可信 preload 转发。所有平台的 Desktop 启动都要求原生键盘桥接。Windows 和 macOS 的可配置命令只由原生输入分发；DOM 输入继续交给固定操作。适配器仅拦截初次按下事件已被拦截的按键的松开事件。默认绑定与用户保存的绑定优先级一致，均优先于模态控件。其他环境在局部处理器之后分发，并遵守声明的区域。输入法组合、死键、AltGraph 和已消费的输入继续传递；macOS Web 可在输入法组合之外消费已绑定且报告为死键的 Option+Command+N，不保护后续输入。Web 和 Linux 的模态层阻止后台命令。已接管的重复事件仍被消费，但不重复执行。上下文携带原始 DOM 输入元素，包括 shadow root 内的元素。owner 同步解析目标，并负责操作错误。`ctx.shortcuts.closeWindow()` 统一持有 Desktop 键盘桥接，并携带当前已接受的 revision；Web 调用和桥接请求错误均返回失败。纯 `./protocol` 导出不依赖 React、DOM 或 Electron，在两个适配器间共享校验和串行持久化。显式覆盖取代冲突的新默认值；互相冲突的显式覆盖全部禁用。Desktop 拒绝过期版本，并将 IPC 限制在当前产品窗口和顶层 frame。适配器调用被拒绝时会记录日志并返回保存失败；发布已接受命令目录时的错误会向调用方抛出。
 
-DOM fixed-input observers receive composition and consumption flags before application dispatch. Consuming an event makes it unavailable to subsequent observers and commands. Focus, pointer, window blur, composition, modal changes, and locally stopped propagation reset pending DOM sequences. Native chords reset on window blur, focused-frame or configuration changes, composition, recording, and modifier release. Electron can omit keyups after native interception; completing a native binding discards held-key state, so each chord activation needs two fresh presses. Releasing a modifier clears held-key state because macOS may omit character keyup events while Command is held. The adapter removes its listeners and modal observer when disposed; one feature's observer failure does not prevent the remaining observers from receiving input.
+DOM 固定输入观察者在应用分发前收到输入法组合和消费标记。消费事件后，后续观察者和命令不能使用它。焦点、指针、窗口失焦、输入法组合、模态变化和局部停止传播会重置待完成的 DOM 序列。原生双键状态在窗口失焦、焦点 frame 或配置变化、输入法组合、录制和修饰键释放时重置。Electron 在原生拦截后可能省略 keyup；原生绑定完成时立即清空按住状态，因此每次触发双键组合都需要重新按下两个键。释放修饰键会清空按住状态，因为 macOS 在按住 Command 时可能省略字符键的 keyup。适配器释放时移除监听器和模态观察者；单个功能观察者失败不妨碍其他观察者接收输入。
 
-Desktop native menus and embedded frames use the same command registry as DOM input. Preload and the client match the focused iframe name or browser webview lease against native input; the client rejects messages from an older configuration. Browser guest input ends when its lease is released, before guest destruction finishes. Native menu selection is explicit and works without a bound accelerator. Two-key chords have no native menu accelerator; their labels remain visible in the shortcut reference. Terminal Ctrl+W/R remains local input outside Windows and macOS Desktop. Explicit native-menu actions retain their modal checks; keyboard bindings use the device dispatch policy.
+Desktop 原生菜单和内嵌 frame 使用与 DOM 输入相同的命令注册表。Preload 和 Client 将获焦 iframe 的名称或浏览器 webview 租约与原生输入匹配；Client 拒绝旧配置消息。浏览器 guest 的输入监听在租约释放时结束，无需等待 guest 销毁完成。原生菜单选择是显式操作，不依赖快捷键绑定。双键组合没有原生菜单快捷键，其键位仍显示在快捷键速查中。Windows 和 macOS Desktop 之外的终端 Ctrl+W/R 保留为局部输入。显式原生菜单操作保留模态检查；键盘绑定使用对应设备的分发策略。
+
+完整的 Remote 工作界面是独立 Client，不是预览 frame。物理按键留在子页面 DOM，使用该 Client 的 Web 键位。原生菜单操作只发给当前获焦的同源 Remote frame，不操作外层本地 Session。嵌入桥校验发送者及已注册命令后，在子页面调用 `ctx.shortcuts.invoke(id)`；此方法使用该文档的实时焦点与模态状态，忽略未注册操作。父页面的模态框仍持有自己的菜单操作。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步阅读
 
-- [Web Client](../../../docs/subsystems/web-client.md)
-- [UI primitives](../ui-primitives/README.md)
-- [Web app bundle](../../bundle/web-app/README.md)
+- [Web Client](../../../docs/subsystems/web-client.zh.md)
+- [UI primitives](../ui-primitives/README.zh.md)
+- [Web app bundle](../../bundle/web-app/README.zh.md)
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as the package is a browser-side UI plugin layer that registers nothing model-facing.
+无；此包是浏览器侧 UI 插件，不注册面向模型的内容。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None; this package neither assembles nor sends a provider request.
+无；此包不组装或发送模型提供方请求。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- Feature owners declare the Windows and macOS Web defaults explicitly: Mod+Slash, Mod+Backslash, and Control+Backquote stay two-key combinations; other defaults without Alt use Mod+Alt, and defaults with Alt use Mod+Shift except fullscreen uses Mod+Alt+Enter and session rename uses Mod+Alt+G. Web Settings uses Mod+Alt+Comma, leaving Mod+Comma to the browser. macOS Web leaves Refresh current page unbound by default to preserve browser-specific Command+Option+R actions; its button and explicit user bindings remain available. Mod is Command on macOS and Control on Windows. Windows and macOS accept any three or four distinct modifiers in Web and Desktop. Web also accepts the listed combinations and Mod+Shift combinations; browser or system delivery requires platform testing. Linux Web accepts Mod+Slash, Mod+Shift+Comma, and Mod+Shift+Period. Operating-system shortcuts that do not reach the window cannot be intercepted. A chord does not delay or consume its first key while waiting for the second; a native action or focus change can therefore prevent completion. Command registration or disposal invalidates open edit drafts even when saved preferences are unchanged. Desktop rereads its file on every catalog update; there is no file watcher.
+- 功能 owner 显式声明 Windows 和 macOS Web 的默认键位：Mod+Slash、Mod+Backslash 和 Control+Backquote 保持双键；其他不含 Alt 的默认键位使用 Mod+Alt，含 Alt 的使用 Mod+Shift，其中全屏使用 Mod+Alt+Enter，会话重命名使用 Mod+Alt+G。Web 设置使用 Mod+Alt+Comma，将 Mod+Comma 留给浏览器。macOS Web 的“刷新当前页”默认不绑定快捷键，以保留浏览器自身的 Command+Option+R 操作；刷新按钮和用户显式绑定仍然可用。Mod 在 macOS 上为 Command，在 Windows 上为 Control。Windows 和 macOS 的 Web、Desktop 均接受任意三个或四个不同修饰键的组合。Web 还接受上述组合及 Mod+Shift 组合；浏览器或系统能否送达按键需在对应平台测试。Linux Web 接受 Mod+Slash、Mod+Shift+Comma 和 Mod+Shift+Period。未送达窗口的操作系统快捷键无法被拦截。双键组合等待第二个键时，不延迟或消费第一个键；原生操作或焦点变化可能使组合无法完成。命令注册或注销会使打开的编辑草稿过期，即使保存的偏好未改变。Desktop 在每次命令目录更新时重新读取文件，不设置文件 watcher。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

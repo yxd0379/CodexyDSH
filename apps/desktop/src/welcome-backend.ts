@@ -8,16 +8,13 @@ export interface WelcomeState {
   readonly loggedIn: boolean
   readonly hasApiKey: boolean
   readonly writable: boolean
-  readonly localePreference: string | null
 }
 
 /** Narrow operations available to the native welcome flow. */
 export interface DesktopWelcomeBackend {
   readonly account: DesktopAccountBackend
-  /** @returns Configured-key presence and the shared language preference, without credential values. */
+  /** @returns 是否已配置模型，不返回凭据内容。 */
   read(): Promise<WelcomeState>
-  /** @returns The saved UI language without account or provider requests. */
-  readLocalePreference(): Promise<string | null>
   /**
    * @param apiKey - User-entered official provider key.
    * @returns A safe write outcome without provider diagnostics.
@@ -74,14 +71,6 @@ export async function connectDesktopWelcome(
     }
     return { settings: { namespaces: settings.namespaces }, ref: official.value.apiKeyEnv }
   }
-  const localePreference = (namespaces: unknown[]): string | null => {
-    const locale: unknown = namespaces.find((item: unknown) => record(item) && item.ns === 'locale')
-    if (!record(locale) || !record(locale.value)
-      || (locale.value.preference !== undefined && typeof locale.value.preference !== 'string')) {
-      throw new Error('desktop welcome: invalid locale preference')
-    }
-    return locale.value.preference ?? null
-  }
   const read = async (): Promise<WelcomeState> => {
     const { settings, ref } = await settingsAndReference()
     const providers = await invoke({ namespace: 'llm', method: 'listConfigurableProviders', args: {} })
@@ -112,17 +101,11 @@ export async function connectDesktopWelcome(
       loggedIn: (await account.state()).status === 'credential-stored',
       hasApiKey: Object.values(states).some(value => record(value) && value.configured === true),
       writable: ref !== undefined && record(states[ref]) && states[ref].writable === true,
-      localePreference: localePreference(namespaces),
     }
   }
   return {
     account,
     read,
-    async readLocalePreference() {
-      const settings = await invoke({ namespace: 'settings', method: 'describe', args: {} })
-      if (!record(settings) || !Array.isArray(settings.namespaces)) throw new Error('desktop welcome: missing settings namespaces')
-      return localePreference(settings.namespaces)
-    },
     async save(apiKey) {
       if (!/^[\x21-\x7e]+$/.test(apiKey)) return { ok: false }
       try {

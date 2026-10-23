@@ -42,6 +42,11 @@ export interface ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void
   /**
+   * Show or completely hide left navigation without changing its width preference.
+   * @param visible - Whether the frame renders navigation, its compact rail, and reopen controls.
+   */
+  setSidebarVisible(visible: boolean): void
+  /**
    * Report the right panel's presentation without changing its expanded state.
    * @param track - whether the normal panel width reserves a grid track,
    *   including beneath a fullscreen overlay.
@@ -92,6 +97,11 @@ export class LayoutController implements ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void {
     this.panels.toggleSidebar()
+  }
+
+  /** Change left navigation visibility independently of its collapsed preference. */
+  setSidebarVisible(visible: boolean): void {
+    this.panels.setSidebarVisible(visible)
   }
 
   /** Report the right panel's track and fullscreen presentation. */

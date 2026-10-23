@@ -58,10 +58,10 @@ export function resolveNpmRegistry(env) {
 /**
  * Resolve and validate the application identifier shared by every platform target.
  * @param {NodeJS.ProcessEnv} env - Packaging environment.
- * @returns {string} Reverse-DNS application identifier.
+ * @returns {string} Reverse-DNS application identifier; io.codexydsh.desktop when no override is set.
  */
 export function resolveDesktopAppId(env) {
-  const appId = requireEnvironmentValue(env, DESKTOP_APP_ID_ENV)
+  const appId = env[DESKTOP_APP_ID_ENV] === undefined ? 'io.codexydsh.desktop' : requireEnvironmentValue(env, DESKTOP_APP_ID_ENV)
   if (!/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(appId)) {
     throw new Error(`desktop release environment: ${DESKTOP_APP_ID_ENV} must be a reverse-DNS identifier`)
   }

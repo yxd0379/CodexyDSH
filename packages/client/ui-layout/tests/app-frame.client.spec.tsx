@@ -3,7 +3,9 @@
 import type { GlobalStandardProps, RenderOpts } from '@deepseek-ai/dsh-client-ui-slots'
 import { allowAllAccess, bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, isInaccessible, render } from '@testing-library/react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { AppFrame } from '../src/client/AppFrame.tsx'
 import type { AppFrameProps } from '../src/client/AppFrame.tsx'
 import type { MainPanelId, RightbarOwnerProps, SidebarOwnerProps } from '../src/client/index.ts'
@@ -60,13 +62,13 @@ function resize(width: number): void {
   })
 }
 
-function mountFrame(windowWidth = frameWidth) {
+function mountFrame(windowWidth = frameWidth, sidebarContent?: ReactNode) {
   vi.stubGlobal('innerWidth', windowWidth)
   const instance = createLayoutStore().create()
   const slotCalls: { key: string; props: object; options: RenderOpts | undefined }[] = []
   const renderSlot: AppFrameProps['renderSlot'] = (key, owner, options) => {
     slotCalls.push({ key, props: owner, options })
-    return <div data-testid={`${key}-content`} data-entry-key={options?.entryKey} />
+    return <div data-testid={`${key}-content`} data-entry-key={options?.entryKey}>{key === 'sidebar' ? sidebarContent : undefined}</div>
   }
   const useSessions: AppFrameProps['useSessions'] = sel => sel({
     ids: selectedSession === undefined ? [] : [selectedSession],
@@ -112,6 +114,69 @@ function mountFrame(windowWidth = frameWidth) {
     sidebarOwner: () => slotCalls.findLast(c => c.key === 'sidebar')!.props as SidebarOwnerProps,
   }
 }
+
+it('can hide navigation without removing main content, right tools, or overlays', () => {
+  const view = mountFrame()
+  const main = view.getByTestId('main-content')
+  const sidebar = view.getByTestId('sidebar-content')
+  const rightbar = view.getByTestId('rightbar-content')
+  const overlay = view.getByTestId('shell.overlay-content')
+  act(() => {
+    view.instance.actions.setSidebar(380)
+    view.instance.actions.openRightbar(true, false)
+    view.instance.actions.setSidebarVisible(false)
+  })
+  expect(view.getByTestId('sidebar-content')).toBe(sidebar)
+  expect(isInaccessible(sidebar)).toBe(true)
+  expect(view.queryByTestId('shell.leading-content')).toBeNull()
+  expect(view.getByTestId('main-content')).toBe(main)
+  expect(view.getByTestId('rightbar-content')).toBe(rightbar)
+  expect(view.getByTestId('shell.overlay-content')).toBe(overlay)
+  expect(view.frame.style.gridTemplateColumns.startsWith('0px ')).toBe(true)
+  expect(view.instance.getSnapshot().layoutInfo).toMatchObject({ sidebar: 380, rightbarShown: true })
+  resize(1100)
+  expect(view.frame.style.gridTemplateColumns.startsWith('0px ')).toBe(true)
+  act(() => { view.instance.actions.setSidebarVisible(true) })
+  expect(view.getByTestId('sidebar-content')).toBe(sidebar)
+  expect(isInaccessible(sidebar)).toBe(false)
+  expect(view.instance.getSnapshot().layoutInfo.sidebar).toBe(380)
+})
+
+it('keeps hidden sidebar features mounted and their body portals interactive', () => {
+  const mounted = vi.fn()
+  const unmounted = vi.fn()
+  let openDialog = (): void => { throw new Error('Sidebar feature is not mounted') }
+  function SidebarFeature() {
+    const [open, setOpen] = useState(false)
+    useEffect(() => {
+      mounted()
+      openDialog = () => { setOpen(true) }
+      return () => { unmounted() }
+    }, [])
+    return <>
+      <button type="button" onClick={() => { setOpen(true) }}>Open settings</button>
+      <Modal open={open} title="Sidebar settings" closeLabel="Close settings" onClose={() => { setOpen(false) }} />
+    </>
+  }
+  const view = mountFrame(frameWidth, <SidebarFeature />)
+  const sidebar = view.getByTestId('sidebar-content')
+  act(() => { view.instance.actions.setSidebarVisible(false) })
+  expect(mounted).toHaveBeenCalledOnce()
+  expect(unmounted).not.toHaveBeenCalled()
+  expect(isInaccessible(sidebar)).toBe(true)
+  act(openDialog)
+  const dialog = view.getByRole('dialog', { name: 'Sidebar settings' })
+  expect(dialog.closest('[role="presentation"]')?.parentElement).toBe(document.body)
+  expect(isInaccessible(dialog)).toBe(false)
+  act(() => { view.getByRole('button', { name: 'Close settings' }).click() })
+  expect(view.queryByRole('dialog')).toBeNull()
+  act(() => { view.instance.actions.setSidebarVisible(true) })
+  expect(view.getByTestId('sidebar-content')).toBe(sidebar)
+  expect(isInaccessible(sidebar)).toBe(false)
+  expect(mounted).toHaveBeenCalledOnce()
+  view.unmount()
+  expect(unmounted).toHaveBeenCalledOnce()
+})
 
 /* The template delegates the squeeze to the grid (jsdom does no layout, so
    specs read the specified tracks): [sidebar px, rightbar growth limit].

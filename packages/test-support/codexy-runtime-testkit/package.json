@@ -1,0 +1,42 @@
+{
+  "name": "@codexydsh/runtime-testkit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mock-adapter": "./src/mock-adapter.ts",
+    "./persistence": "./src/persistence.ts",
+    "./runtime-context": "./src/runtime-context.ts",
+    "./profile-composition": "./src/profile-composition.ts",
+    "./mock-server": "./src/mock-server.ts"
+  },
+  "dependencies": {
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/bridges": "workspace:*",
+    "@codexydsh/prompt-registry": "workspace:*",
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-projection": "workspace:*",
+    "@deepseek-ai/dsh-system-prompt": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
+    "@deepseek-ai/dsh-hmr": "workspace:*",
+    "@deepseek-ai/dsh-config-editor": "workspace:*",
+    "@deepseek-ai/dsh-settings": "workspace:*",
+    "@deepseek-ai/cordis-plugin-timer": "workspace:~",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "js-yaml": "^4.1.0",
+    "@deepseek-ai/dsh-working-directory": "workspace:*"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-session-persistence": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-session-persistence": "workspace:*"
+  }
+}

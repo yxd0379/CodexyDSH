@@ -199,6 +199,9 @@ describe('Definition-owned Chat process groups', () => {
     ['read', 'read'], ['read_image', 'readImage'], ['write', 'write'], ['edit', 'edit'], ['apply_patch', 'edit'],
     ['todo_write', 'plan'], ['create_goal', 'plan'], ['update_goal', 'plan'], ['get_goal', 'plan'],
     ['list_mcp_resources', 'tools'], ['list_mcp_resource_templates', 'tools'], ['read_mcp_resource', 'tools'],
+    ['spawn_agent', 'subagents'], ['followup_task', 'subagents'], ['send_message', 'subagents'],
+    ['list_agents', 'subagents'], ['wait_agent', 'subagents'], ['interrupt_agent', 'subagents'],
+    ['multi_agent_v1__spawn_agent', 'subagents'], ['multi_agent_v1__send_input', 'subagents'],
   ] as const)('%s keeps its activity category through preparation, dispatch, and result', (name, kind) => {
     const started = tool('call', 2, name)
     const args = new PartialArguments()

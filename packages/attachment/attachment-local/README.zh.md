@@ -112,7 +112,7 @@ kind: "package-reference"
 - [附件子系统参考](../../../docs/subsystems/attachment.zh.md)——服务约定、载荷类型与 `ctx.attachments` 的 Cordis 接口面。
 - [附件 seam 包](../attachment/README.zh.md)——本存储支撑的图片附件能力。
 - [生成配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-attachment-local)——每个受支持配置字段及其源声明。
-- [Home 路径解析](../../util/home-paths/README.zh.md)——`DSH_HOME` 如何从显式配置、环境变量与用户主目录解析。
+- [Home 路径解析](../../util/home-paths/README.md)——`DSH_HOME` 如何从显式配置、环境变量与用户主目录解析。
 
 -----
 

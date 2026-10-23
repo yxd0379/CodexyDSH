@@ -52,6 +52,28 @@ it('leaves browser failure presentation with the Web boot kernel', async () => {
   expect(boot.run).toHaveBeenCalledWith(undefined)
 })
 
+it('boots an embedded document with its own socket address and no native window chrome', async () => {
+  document.body.innerHTML = '<div id="root"></div>'
+  const parentTransport = { streamBaseUrl: 'http://127.0.0.1:39001/', ownsHost: true }
+  const ready = vi.fn()
+  vi.stubGlobal('parent', { __DSH_TRANSPORT__: parentTransport })
+  vi.stubGlobal('location', { href: 'dsh-app://app/codexy-remote/ascend/?codexydsh-embedded=1' })
+  vi.stubGlobal('__DSH_TRANSPORT__', undefined)
+  vi.stubGlobal('dshDesktopBoot', { ready, failed: vi.fn() })
+  document.documentElement.dataset.platform = 'darwin'
+  document.documentElement.setAttribute('data-windows-titlebar', '')
+  await import('../src/main.ts')
+  expect(boot.run).toHaveBeenCalledWith(undefined)
+  expect(ready).not.toHaveBeenCalled()
+  expect((globalThis as { __DSH_TRANSPORT__?: object }).__DSH_TRANSPORT__).toEqual({
+    streamBaseUrl: 'http://127.0.0.1:39001/codexy-remote/ascend/', ownsHost: true,
+  })
+  expect((globalThis as { __DSH_TRANSPORT__?: object }).__DSH_TRANSPORT__).not.toBe(parentTransport)
+  expect(parentTransport.streamBaseUrl).toBe('http://127.0.0.1:39001/')
+  expect(document.documentElement.hasAttribute('data-platform')).toBe(false)
+  expect(document.documentElement.hasAttribute('data-windows-titlebar')).toBe(false)
+})
+
 it.each(['root', 'readiness'])('reports missing %s before client plugin startup', async (missing) => {
   if (missing !== 'root') document.body.innerHTML = '<div id="root"></div>'
   const failed = vi.fn(async () => {})

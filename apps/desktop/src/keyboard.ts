@@ -6,6 +6,20 @@ import type { DesktopBrowserLeaseId } from '@deepseek-ai/dsh-client-ui-sidebar-b
 import { desktopKeybindings } from './keybindings.ts'
 import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
 
+/** Remote workbenches own their DOM shortcuts instead of the outer local session. */
+function isRemoteAppFrame(contents: WebContents): boolean {
+  let frame = contents.focusedFrame
+  if (frame === null || frame === contents.mainFrame) return false
+  while (frame.parent !== null && frame.parent !== contents.mainFrame) frame = frame.parent
+  if (frame.parent !== contents.mainFrame || !frame.name.startsWith('codexydsh-remote-')) return false
+  try {
+    const url = new URL(frame.url)
+    return url.protocol === 'dsh-app:' && url.hostname === 'app'
+      && /^\/codexy-remote\/[^/]+\//u.test(url.pathname)
+      && url.searchParams.get('codexydsh-embedded') === '1'
+  } catch { return false }
+}
+
 /**
  * Install application-owned configuration handlers and attach each product window's input lifecycle.
  * @param getWindow - current product window.
@@ -141,6 +155,12 @@ export function installDesktopShortcuts(
         contents.setIgnoreMenuShortcuts(false)
         held.clear()
         consumed.clear()
+        return
+      }
+      if (guestName === undefined && isRemoteAppFrame(contents)) {
+        resetInput()
+        // Let the child Web app arbitrate real DOM input, without a parent menu accelerator firing too.
+        contents.setIgnoreMenuShortcuts(true)
         return
       }
       const modifiers = (['control', 'alt', 'shift', 'meta'] as const).filter(modifier => input[modifier])

@@ -7,11 +7,10 @@
  */
 
 /**
- * Leaf directory name of the first-use Workspace under
- * `<Documents>/deepseek-harness`. Language-neutral, so one installation keeps
- * one on-disk path across language switches. The registry derives the initial
- * title from this same segment, which is the title
- * {@link workspaceDisplayTitle} recognizes as automatic.
+ * 首次创建的默认工作区位于 `<Documents>/CodexyDSH/default-workspace`。
+ * 此目录名仅用于首次创建；已有工作区仍由注册表原样返回，不迁移或重命名。
+ * 注册表以相同的末级目录名作为初始标题，由
+ * {@link workspaceDisplayTitle} 识别为默认名称。
  */
 export const DEFAULT_WORKSPACE_DIRECTORY = 'default-workspace'
 

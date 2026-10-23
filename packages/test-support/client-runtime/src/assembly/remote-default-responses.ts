@@ -47,6 +47,8 @@ export const remoteDefaultResponses: RemoteTable = {
     'session/follow',
   ],
   stream: {
+    // ui-remote follows configured hosts; the default test profile has none.
+    'remoteHosts/follow': openStream([[]]),
     // api-session-controller client `apply`: the control stream's opening baseline, then open.
     'session/control': openStream([{ type: 'baseline', value: { projections: {} } }]),
     // ui-settings-account shares the account snapshot across settings and the sidebar menu.

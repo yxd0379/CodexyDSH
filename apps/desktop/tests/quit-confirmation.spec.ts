@@ -43,20 +43,20 @@ describe('DesktopQuitConfirmation', () => {
     const f = setup('darwin', async () => ({ activeTasks: true, scheduledTasks: true }))
     expect(await f.confirmation.confirm()).toBe(true)
     expect(f.shown).toEqual([{
-      type: 'warning', title: 'DeepSeek Harness', message: '退出 DeepSeek Harness？',
+      type: 'warning', title: 'CodexyDSH', message: '退出 CodexyDSH？',
       detail: '当前正在运行的任务将会中断，且应用关闭期间，定时任务不会运行',
       buttons: ['退出', '取消'], defaultId: 0, cancelId: 1, noLink: true,
     }])
   })
 
-  it('shows the Windows task dialog with the application icon and plain buttons in English', async () => {
-    const f = setup('win32', async () => ({ activeTasks: false, scheduledTasks: true }), 'en')
+  it('shows the Windows task dialog with the application icon and Chinese buttons', async () => {
+    const f = setup('win32', async () => ({ activeTasks: false, scheduledTasks: true }), 'zh-CN')
     f.answer(1)
     expect(await f.confirmation.confirm()).toBe(false)
     expect(f.shown).toEqual([{
-      type: 'none', icon: f.icon, title: 'DeepSeek Harness', message: 'Quit DeepSeek Harness?',
-      detail: 'Scheduled tasks will not run while the app is closed.',
-      buttons: ['Quit', 'Cancel'], defaultId: 0, cancelId: 1, noLink: true,
+      type: 'none', icon: f.icon, title: 'CodexyDSH', message: '退出 CodexyDSH？',
+      detail: '应用关闭期间，定时任务不会运行',
+      buttons: ['退出', '取消'], defaultId: 0, cancelId: 1, noLink: true,
     }])
   })
 
@@ -101,7 +101,7 @@ describe('DesktopQuitConfirmation', () => {
   it('does not approve a quit from a box answered after disposal', async () => {
     const answered = Promise.withResolvers<MessageBoxReturnValue>()
     const confirmation = new DesktopQuitConfirmation({
-      locale: () => resolveDesktopLocale('en'), inspect: async () => ({ activeTasks: true, scheduledTasks: false }),
+      locale: () => resolveDesktopLocale('zh-CN'), inspect: async () => ({ activeTasks: true, scheduledTasks: false }),
       focus: () => {}, platform: 'darwin', show: () => answered.promise,
     })
     const pending = confirmation.confirm()

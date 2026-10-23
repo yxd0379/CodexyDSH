@@ -20,6 +20,16 @@ function receipt(title: string, badge: NonNullable<DetailItem['badge']>, t: Deta
 }
 
 function agentList(text: string, json: unknown, t: DetailTranslate): ToolDetailsModel | null {
+  if (detailRecord(json) && Array.isArray(json.agents)) {
+    const items: DetailItem[] = []
+    for (const agent of json.agents) {
+      if (!detailRecord(agent) || typeof agent.agent_name !== 'string') return null
+      const status = recordedAgentStatus(agent.agent_status, t)
+      if (status === null) return null
+      items.push({ title: agent.agent_name, fields: [], ...status })
+    }
+    return detailList(items, t('detail.agents.count', { count: items.length }), t)
+  }
   if (Array.isArray(json)) return detailList(inspectionItems(json, t), t('detail.agents.count', { count: json.length }), t)
   if (text === '(no subagents)') return detailList([], t('detail.agents.count', { count: 0 }), t)
   const items: DetailItem[] = []
@@ -51,6 +61,16 @@ function jobList(text: string, t: DetailTranslate): ToolDetailsModel | null {
     items.push({ title, subtitle: id, badge: detailBadge(state, t), fields: [{ label: t('detail.field.type'), value: kind }] })
   }
   return detailList(items, t('detail.jobs.count', { count: items.length }), t)
+}
+
+function recordedAgentStatus(value: unknown, t: DetailTranslate): Pick<DetailItem, 'badge' | 'markdown' | 'description'> | null {
+  if (typeof value === 'string') return { badge: detailBadge(value, t) }
+  if (!detailRecord(value)) return null
+  if (value.completed === null || typeof value.completed === 'string') {
+    return { badge: detailBadge('completed', t), ...(typeof value.completed === 'string' ? { markdown: value.completed } : {}) }
+  }
+  if (typeof value.errored === 'string') return { badge: detailBadge('failed', t), description: value.errored }
+  return null
 }
 
 function terminalList(text: string, t: DetailTranslate): ToolDetailsModel | null {
@@ -109,8 +129,17 @@ function lspDetails(args: Record<string, unknown>, text: string, t: DetailTransl
 export function controlDetails(
   name: string, args: Record<string, unknown>, text: string, json: unknown, t: DetailTranslate,
 ): ToolDetailsModel | null {
+  if (name.startsWith('multi_agent_v1__')) name = name.slice('multi_agent_v1__'.length)
   const target = arg(args, 'target') || arg(args, 'agent_id') || arg(args, 'sessionId') || arg(args, 'job_id')
   switch (name) {
+    case 'spawn_agent': {
+      if (!detailRecord(json)) return null
+      const id = typeof json.task_name === 'string' ? json.task_name : typeof json.agent_id === 'string' ? json.agent_id : undefined
+      if (id === undefined) return null
+      return receipt(arg(args, 'task_name') || (typeof json.nickname === 'string' ? json.nickname : id), {
+        label: t('detail.receipt.started'), tone: 'info',
+      }, t, [{ label: t('detail.field.agent'), value: id }], arg(args, 'message'))
+    }
     case 'list_agents': return agentList(text, json, t)
     case 'job_list': return jobList(text, t)
     case 'terminal_list': return terminalList(text, t)
@@ -130,20 +159,54 @@ export function controlDetails(
         ...detailList(inspectionItems(json.tasks, t), t('detail.tasks.count', { count: json.tasks.length }), t),
         ...(json.nextCursor === undefined ? {} : { caption: t('detail.tasks.nextPage', { cursor: String(json.nextCursor) }) }),
       }
+    case 'followup_task':
+    case 'send_input':
     case 'send_message': {
+      if ((text === '' && target !== '' && arg(args, 'message') !== '')
+        || detailRecord(json) && typeof json.submission_id === 'string') {
+        return receipt(target, { label: t('detail.status.accepted'), tone: 'success' }, t, [], arg(args, 'message'))
+      }
       const status = detailRecord(json) ? json.status : undefined
       if (status === 'accepted' || status === 'queued') return receipt(target, {
         label: t(status === 'queued' ? 'detail.status.queued' : 'detail.receipt.delivered'), tone: status === 'queued' ? 'warning' : 'success',
       }, t, [], arg(args, 'message'))
       return text === `message delivered to agent ${target}` ? receipt(target, { label: t('detail.receipt.delivered'), tone: 'success' }, t, [], arg(args, 'message')) : null
     }
+    case 'resume_agent': {
+      if (!detailRecord(json)) return null
+      const status = recordedAgentStatus(json.status, t)
+      return status === null ? null : detailList([{ title: arg(args, 'id'), fields: [], ...status }], arg(args, 'id'), t)
+    }
+    case 'close_agent':
     case 'interrupt_agent':
+      if (detailRecord(json) && json.previous_status !== undefined) {
+        const status = recordedAgentStatus(json.previous_status, t)
+        return status?.badge === undefined ? null : receipt(target, {
+          label: t(json.previous_status === 'not_found' ? 'detail.status.notFound'
+            : name === 'close_agent' ? 'detail.receipt.closed' : 'detail.receipt.interrupt'), tone: 'warning',
+        }, t, [{ label: t('detail.field.previousStatus'), value: status.badge.label }])
+      }
       if (detailRecord(json) && typeof json.previousStatus === 'string') return receipt(target, { label: t('detail.receipt.interrupt'), tone: 'warning' }, t, [{ label: t('detail.field.previousStatus'), value: detailBadge(json.previousStatus, t).label }])
       return text === `interrupt requested for agent ${target}` ? receipt(target, { label: t('detail.receipt.interrupt'), tone: 'warning' }, t) : null
-    case 'wait_agent':
+    case 'wait_agent': {
+      if (detailRecord(json) && typeof json.timed_out === 'boolean') {
+        if (detailRecord(json.status) && Object.keys(json.status).length > 0) {
+          const items: DetailItem[] = []
+          for (const [id, value] of Object.entries(json.status)) {
+            const status = recordedAgentStatus(value, t)
+            if (status === null) return null
+            items.push({ title: id, fields: [], ...status })
+          }
+          return detailList(items, t('detail.wait.changed'), t)
+        }
+        return receipt(t('detail.wait.title'), {
+          label: t(json.timed_out ? 'detail.wait.timeout' : 'detail.wait.changed'), tone: 'neutral',
+        }, t, [], typeof json.message === 'string' ? json.message : undefined)
+      }
       if (!detailRecord(json) || typeof json.timedOut !== 'boolean') return null
       if (detailRecord(json.noProgress) && typeof json.noProgress.message === 'string') return detailList([{ title: t('detail.wait.noProgress'), description: json.noProgress.message, fields: [] }], t('detail.wait.noProgress'), t)
       return receipt(t('detail.wait.title'), { label: t(json.timedOut ? 'detail.wait.timeout' : 'detail.wait.changed'), tone: 'neutral' }, t)
+    }
     case 'subagent': {
       const started = /^started (background subagent job|subagent) (\S+)$/u.exec(text)
       if (started !== null) return receipt(arg(args, 'prompt'), { label: t('detail.receipt.started'), tone: 'info' }, t, [{ label: t(started[1] === 'subagent' ? 'detail.field.agent' : 'detail.field.job'), value: started[2] ?? '' }])

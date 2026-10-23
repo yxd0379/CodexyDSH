@@ -30,7 +30,7 @@ description: "配置和维护 Windows 打包 runner、签名凭据、EV Token �
 
 ## 机器配置与 runner 启动
 
-使用 runner 专用 checkout，并将配置、证书和缓存放在其外部。注册和工具安装由操作者负责。打包输入与产物获取见[打包指南](../packaging/README.zh.md#windows-actions)。
+使用 runner 专用 checkout，并将配置、证书和缓存放在其外部。注册和工具安装由操作者负责。打包输入与产物获取见[打包指南](../packaging/README.md#windows-actions)。
 
 运行 `pwsh -NoProfile -File apps/desktop/scripts/setup-windows-packaging.ps1 -Root <absolute-machine-root>` 创建私有 `packaging/{presets,secrets,certificates}` 和 `cache/windows-signatures` 目录并复制模板，不覆盖现有文件。添加 `-CheckOnly` 只检查不写入。在机器上填写 [preset 模板](../config/windows-packaging/test.env.example)和[签名模板](../config/windows-packaging/windows-signing.env.example)。从同一 scripts 目录运行 `start-windows-packaging-runner.ps1 -RunnerRoot <registered-runner-directory> -ConfigRoot <machine-root>/packaging -CheckOnly`，检查 runner 的 `tools` 目录下 PowerShell 7.6.6、Node、Python、Git、tar 和 Visual C++ 工具；打包 `--check` 完成其余工具链检查。省略 `-CheckOnly`，以显式配置目录和清理后的继承环境启动现有 runner。注册和工具安装单独进行；这些脚本不创建 token、不改系统安全设置、不清除签名失败记录。修改 preset 缓存路径前，使用下文签名缓存维护命令迁移已有条目。
 
@@ -48,7 +48,7 @@ description: "配置和维护 Windows 打包 runner、签名凭据、EV Token �
 
 ## 签名配置
 
-通过[机器 preset 配置](../packaging/README.zh.md#configuration-and-local-builds)选择公开设置与签名文件；不选择 preset 时使用目标 dotenv 文件。
+通过[机器 preset 配置](../packaging/README.md#configuration-and-local-builds)选择公开设置与签名文件；不选择 preset 时使用目标 dotenv 文件。
 
 在 `.env.windows` 中填写 `DSH_DESKTOP_WINDOWS_CER_FILE`（公开 EV 叶证书）、`DSH_DESKTOP_WINDOWS_SIGNTOOL`（SafeNet 兼容的 SignTool）、`DSH_DESKTOP_WINDOWS_KEY_CONTAINER`（匹配的私钥容器）和 `DSH_DESKTOP_WINDOWS_TOKEN_PIN`（Token Password）。私钥仍保留在 USB Token；不要把证书或本地凭据文件提交到 Git。
 
@@ -60,7 +60,7 @@ PIN 不能包含 `]`、引号或换行，因为这些字符用于分隔 SafeNet 
 
 ## 签名与时间戳处理
 
-启动签名构建前，先按[版本与打包说明](../packaging/README.zh.md#release-versions)确认输入。配置检查不代表 Token 认证成功。
+启动签名构建前，先按[版本与打包说明](../packaging/README.md#release-versions)确认输入。配置检查不代表 Token 认证成功。
 
 Windows 签名构建在编译或准备依赖前执行受监督的签名预检。静态配置、证书有效期、审计存储、编译器可用性及遗留签名锁的检查不访问 Token。本地 .NET Framework C# 编译器生成一个专用小探针，由正式签名器仅签名一次，随后必须验出配置的证书和时间戳才能继续构建。探针绝不执行。预检的整体 60 秒期限包含时间戳尝试；超时、硬件签名报错或验签失败都会停止本轮流程，不再次调用硬件。成功只证明当前签名路径可用，不证明 PIN 已独立认证：SafeNet 可能复用登录状态。不要为了验证 PIN 而注销或重复认证。`--check`、仅准备和 `--unsigned` 模式不执行此硬件预检；未签名产物仍不能发布上传。自动回归测试使用假签名器，真实硬件由发布操作人员单独验收。
 

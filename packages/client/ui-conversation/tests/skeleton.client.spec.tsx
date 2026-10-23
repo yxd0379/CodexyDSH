@@ -13,7 +13,6 @@ import {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { EMPTY_CONVERSATION_SNAPSHOT } from '../src/client/contract/snapshot.ts'
 import type { ConversationSnapshot } from '../src/client/contract/snapshot.ts'
@@ -388,7 +387,7 @@ function mount(
 describe('Hero chrome', () => {
   it('renders the English preview badge through the hero locale seat', () => {
     const renderSlot = vi.fn<HeroShellProps['renderSlot']>(() => null)
-    const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)
+    const view = render(<HeroShell t={makeTranslate(en, commonZh)} renderSlot={renderSlot} />)
     expect(view.getByText('Into the Unknown')).toBeTruthy()
     expect(view.getByText('Preview')).toBeTruthy()
     expect(renderSlot).toHaveBeenCalledOnce()

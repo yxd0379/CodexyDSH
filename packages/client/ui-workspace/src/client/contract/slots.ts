@@ -46,6 +46,7 @@ import type {
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SessionSearchResultItem } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionActivity, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
@@ -55,6 +56,7 @@ import type { WorkspaceShortcutState } from '../shortcuts.ts'
 import type { StartSessionOptions } from '../navigation.ts'
 import type {} from './toast.ts'
 import type { createWorkspaceViewStore } from '../stores.ts'
+import type { WorkspaceSourceActions, WorkspaceSourceView } from '../sources.ts'
 
 /**
  * Owner share of the directory-flow holes: the complete conversation between
@@ -115,6 +117,8 @@ export interface SessionRowScheduleOwnerProps {
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
+    /** 其他来源的工作区显示控制，复用原生“工作区”设置页。 */
+    'settings.workspaces.source': { kind: 'list'; scope: 'root'; owner: { children?: never } }
     /** Directory-flow hole under the conversation empty-state picker (declared by the WorkspacePicker entry). */
     'conversation.hero.workspace.directoryFlow': { kind: 'single'; scope: 'root'; owner: DirectoryFlowOwnerProps }
     /** Directory-flow hole under the sidebar browsing region (declared by the WorkspaceBrowser entry). */
@@ -228,7 +232,10 @@ export type WorkspaceBrowserInjected = {
     hostInfo: HostObservable<RemoteHostFacts>
     workspaceShortcuts: HostObservable<WorkspaceShortcutState>
     shortcuts: HostObservable<readonly ShortcutCatalogEntry[]>
+    sources: HostObservable<readonly WorkspaceSourceView[]>
   }
+  /** Resolve another source's actions only when its row receives a gesture. */
+  sourceActions: (sourceId: string) => WorkspaceSourceActions | undefined
   /** Open the browser search and focus its input. */
   requestSearch: () => void
   /** Request the existing directory picker. */

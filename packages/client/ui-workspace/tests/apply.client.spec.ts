@@ -159,7 +159,7 @@ async function bench() {
   // These specs assert the shipped Chinese copy. There is no jsdom `window`
   // in this lane, so browser-language detection never runs and the locale
   // comes from FALLBACK_LOCALE (en): state the asserted locale explicitly.
-  locale.setLocale('zh')
+
   ctx.provide('locale', locale)
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, create, rename, commands, accessSource,
@@ -170,7 +170,7 @@ async function bench() {
   }
 }
 
-type HoleName = 'sidebar.workspaces' | 'conversation.hero.workspace' | 'conversation.empty.workspace' | 'shell.overlay'
+type HoleName = 'sidebar.workspaces' | 'conversation.hero.workspace' | 'conversation.empty.workspace' | 'shell.overlay' | 'settings.section'
 
 const MENU_ITEM = 'sidebar.workspaces.session.menu.item'
 const ROW_ACTION = 'sidebar.workspaces.session.row.action'
@@ -179,7 +179,7 @@ type RowListName = typeof MENU_ITEM | typeof ROW_ACTION | 'shell.overlay'
 /** Declare any subset of the holes with a single root registration ('root' is a single slot); the overlay is a list. */
 function declare(slots: SlotRegistry, ...names: HoleName[]): () => void {
   const children = Object.fromEntries(names.map(name => [
-    name, { kind: name === 'shell.overlay' ? 'list' : 'single', scope: 'root' },
+    name, { kind: name === 'shell.overlay' || name === 'settings.section' ? 'list' : 'single', scope: 'root' },
   ]))
   return slots.register({ name: 'root', children } as never, () => null)
 }
@@ -213,6 +213,23 @@ function viewInstance(slots: SlotRegistry) {
 const settled = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 0) })
 
 describe('ui-workspace apply', () => {
+  it('工作区设置与侧栏共享显示偏好，重新添加归档目录会恢复显示', async () => {
+    const b = await bench()
+    onTestFinished(() => b.ctx.fiber.dispose())
+    declare(b.slots, 'sidebar.workspaces', 'settings.section')
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const browser = b.slots.entries('sidebar.workspaces')[0]!
+    const settings = b.slots.entries('settings.section').find(item => item.options.id === 'workspaces')!
+    expect(settings.options.label).toBe('工作区')
+    expect(settings.store).toBe(browser.store)
+    expect(b.slots.spec('settings.workspaces.source')).toEqual({ kind: 'list', scope: 'root' })
+    const view = viewInstance(b.slots)
+    view.actions.setWorkspaceVisible('ws-new', false)
+    const face = faceOf(browser) as WorkspaceBrowserInjected
+    await face.createWorkspace({ path: '/projects/已归档目录' })
+    expect(view.getSnapshot().archivedWorkspaceIds).toEqual([])
+  })
+
   it('keeps the host Loader entry inert', () => {
     expect(hostApply).not.toThrow()
   })

@@ -30,7 +30,6 @@ import type { KeyedSnapshotSelectorHook, SnapshotSelectorHook } from '@deepseek-
 import { allowAllAccess, bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import { EMPTY_CONVERSATION_SNAPSHOT } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 import { createChatStore } from '../src/client/stores.ts'
@@ -728,7 +727,7 @@ describe('Chat node rendering', () => {
   })
 
   it('formatRunDuration uses the English hour template', () => {
-    const t = makeTranslate(en, commonEn)
+    const t = makeTranslate(en, commonZh)
     expect(formatRunDuration(3_903_000, t)).toBe('1h 5m 3s')
   })
 
@@ -835,6 +834,7 @@ describe('ChatView', () => {
     const bodies = roots.map(root => root.querySelector<HTMLElement>('[data-step-process-body]')!)
     expect(roots).toHaveLength(3)
     expect(bodies.map(body => body.hasAttribute('hidden'))).toEqual([true, true, true])
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>('[data-turn-process="1"]')!)
     fireEvent.click(headers[0]!)
 
     for (const mode of ['standard', 'detailed', 'compact', 'detailed'] as const) {
@@ -1595,7 +1595,7 @@ describe('ChatView', () => {
       expect(scroller.scrollTop).toBe(expectedScroll)
       expect(view.container.querySelector('[data-chat-node-key="fixture:tool:retained"]')).toBe(old)
       expect(old.closest('[data-chat-group-key]')).toBe(group)
-      expect(control.disabled).toBe(true)
+      expect(control.disabled).toBe(false)
       expect(group.hasAttribute('hidden')).toBe(false)
       expect(header.getAttribute('aria-expanded')).toBe(String(anchor === 'node'))
       expect(view.container.querySelector('[data-chat-flow-kind="steering"]')?.closest('[data-chat-group-key]')).toBeNull()
@@ -1670,8 +1670,8 @@ describe('ChatView', () => {
     expect(rows.indexOf(control)).toBeLessThan(rows.indexOf(steer))
     expect(rows.indexOf(steer)).toBeLessThan(rows.indexOf(answer))
     expect(first.getBoundingClientRect().top).toBe(top)
-    expect(scroller.scrollTop).toBe(hasSteering ? 160 : 120)
-    expect([...column.querySelectorAll('[data-chat-group-key]')].every(group => !group.hasAttribute('hidden'))).toBe(true)
+    expect(scroller.scrollTop).toBe(hasSteering ? 80 : 40)
+    expect([...column.querySelectorAll('[data-chat-group-key]')].every(group => group.hasAttribute('hidden'))).toBe(true)
     expect(h.chatScroll.read()?.anchorKey).toBe(first.dataset.chatAnchorKey)
     expect(first.isConnected).toBe(true)
     expect(view.container.querySelector('[data-chat-node-key="fixture:assistant:6"]')).toBe(answer)
@@ -2611,7 +2611,7 @@ describe('ChatView', () => {
   })
 
   it.each(['compact', 'standard', 'detailed'] as const)(
-    'preserves steering-separated process groups in %s mode after Turn completion', (mode) => {
+    'folds completed process around visible steering and reveals it on demand in %s mode', (mode) => {
       const nodes = [
         userInTurn(1, 'question', 1),
         reasoningAssistant(2, 'first analysis', 1, 1),
@@ -2641,18 +2641,17 @@ describe('ChatView', () => {
 
       act(() => { h.set({ chat: project(true), running: false }) })
 
-      expect(roots.map(root => root.closest('[hidden]'))).toEqual([null, null, null])
-      expect(turnProcessControl(view.container)?.disabled).toBe(true)
+      expect(roots.every(root => root.closest('[hidden]') !== null)).toBe(true)
+      const control = turnProcessControl(view.container)!
+      expect(control.disabled).toBe(false)
       const visibleOrder = (): HTMLElement[] => [...view.container.querySelectorAll<HTMLElement>(
         '[data-chat-group-key], [data-chat-flow-kind="steering"], [data-chat-group-part="response"]',
       )].filter(row => row.closest('[hidden]') === null)
       const order = visibleOrder()
       expect(order).toEqual([
-        roots[0], view.getByText('first progress').closest('[data-chat-flow-kind]'),
         view.getByText('first direction').closest('[data-chat-flow-kind]'),
-        roots[1], view.getByText('second progress').closest('[data-chat-flow-kind]'),
         view.getByText('second direction').closest('[data-chat-flow-kind]'),
-        roots[2], view.getByText('final answer').closest('[data-chat-flow-kind]'),
+        view.getByText('final answer').closest('[data-chat-flow-kind]'),
       ])
       for (const next of ['compact', 'standard', 'detailed', mode] as const) {
         act(() => { h.setTranscriptView(next) })
@@ -2660,14 +2659,23 @@ describe('ChatView', () => {
         expect([...view.container.querySelectorAll('[data-chat-group-key]')]).toEqual(roots)
       }
       act(() => { h.setTranscriptView('compact') })
+      fireEvent.click(control)
+      const expandedOrder = visibleOrder()
+      expect(expandedOrder).toEqual([
+        roots[0], view.getByText('first progress').closest('[data-chat-flow-kind]'),
+        view.getByText('first direction').closest('[data-chat-flow-kind]'),
+        roots[1], view.getByText('second progress').closest('[data-chat-flow-kind]'),
+        view.getByText('second direction').closest('[data-chat-flow-kind]'),
+        roots[2], view.getByText('final answer').closest('[data-chat-flow-kind]'),
+      ])
       fireEvent.click(headers[1]!)
       expect(headers.map(header => header.getAttribute('aria-expanded'))).toEqual(['false', 'true', 'false'])
       expect(roots[1]!.querySelector('[data-step-process-body]')?.hasAttribute('hidden')).toBe(false)
       expect(roots[1]!.querySelector('[data-turn-process-member]')?.hasAttribute('hidden')).toBe(false)
-      expect(visibleOrder()).toEqual(order)
+      expect(visibleOrder()).toEqual(expandedOrder)
       fireEvent.click(headers[1]!)
       expect(headers.map(header => header.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false'])
-      expect(visibleOrder()).toEqual(order)
+      expect(visibleOrder()).toEqual(expandedOrder)
     },
   )
 
@@ -2724,6 +2732,33 @@ describe('ChatView', () => {
     expect(toggle.textContent).toBe('已完成，用时 5秒')
     expect(processRow.getAttribute('hidden')).toBeNull()
   }))
+
+  it('keeps narration and activity available when the Turn ends without a final answer', () => {
+    const progress: AssistantMessageNode = {
+      ...assistant(2, 'checking the workspace'),
+      blocks: [
+        { kind: 'text', text: 'checking the workspace' },
+        { kind: 'tool-call', callId: 'read-call', name: 'read', argsRaw: '{}' },
+      ],
+    }
+    const builder = new ChatSnapshotBuilder()
+    const groups = new ConversationGroupStore<ProcessGroupData>()
+    const state = new ProcessState()
+    const source = installGroupedSnapshot(builder, state, groups, chatSnapshotFixture({
+      nodes: [userInTurn(1, 'question', 1), progress, toolResult(3, 'read-call', 'read')],
+      turnEnds: new Map([[1, 4]]),
+    }))
+    const h = makeHarness({ chat: source })
+    h.setGrouped(groups)
+    const view = render(<h.ChatView {...h.props} />)
+
+    expect(view.getByText('checking the workspace').closest('[hidden]')).toBeNull()
+    expect(view.container.querySelector('[data-chat-group-key]')?.closest('[hidden]')).toBeNull()
+    expect(turnProcessControl(view.container)?.disabled).toBe(true)
+    const activity = view.container.querySelector<HTMLButtonElement>('[data-process-activity]')!
+    fireEvent.click(activity)
+    expect(view.getByText('read:read-call').closest('[hidden]')).toBeNull()
+  })
 
   it('preserves whole-Turn folding and manual expansion across work-details modes', () => {
     const process = assistant(2, 'inspect', 1, 1)

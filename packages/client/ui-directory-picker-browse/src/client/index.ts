@@ -15,6 +15,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { BrowseFlowInjected } from './flow.ts'
 import { BrowseDirectoryFlow } from './flow.ts'
+import { DirectoryLocationRegistry } from './locations.ts'
+export type { DirectoryPickerLocation, DirectoryPickerLocationInfo, DirectoryPickerLocations } from './locations.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Additional machines available in the native directory browser. */
+    directoryPickerLocations: import('./locations.ts').DirectoryPickerLocations
+  }
+}
 
 /** Locale namespace owning the browser dialog's copy. */
 const LOCALE_NS = 'directory-browser'
@@ -49,6 +58,8 @@ export function apply(ctx: ClientContext): void {
         'browser.loading': '加载中…',
         'browser.truncated': '文件夹过多，仅显示开头部分。',
         'browser.showHidden': '显示隐藏文件',
+        'browser.location': '位置',
+        'browser.local': '本机',
       }],
       ['en', {
         'browser.title': 'Select Workspace Directory',
@@ -64,6 +75,8 @@ export function apply(ctx: ClientContext): void {
         'browser.loading': 'Loading…',
         'browser.truncated': 'Too many folders to list; only the beginning is shown.',
         'browser.showHidden': 'Show hidden files',
+        'browser.location': 'Location',
+        'browser.local': 'This machine',
       }],
     ]
     try {
@@ -75,9 +88,15 @@ export function apply(ctx: ClientContext): void {
     return () => { for (const dispose of disposers) dispose() }
   }, 'directory-picker-browse: dialog dictionaries')
 
+  const locations = new DirectoryLocationRegistry()
+  ctx.effect(() => ctx.reflect.provide('directoryPickerLocations', locations), 'directory-picker-browse: locations')
   const injected = (): BrowseFlowInjected => ({
-    listDirectory: (path, signal) => ctx.uiWorkspace.listDirectory(path, signal),
-    createDirectory: (path, name) => ctx.uiWorkspace.createDirectory(path, name),
+    listDirectory: (path, signal, location = 'local') => location === 'local'
+      ? ctx.uiWorkspace.listDirectory(path, signal) : locations.get(location).listDirectory(path, signal),
+    createDirectory: (path, name, location = 'local') => location === 'local'
+      ? ctx.uiWorkspace.createDirectory(path, name) : locations.get(location).createDirectory(path, name),
+    pickLocation: (location, path) => locations.get(location).onPicked(path),
+    hooks: { locations: locations.locations },
     t: ctx.locale.bind(LOCALE_NS),
   })
   // Both declaration lifetimes must be live before the pair installs; the

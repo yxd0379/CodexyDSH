@@ -1,87 +1,87 @@
 ---
-description: "In-app directory-browsing surface: the Miller-column Select Workspace Directory dialog that fills workspace directory flows; for users and maintainers of the Web picking experience."
+description: "应用内目录浏览表面：填充工作区目录流程的 Miller 分栏「选择工作区目录」对话框；供 Web 拾取体验的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
 # @deepseek-ai/dsh-client-ui-directory-picker-browse
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+本包提供 Web GUI 的应用内目录浏览表面：一个「选择工作区目录」对话框，通过选定的宿主（默认为本机）列出、导航并创建文件夹，不涉及任何操作系统选择框。它填充 `ui-workspace` 声明的两个目录流程槽位，用一行 cordis.yml 组合出浏览拾取交互的客户端一侧。当浏览器为远程或进程内、没有本地操作系统选择器时选择它；本地部署可优先选择 [`-native`](../ui-directory-picker-native/README.zh.md) 表面。
 
-This package provides the in-app directory-browsing surface for the Web GUI: a Select Workspace Directory dialog that lists, navigates, and creates folders through the local Host, with no operating-system chooser involved. It fills the two directory-flow slots declared by `ui-workspace`, composing the client side of the browse picking interaction in one cordis.yml row. Choose it when the browser is remote or in-process and no local OS chooser exists; local deployments may prefer the [`-native`](../ui-directory-picker-native/README.md) surface.
+## 目录
 
-## Table of Contents
-
-- [Use this package](#use-this-package)
-- [Understand the implementation](#understand-the-implementation)
-- [Further Exploration](#further-exploration)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用本包
 
-Mount this plugin alongside `ui-workspace` and the host backend [`dsh-host-directory-picker-browse`](../../host/directory-picker-browse/README.md); one cordis.yml row then composes the whole browse picking interaction. When a workspace flow opens a directory request, the user sees the in-app dialog: a header with the path breadcrumb and an editable path zone, then a single full-width level until a row is selected, after which the row splits into level and children columns.
+与 `ui-workspace` 及宿主后端 [`dsh-host-directory-picker-browse`](../../host/directory-picker-browse/README.zh.md) 一起挂载本插件；一行 cordis.yml 随即组合出完整的浏览拾取交互。当工作区流程发起目录请求时，用户看到应用内对话框：头部承载路径面包屑与可编辑路径区，未选中行时是一整栏层级，选中后该行分为层级与子项两栏。
 
-### Navigating and creating
+### 导航与创建
 
-Step through folders, edit the path directly, or filter the last pane by prefix; a Host-flagged hidden entry stays hidden until the footer toggle reveals it. **New folder** opens a nested create dialog targeting the selected folder and selects what it creates; **Open** adopts the selected folder, falling back to the listed level. Confirming a directory is the picked path; dismissing the dialog is the cancellation.
+逐级进入文件夹、直接编辑路径，或用前缀过滤最后一栏；宿主标记的隐藏条目默认不显示，直到页脚开关揭开。**新建文件夹**打开一个嵌套创建对话框，目标为选中的文件夹，并选中它创建出来的那个；**打开**采纳选中的文件夹，没有选中时回落到当前层级。确认一个目录即为选中的路径；关闭对话框即为取消。
+
+应用可通过 `ctx.directoryPickerLocations.register({ id, label, listDirectory, createDirectory, onPicked })` 注册已连接的机器，并在连接生命周期结束时调用返回的 disposer。保留的 `local` 项仍走原本的工作区流程。额外机器显示在同一对话框的“位置”菜单，复用目录导航、路径编辑与创建文件夹功能。切换机器会结束上一文件系统视图并中止未完成的扫描，不替换外层流程。`onPicked(path)` 在该机器上采用所选目录并返回 promise：等待期间对话框保持忙碌；成功后关闭流程，不创建本机工作区；失败则使用原流程的错误展示。菜单快照只有机器 ID 与名称，操作回调保留在 registry 中。
 
 -----
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>实现细节——点击展开</summary>
 
-The dialog is a 680×500 Miller-column view (clamped on short or narrow viewports), driven by the host `listDirectory` and `createDirectory` primitives through `ctx.workspaces`. Both registrations install as one transactional effect through nested `ctx.slots.inject()` calls, because either declaring entry may activate later or replace its declaration; the dialog's copy lives in this package's own locale namespace so the two dictionaries land as a unit. Browse failures stay inside the dialog's own alert surfaces, so this occupant never drives the owner's `onError` arm. The node half is an empty `apply` that keeps the plugin on the host roster.
+对话框是 680×500 的 Miller 分栏视图（在较矮或较窄的视口中限制尺寸），经 `ctx.workspaces` 驱动宿主的 `listDirectory` 与 `createDirectory` 原语。两处注册经嵌套的 `ctx.slots.inject()` 调用作为一次事务性效果安装，因为任一声明条目都可能晚些激活或替换其声明；对话框文案注册在本包自己的 locale 命名空间下，让两份字典作为一个单元落地。列目录和创建文件夹失败留在对话框自己的提示区内；额外机器采用工作区目录失败时，使用持有方的 `onError` 分支。node 半部是一个空 `apply`，让插件留在宿主名单上。
 
 </details>
 
 -----
 
 <a id="further-exploration"></a>
-## Further Exploration
+## 进一步探索
 
-Read these pages when the picking surface is not enough. They move from the browser half to the host backend and the slots it fills.
+当拾取面不够用时阅读以下页面。它们从浏览器半部进入宿主后端与它所填充的槽位。
 
-- [dsh-host-directory-picker-browse](../../host/directory-picker-browse/README.md) — the directory-listing backend this surface drives.
-- [ui-workspace](../ui-workspace/README.md) — declares the directory-flow slots and owns the picking conversation.
-- [ui-directory-picker-native](../ui-directory-picker-native/README.md) — the native OS-chooser alternative for local deployments.
-- [Web client architecture](../../../docs/subsystems/web-client.md) — how browser plugin rows load and register slots.
+- [dsh-host-directory-picker-browse](../../host/directory-picker-browse/README.zh.md)——本表面驱动的目录列出后端。
+- [ui-workspace](../ui-workspace/README.md)——声明目录流程槽位并拥有拾取对话。
+- [ui-directory-picker-native](../ui-directory-picker-native/README.zh.md)——面向本地部署的原生操作系统选择器替代方案。
+- [Web 客户端架构](../../../docs/subsystems/web-client.zh.md)——浏览器插件行如何加载并注册槽位。
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as the directory browser is browser chrome; nothing here reaches a model request.
+无，因为目录浏览器属于浏览器界面；本包中的任何内容都不会进入模型请求。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None; this package neither assembles nor sends a provider request.
+无；本包既不组装也不发送提供方请求。
 
-## Known Limitations and Deferred Work
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
 
-These limits define the current browse surface. They are current package constraints, not a general file-browser comparison or a task backlog.
+这些限制界定了当前浏览表面。它们是当前包约束，不是通用文件浏览器对比或任务积压。
 
-- **No search, no multi-select, and no rename or delete** — the dialog lists and creates directories; a target is reached by navigating, editing the path, or filtering the last pane by prefix.
-- **Hidden-entry filtering is client-side** — the Host always lists hidden entries and flags them, so the toggle changes only what the dialog renders.
+- **无搜索、无多选、无重命名或删除**——对话框只负责列出与创建目录；到达目标靠导航、编辑路径，或用前缀过滤最后一栏。
+- **隐藏条目的过滤在客户端**——宿主始终列出隐藏条目并加标记，因此开关只改变对话框渲染什么。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者的工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

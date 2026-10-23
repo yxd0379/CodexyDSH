@@ -11,7 +11,7 @@ afterEach(() => {
   window.dispatchEvent(new Event('pagehide'))
   document.documentElement.removeAttribute('data-windows-titlebar')
   document.documentElement.style.removeProperty('--dsh-windows-titlebar-height')
-  document.documentElement.lang = 'en'
+  document.documentElement.lang = 'zh-CN'
   document.body.removeAttribute('data-ds-dark-theme')
   vi.restoreAllMocks()
   send.mockClear()
@@ -37,19 +37,19 @@ it('synchronizes live language and palette changes and stops observing a closed 
       ? [0, 0, 0, 255] : context.fillStyle.startsWith('oklch') ? [27, 27, 28, 255] : [255, 255, 255, 255]) }),
   }
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
-  document.documentElement.lang = 'en'
+  document.documentElement.lang = 'zh-CN'
   syncWindowsAppearance()
   expect(send).not.toHaveBeenCalled()
   expect(document.documentElement.hasAttribute('data-windows-titlebar')).toBe(true)
   window.dispatchEvent(new Event('DOMContentLoaded'))
   expect(document.documentElement.style.getPropertyValue('--dsh-windows-titlebar-height')).toBe('40px')
-  expect(send).toHaveBeenLastCalledWith(DESKTOP_IPC.windowsAppearance, 'en', 'rgba(255, 255, 255, 1)', 'rgba(0, 0, 0, 1)')
+  expect(send).toHaveBeenLastCalledWith(DESKTOP_IPC.windowsAppearance, 'zh-CN', 'rgba(255, 255, 255, 1)', 'rgba(0, 0, 0, 1)')
   document.documentElement.lang = 'zh-CN'
   document.body.setAttribute('data-ds-dark-theme', '')
   await vi.waitFor(() => { expect(send).toHaveBeenLastCalledWith(DESKTOP_IPC.windowsAppearance, 'zh-CN', 'rgba(27, 27, 28, 1)', 'rgba(0, 0, 0, 1)') })
   window.dispatchEvent(new Event('pagehide'))
   send.mockClear()
-  document.documentElement.lang = 'en'
+  document.documentElement.lang = 'zh-CN'
   await new Promise<void>((resolve) => { queueMicrotask(resolve) })
   expect(send).not.toHaveBeenCalled()
 })

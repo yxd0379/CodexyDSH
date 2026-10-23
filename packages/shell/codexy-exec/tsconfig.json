@@ -1,0 +1,69 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../context/codexy-prompt"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/codexy-bridges"
+    },
+    {
+      "path": "../../core/codexy-runtime"
+    },
+    {
+      "path": "../../core/codexy-tool-schema"
+    },
+    {
+      "path": "../../fs/codexy-files"
+    },
+    {
+      "path": "../../fs/fs"
+    },
+    {
+      "path": "../../guard/codexy-approval"
+    },
+    {
+      "path": "../../interaction/commands"
+    },
+    {
+      "path": "../../jobs/jobs"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../sandbox/sandbox"
+    },
+    {
+      "path": "../../sandbox/sandbox-policy"
+    },
+    {
+      "path": "../../subprocess/codexy-processes"
+    },
+    {
+      "path": "../../subprocess/subprocess"
+    },
+    {
+      "path": "../shell"
+    },
+    {
+      "path": "../shell-env"
+    }
+  ]
+}

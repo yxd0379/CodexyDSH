@@ -30,6 +30,7 @@ const permissionGlyphs = new Map<string, ReactNode>([
   ['workspace-write', <PermissionIconWorkspaceWriteRegular />],
   [FULL_ACCESS, <PermissionIconFullAccessRegular />],
   [AUTO_REVIEW, <PermissionIconAutoReviewRegular />],
+  ['approve-for-me', <PermissionIconAutoReviewRegular />],
 ])
 
 /** Glyph for a permission option value; host-configured names outside the design set get none. */

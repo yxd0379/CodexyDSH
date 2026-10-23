@@ -25,7 +25,7 @@ description: "将完整 Desktop 安装包与更新清单发布到选定下载服
 
 ## 发布前提
 
-发布需要完整的 release 产物和操作者明确授权。生成安装包或下载 Actions 产物不会发布它。先阅读[发布版本规则](../packaging/README.zh.md#release-versions)并保留打包证据。机器 preset 用于打包，不支持 upload/COS 命令：取消设置 `DSH_PACKAGING_PRESET`，并提供既有目标 dotenv 上传配置。配置以及真实 COS/CDN 验收由发布操作者验证。
+发布需要完整的 release 产物和操作者明确授权。生成安装包或下载 Actions 产物不会发布它。先阅读[发布版本规则](../packaging/README.md#release-versions)并保留打包证据。机器 preset 用于打包，不支持 upload/COS 命令：取消设置 `DSH_PACKAGING_PRESET`，并提供既有目标 dotenv 上传配置。配置以及真实 COS/CDN 验收由发布操作者验证。
 
 <a id="upload-updates"></a>
 

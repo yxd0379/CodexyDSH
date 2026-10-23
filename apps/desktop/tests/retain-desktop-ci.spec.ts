@@ -22,10 +22,10 @@ it.each([
   await mkdir(join(config, 'presets'), { recursive: true })
   await writeFile(join(appRoot, 'package.json'), '{"version":"1.0.0"}')
   await writeFile(join(config, 'presets/test.env'), `DSH_DESKTOP_AUTO_UPDATE_ENV=test\nDOWNLOAD_TEST_RELEASE_ID=${'a'.repeat(32)}\n`)
-  const names = debug ? (target === 'win-x64' ? [`deepseek-harness-1.0.0-win-x64-${qualification}.exe`]
-    : [`deepseek-harness-1.0.0-mac-arm64-${qualification}.dmg`, `deepseek-harness-1.0.0-mac-arm64-${qualification}.zip`]) : target === 'win-x64'
-    ? ['deepseek-harness-1.0.0-win-x64.exe', 'deepseek-harness-1.0.0-win-x64.exe.blockmap', 'win-x64-release.json', 'nightly.yml']
-    : ['deepseek-harness-1.0.0-mac-arm64.dmg', 'deepseek-harness-1.0.0-mac-arm64.zip', 'deepseek-harness-1.0.0-mac-arm64.zip.blockmap', 'mac-arm64-release.json', 'nightly-mac.yml']
+  const names = debug ? (target === 'win-x64' ? [`codexydsh-1.0.0-win-x64-${qualification}.exe`]
+    : [`codexydsh-1.0.0-mac-arm64-${qualification}.dmg`, `codexydsh-1.0.0-mac-arm64-${qualification}.zip`]) : target === 'win-x64'
+    ? ['codexydsh-1.0.0-win-x64.exe', 'codexydsh-1.0.0-win-x64.exe.blockmap', 'win-x64-release.json', 'nightly.yml']
+    : ['codexydsh-1.0.0-mac-arm64.dmg', 'codexydsh-1.0.0-mac-arm64.zip', 'codexydsh-1.0.0-mac-arm64.zip.blockmap', 'mac-arm64-release.json', 'nightly-mac.yml']
   await Promise.all(names.map(name => writeFile(join(artifacts, name), 'fixture')))
   const env = {
     DSH_PACKAGING_CONFIG_DIR: config, DSH_PACKAGING_PRESET: 'test', DSH_DESKTOP_TARGET_PLATFORM: target === 'win-x64' ? 'win32' : 'darwin',

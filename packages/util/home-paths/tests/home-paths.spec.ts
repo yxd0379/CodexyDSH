@@ -25,17 +25,17 @@ afterEach(() => {
 
 describe('dsh path helpers', () => {
   it('owns the shared default DSH home directory name', () => {
-    expect(DSH_HOME_DIR_NAME).toBe('.dsh')
-    expect(DEFAULT_DSH_HOME_DISPLAY).toBe('~/.dsh')
-    expect(defaultDshHome()).toBe(join(homedir(), '.dsh'))
+    expect(DSH_HOME_DIR_NAME).toBe('.codexydsh')
+    expect(DEFAULT_DSH_HOME_DISPLAY).toBe('~/.codexydsh')
+    expect(defaultDshHome()).toBe(join(homedir(), '.codexydsh'))
   })
 
   it('expands tilde paths without changing non-tilde paths', () => {
     expect(expandHomePath('~')).toBe(homedir())
-    expect(expandHomePath('~/.dsh')).toBe(join(homedir(), '.dsh'))
-    expect(expandHomePath('~\\.dsh')).toBe(join(homedir(), '.dsh'))
-    expect(expandHomePath('/tmp/.dsh')).toBe('/tmp/.dsh')
-    expect(expandHomePath('~other/.dsh')).toBe('~other/.dsh')
+    expect(expandHomePath('~/.codexydsh')).toBe(join(homedir(), '.codexydsh'))
+    expect(expandHomePath('~\\.codexydsh')).toBe(join(homedir(), '.codexydsh'))
+    expect(expandHomePath('/tmp/.codexydsh')).toBe('/tmp/.codexydsh')
+    expect(expandHomePath('~other/.codexydsh')).toBe('~other/.codexydsh')
   })
 
   it('resolves explicit path before DSH_HOME and the default', () => {
@@ -51,6 +51,11 @@ describe('dsh path helpers', () => {
     expect(resolveDshHome(undefined, { DSH_HOME: '   ' })).toBe(defaultDshHome())
   })
 
+  it('uses an official DSH home only when it is explicitly selected', () => {
+    expect(resolveDshHome(undefined, {})).toBe(join(homedir(), '.codexydsh'))
+    expect(resolveDshHome(undefined, { DSH_HOME: '~/.dsh' })).toBe(join(homedir(), '.dsh'))
+  })
+
   it('joins child segments onto the resolved DSH_HOME', () => {
     vi.stubEnv('DSH_HOME', '~/env-dsh')
     expect(dshHomePath()).toBe(join(homedir(), 'env-dsh'))
@@ -58,7 +63,7 @@ describe('dsh path helpers', () => {
   })
 
   it('labels a resolved home by whether it is the default root', () => {
-    expect(dshHomeDisplay(resolve(defaultDshHome()))).toBe('~/.dsh')
+    expect(dshHomeDisplay(resolve(defaultDshHome()))).toBe('~/.codexydsh')
     expect(dshHomeDisplay('/some/other/root')).toBe('$DSH_HOME')
   })
 
@@ -87,9 +92,9 @@ describe('dsh path helpers', () => {
   })
 
   it.each([
-    [undefined, join(homedir(), '.dsh')],
-    ['', join(homedir(), '.dsh')],
-    ['   ', join(homedir(), '.dsh')],
+    [undefined, join(homedir(), '.codexydsh')],
+    ['', join(homedir(), '.codexydsh')],
+    ['   ', join(homedir(), '.codexydsh')],
     ['~/env-dsh', join(homedir(), 'env-dsh')],
     ['./relative-dsh', resolve('./relative-dsh')],
   ] as const)('resolves cache paths with DSH_HOME=%j', (home, expectedHome) => {

@@ -38,6 +38,22 @@ export interface SnapshotStore<T> extends ObservableSnapshot<T> {
 }
 
 /**
+ * Scope browser persistence to the document's deployment directory, not its transient query or view route.
+ * @param name - the owning store's persistence name.
+ * @param baseURI - document deployment base; absent in non-browser consumers.
+ * @returns the unchanged name for app-root documents, or its directory-prefixed counterpart.
+ */
+export function storageKey(name: string, baseURI?: string): string {
+  const directory = baseURI === undefined ? '/' : new URL('.', baseURI).pathname
+  return directory === '/' ? name : `${directory}${name}`
+}
+
+/** Capture the current document owner when an instance starts, without a process-global namespace. */
+function documentBaseURI(): string | undefined {
+  return typeof document === 'undefined' ? undefined : document.baseURI
+}
+
+/**
  * Notify an observer set without allowing one callback to starve the rest.
  * @param listeners - current observer callbacks; copied before dispatch.
  * @param label - diagnostic owner prefix.
@@ -148,8 +164,9 @@ function attachPersistence<T>(api: StoreApi<T>, name: string): void {
   // persistence silently disables — same contract as a storage failure, minus
   // the per-store console noise a ReferenceError would produce.
   if (typeof localStorage === 'undefined') return
+  const key = storageKey(name, documentBaseURI())
   try {
-    const raw = localStorage.getItem(name)
+    const raw = localStorage.getItem(key)
     if (raw !== null) {
       api.setState(devFreeze(JSON.parse(raw) as T), true)
     }
@@ -158,7 +175,7 @@ function attachPersistence<T>(api: StoreApi<T>, name: string): void {
   }
   api.subscribe((state) => {
     try {
-      localStorage.setItem(name, JSON.stringify(state))
+      localStorage.setItem(key, JSON.stringify(state))
     } catch (error) {
       console.error(`snapshot store '${name}' persistence failed:`, error)
     }
@@ -222,6 +239,7 @@ export function defineStore<T, A extends ActionsDecl<T>>(
       const persistKey = decl.persist === undefined
         ? undefined
         : scopeKey === undefined ? decl.persist : `${decl.persist}.${scopeKey}`
+      const persistedStorageKey = persistKey === undefined ? undefined : storageKey(persistKey, documentBaseURI())
       const store = createSnapshotStore<T>(
         decl.init(),
         persistKey !== undefined ? { persist: { name: persistKey } } : undefined)
@@ -236,9 +254,9 @@ export function defineStore<T, A extends ActionsDecl<T>>(
         subscribe: fn => store.subscribe(fn),
         store,
         clearPersisted: () => {
-          if (persistKey === undefined || typeof localStorage === 'undefined') return
+          if (persistedStorageKey === undefined || typeof localStorage === 'undefined') return
           try {
-            localStorage.removeItem(persistKey)
+            localStorage.removeItem(persistedStorageKey)
           } catch {
             // Storage failures (private mode, quota teardown races) only skip
             // cleanup — the same non-fatal contract as attachPersistence.

@@ -1,0 +1,51 @@
+{
+  "name": "@codexydsh/bridges",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./tools": {
+      "types": "./lib/types/tools.d.ts",
+      "default": "./lib/tools.js"
+    },
+    "./tool-port": {
+      "types": "./lib/types/tool-port.d.ts",
+      "default": "./lib/tool-port.js"
+    },
+    "./session-reads": {
+      "types": "./lib/types/session-reads.d.ts",
+      "default": "./lib/session-reads.js"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/dsh-scope": "workspace:*",
+    "@deepseek-ai/dsh-util-values": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~"
+  },
+  "dependencies": {
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/prompt-registry": "workspace:*"
+  },
+  "devDependencies": {
+    "@codexydsh/runtime-testkit": "workspace:*",
+    "@deepseek-ai/dsh-file-reference-local": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/dsh-scope": "workspace:*",
+    "@deepseek-ai/dsh-util-values": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~"
+  }
+}

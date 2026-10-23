@@ -1,206 +1,204 @@
 ---
-description: "Browser Chat target that renders Session conversation nodes, historical images, actions, localization, and scroll state."
+description: "渲染会话对话节点、历史图片、操作、本地化和滚动状态的浏览器 Chat target。"
 kind: "package-reference"
 ---
 # @deepseek-ai/dsh-client-ui-chat
 
-English | [中文](README.zh.md)
+桌面端产品事件使用可选的[产品埋点服务](../product-analytics/README.zh.md)，不包含普通 Web 交互。
 
-Desktop product events use the optional [product analytics service](../product-analytics/README.md); ordinary Web interactions are excluded.
+## 概述
 
-## Summary
+使用本包可在浏览器中渲染已记录的 Session 对话，包括历史图片、本地化操作和滚动位置恢复。Web 与 Desktop 默认使用标准工作步骤展示：运行时保留旁白，最终回答完成后保留回答，将此前旁白、思考和工具收起为可查看的工作过程。停止、失败或没有最终回答的轮次保留已有文本及过程；用户输入始终不参与折叠。用户显式选择的详细模式和收起时机仍然有效。本地 transcript（文本记录）与 steering（中途引导）提交会立即显示并保留在原区域，在权威会话记录到达时原子地消失，而排队中的提交始终不进入 Chat。本包不组装或修改模型请求。
 
-Use this package to render a browser chat from recorded Session conversations, including historical images, localized actions, and restored scroll position. Work-details modes control reasoning previews and process visibility without hiding final answers; Verbose keeps completed-turn process rows visible. Local transcript and steering submissions appear immediately, remain in their original surface, and disappear atomically when authoritative Session records arrive, while queued submissions stay outside Chat. The package does not assemble or modify model requests.
+文件提及提供方同时接收当前查看的会话 ID 与收尾轮次的属主信息，因此继承历史中的链接可以指向 fork 自身。
 
-File-mention providers receive the viewed Session ID with the closing-turn owner, so links into inherited history can address the fork itself.
+## 目录
 
-## Table of Contents
-
-- [Reference previews](#reference-previews)
-- [Hidden Chat rows](#system-prompt-row)
-- [Command and failure rows](#command-and-failure-rows)
-- [Turn token usage](#turn-token-usage)
-- [Completed-turn footer](#completed-turn-footer)
-- [Turn Process Folding](#turn-process-folding)
-- [Grouped rendering](#grouped-rendering)
-- [Scroll ownership](#scroll-ownership)
-- [Model Experience](#model-experience)
-- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
+- [引用预览](#reference-previews)
+- [Chat 隐藏的行](#system-prompt-row)
+- [指令与失败行](#command-and-failure-rows)
+- [轮次 token 用量](#turn-token-usage)
+- [已完成轮次的页脚](#completed-turn-footer)
+- [轮次过程折叠](#turn-process-folding)
+- [分组渲染](#grouped-rendering)
+- [滚动归属](#scroll-ownership)
+- [模型体验](#model-experience)
+- [已知限制与暂缓事项](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
 -----
 
 <a id="reference-previews"></a>
-## Reference previews
+## 引用预览
 
-Sent generic-file attachments retain the draft's [file-card radius](../../../docs/ui-radius.md#radius-scale).
+已发送的普通文件附件保留草稿中的[文件卡片圆角](../../../docs/ui-radius.zh.md#radius-scale)。
 
-`ChatView` supplies file and HTTP(S) navigation through the existing `MarkdownDelegateProvider` around its node list, passing `requestOpenFile`, `openExternalLink`, and `fileImages` directly. Its file opener retains Chat's failure feedback and retry handling. Assistant Markdown file links open in the right Sidebar after the message settles, including references to unmodified files. Relative paths resolve in the viewed Session's workspace; absolute paths retain the same Session's filesystem access. `#L24` and `#L24-L30` navigate to the first specified line and reuse an existing file tab. Missing files show the preview's error state.
+`ChatView` 通过节点列表外围既有的 `MarkdownDelegateProvider` 提供文件及 HTTP(S) 导航，直接传入 `requestOpenFile`、`openExternalLink` 和 `fileImages`。文件打开动作保留 Chat 的失败反馈与重试处理。Assistant Markdown 文件链接在消息落定后可于右侧栏打开，包括未修改文件的引用。相对路径基于当前查看的 Session 工作区解析；绝对路径仍使用同一 Session 的文件系统访问。`#L24` 和 `#L24-L30` 定位到指定起始行，并复用现有文件标签。文件缺失时显示预览错误状态。
 
-Native message images use separate user and output positions. The `conversation.chat.user.content` Factory declares `conversation.chat.user.images`, which `UserContent` renders; the Assistant node registration declares `conversation.chat.message.images`, which `AssistantMarkdown` renders. Both receive image sources, the authorized `loadImage`, and layout options through explicit props. Their official `MessageImages` entries call the shared root-scoped `conversation.images.content` Factory. Each position can be replaced independently without duplicating the gallery implementation.
+原生消息图片使用独立的用户与输出位置。`conversation.chat.user.content` Factory 声明 `conversation.chat.user.images`，由 `UserContent` 渲染；Assistant 节点注册声明 `conversation.chat.message.images`，由 `AssistantMarkdown` 渲染。两者通过显式 props 接收图片来源、授权 `loadImage` 和布局参数。官方 `MessageImages` 条目调用共享的 root 作用域 `conversation.images.content` Factory。每个位置均可独立替换，无需复制画廊实现。
 
-The session-scoped `conversation.chat.user.content` Factory renders only the user content stack: text, extra blocks, image/file attachments in input order, and reference summaries. Its [`UserContentInput`](src/client/contract/slots.ts) carries prepared `content`, transform `facts`, display props, and explicit `loadImage`; node-owned injections provide reference actions. It calls the shared `conversation.user.text` Factory for text and its own image Slot for images. Direct callers need a Session binding and supply their own row wrapper.
+Session 作用域的 `conversation.chat.user.content` Factory 只渲染用户内容区域：文本、额外内容块、按输入顺序排列的图片／文件附件及引用摘要。[`UserContentInput`](src/client/contract/slots.ts) 携带预处理的 `content`、变换 `facts`、显示 props 和显式 `loadImage`；引用动作由节点自己的 Injection 提供。正文调用共享 `conversation.user.text` Factory，图片调用自身拥有的图片 Slot。直接调用需要 Session 绑定，行包装层由调用方提供。
 
-`UserStyleBubble` and the [source-specific wrappers](<src/client/chat/MessageItem.tsx#L157-L309>) retain the user row, keys, pending/echo markers, timestamps, copy controls, and other message actions. The content Factory reads neither source-specific models nor private Context, and is not a global user-content override entry point.
+`UserStyleBubble` 和[各来源包装层](<src/client/chat/MessageItem.tsx#L157-L309>) 保留用户行、key、pending／echo 标记、时间、复制控件及其他消息操作。内容 Factory 不读取来源专属模型或私有 Context，也不是全局用户内容替换入口。
 
-Standalone Markdown images show contained previews and open the shared image lightbox; local paths resolve against the viewed workspace after settlement. Image file links keep their sidebar activation and show a thumbnail after hover dwell or keyboard focus. Escape dismisses the thumbnail. Failed images retain a localized status and their description; no duplicate-image filtering is applied.
+独立的 Markdown 图片以内嵌预览显示，点击打开共享图片浮层；本地路径在消息落定后基于当前查看的工作区解析。图片文件链接保持点击打开侧栏，鼠标停留或键盘聚焦时显示缩略图，Esc 关闭缩略图。图片加载失败时保留本地化状态与图片说明；不执行重复图片过滤。
 
-Settings → General → Open chat links in selects the destination for ordinary clicks on Chat HTTP(S) links: In-App Sidebar (default) opens a new right-Sidebar Browser tab, while Default Browser opens an external tab. The setting follows Keyboard shortcuts and is shown only while the Sidebar Browser is available. If the Sidebar Browser is not registered, both choices use the external browser; modified clicks retain native behavior. The `ui-chat.linkOpening` preference persists on the Host for authenticated browsers and stays process-local when settings cannot persist writes. Sent file references and skills confirmed by the message’s logged invocation also open in the right Sidebar. File paths use the viewed Session; skill names resolve through its current input-trigger source. Both use the prose file-link dotted underline on hover or focus. Sessions, directories, and command labels remain non-navigating references.
+设置 → 通用设置 → 网页链接默认打开方式控制普通点击 Chat HTTP(S) 链接时的目标：「应用内侧边栏」（默认）打开新的右侧 Sidebar Browser tab，「默认浏览器」打开外部标签页。该设置项位于快捷键之后，仅在 Sidebar Browser 可用时显示。若 Sidebar Browser 未注册，两种选择均使用外部浏览器；带修饰键的点击保留原生行为。已认证浏览器的 `ui-chat.linkOpening` 偏好在 Host 上持久化，设置无法持久化写入时仅在当前进程内生效。已发送的文件引用及消息日志确认调用的 skill 也可在右侧栏打开预览。文件路径使用当前查看的 Session；skill 名称由该 Session 当前的输入触发源解析。两者悬停或聚焦时均使用正文文件链接的虚线下划线。会话、目录和命令标签仍只作为引用展示。
 
 <a id="system-prompt-row"></a>
-## Hidden Chat rows
+## Chat 隐藏的行
 
-Chat omits system-prompt, ordinary Context injection, and `permission` command rows in every work-details mode. Context containing tool additions or removals remains visible. The filter changes neither recorded Session events nor Trajectory inspection. Non-human Turn triggers remain independent, bordered notices with a contrasting neutral background; other command rows remain in Chat.
+Chat 在所有工作步骤展示模式下都不显示系统提示词行、普通上下文注入和 `permission` 命令行。包含工具添加或移除记录的上下文仍然可见。该过滤不改变已记录的 Session 事件或 Trajectory 查看能力。非人工轮次触发仍作为独立通知显示，其他命令行仍保留在 Chat 中。
 
-When an Assistant attempt retires without a visible message, Chat hides its already-published Node instead of removing its key. A retry in the same Step reuses that key when visible content returns. This also applies when the loaded window lacks the Step start.
+Assistant 尝试结束且没有可见消息时，Chat 隐藏已发布的 Node，不移除其 key。同一 Step 的重试再次产生可见内容时，复用该 key。已加载窗口缺少 Step 起点时也遵循此规则。
 
 <a id="command-and-failure-rows"></a>
-## Command and failure rows
+## 指令与失败行
 
-Generic command rows retain the ordinary command glyph in every lifecycle state; failure remains explicit through the row state and summary. Every terminal Turn failure renders its inline red-dot row; a quota failure's row states the neutral `message.failure.quota` copy instead of the provider message. The transient notice for a newly appended `QUOTA` or `ACCOUNT_QUOTA` comes from this package's frame-wide entry in `shell.overlay`, which outlives the Chat panel: it offers the one live notice to the `shell.quota-notice` chain and falls back to its own warning Toast, while an entry that claims the code replaces that fallback. Only Sessions this Client has bound and materialized publish; quota failures in Sessions it never opened do not. A newer notice replaces the current one unless a claiming entry retains it with `keepOpen()`: that call returns a release the caller owns and must run on unmount, any live hold keeps the claiming entry mounted and drops later notices, and releasing resumes later notices without replaying the dropped ones. The fallback Toast has no deferral of its own: while the Desktop account's opaque native Platform page covers the document, it still runs underneath and its display timer may elapse unseen, dismissing the notice itself, so only the persistent failure row remains. A release drops only its own hold, so one that runs after a dismissal or a newer hold leaves that newer hold intact. Dismissal and sign-out clear every hold, and dropped notices are not queued while their persistent failure rows still render. History replacement and pagination never publish a notice. Intermediate retries do not create a terminal row; output-token limits use the amber warning dot. A Turn that restart recovery closed as `interrupted` renders a localized stopped row stating that the DSH process exited mid-Turn, without a code chip, and its process summary reads Stopped.
+通用指令行在所有生命周期状态中都保留普通指令图标；失败仍通过行状态与摘要表达。每个终止轮次都渲染自己的红点行；欠费失败的行使用中立的 `message.failure.quota` 文案，而不是提供方消息。新追加的 `QUOTA` 或 `ACCOUNT_QUOTA` 产生的瞬时提示来自本包注册在 `shell.overlay` 的全局条目，它不随 Chat 面板消失：该条目把唯一一条实时提示交给 `shell.quota-notice` 链，并在无人接管时回退到自己的警告 Toast，接管该错误码的条目会替换该回退。只有本 Client 已绑定并已物化的 Session 会发布提示；它从未打开的 Session 中的欠费不会发布。更新的提示会替换当前提示，除非认领条目用 `keepOpen()` 保持住当前提示：该调用返回一个由调用方持有、必须在卸载时调用的释放函数，只要存在保持，认领条目就继续挂载，后续提示被丢弃，释放后恢复后续提示但不重放已丢弃的提示。回退 Toast 自身没有延后策略：当 Desktop 账号的不透明原生 Platform 页盖住本页时，它仍会在下方运行，其显示计时器可能在不可见时走完并自行撤下提示，因此只留下持久化失败行。释放只移除自己的保持，因此它在关闭或更新的保持之后执行时不会影响更新的保持。关闭与退出登录会清空所有保持；被丢弃的提示不排队，其对应的持久化失败行仍会渲染。历史替换和分页不会发布提示。中间重试不会创建终止行；输出 token 上限使用琥珀色警告点。重启恢复以 `interrupted` 结束的轮次会渲染本地化的停止行，说明 DSH 进程在轮次中途退出，不显示代码标签，其过程摘要显示“已停止”。
 
 -----
 
 <a id="turn-token-usage"></a>
-## Turn token usage
+## 轮次 token 用量
 
-A completed Turn shows an expandable usage row only when the loaded window includes `turn/start` and every started model attempt reports safe, exact usage. The row omits unavailable optional buckets. Incomplete or contradictory accounting hides the complete disclosure instead of presenting a partial total.
+只有当已加载窗口包含 `turn/start`，且每次已启动的模型尝试都报告安全、精确的用量时，已完成轮次才显示可展开的用量行。该行会省略不可用的可选用量桶。记账不完整或相互矛盾时，整个详情都不显示，避免把部分总量冒充完整结果。
 
-Settings → General → Performance & usage appears after Send behavior while busy and before Session Log upload, and stores `ui-chat.performanceUsage` as `detailed` (default) or `compact`. Compact shows only available output speed and cache-hit percentage beneath the composer, without interactive statistic dialogs or per-Turn usage. Detailed exposes session statistics and per-Turn token usage. Neither mode shows elapsed time in the completed-turn footer. The preference changes presentation only; accounting and Session events remain intact.
+设置 → 通用设置 → 性能与用量位于繁忙时的发送行为之后、Session Log 上传之前，将 `ui-chat.performanceUsage` 保存为 `detailed`（默认）或 `compact`。简洁模式仅在输入框下方显示可用的输出速度和缓存命中率，不显示统计交互卡片或每轮用量。详细模式提供会话统计和每轮 token 用量。两种模式的已完成轮次页脚均不显示耗时。该偏好仅影响展示，记账和 Session 事件保持完整。
 
-The composer statistics are two `conversation.composer.dock` list entries: `activity` (order 0, turn and step counts and output speed, with LLM time, tool time, and TTFT) and `usage` (order 1, token total and cache hit). The controls follow the shared [statistics-control radius](../../../docs/ui-radius.md#radius-scale). Another plugin replaces one control by registering the same id and the same `order`; the dock orders rows by `order`, while a lower `priority` picks the replacement: a dynamic plugin receives one automatically, and a statically composed plugin passes it explicitly. A new id adds a control. Each control carries its id in `data-composer-stat`. An open statistics dialog closes on Escape or on a pointerdown or click outside it, so activating another control by pointer or keyboard swaps dialogs instead of stacking them.
+输入框统计信息由两个 `conversation.composer.dock` 列表条目组成：`activity`（order 0，轮次数、步骤数与输出速度，以及 LLM 耗时、工具耗时与 TTFT）和 `usage`（order 1，token 总量与缓存命中）。这些控件遵循公共的[统计控件圆角规则](../../../docs/ui-radius.zh.md#radius-scale)。其他插件以相同的 id 和相同的 `order` 注册即可替换某个控件；dock 按 `order` 排列各行，更低的 `priority` 决定由替换者渲染：动态插件会自动获得，静态组合的插件需显式传入。以新 id 注册则新增控件。每个控件在 `data-composer-stat` 中携带其 id。按下 Escape，或在已打开的对话框之外发生 pointerdown 或点击时，该对话框会关闭，因此用指针或键盘激活另一个控件会切换对话框，而不会叠加两个。
 
-Explicit selections update every consumer immediately; accepted Host settings reconcile the live value, so a refused or pending write keeps the selected mode until the Host answers.
+明确选择会立即更新所有使用方；Host 接受的设置会校正实时值，因此写入被拒绝或尚未应答时保持所选模式，直到 Host 应答。
 
-Preference menus restore focus to their trigger without scrolling before publishing a new selection.
+偏好菜单在发布新选择之前，先将焦点还给触发按钮，且不引起滚动。
 
 <a id="completed-turn-footer"></a>
-## Completed-turn footer
+## 已完成轮次的页脚
 
-Artifact extensions can subscribe to one Turn and Node kind through `ChatNodeStore.turnDataSource`. The source includes hidden Nodes and exposes their business data in anchor order. Membership updates incrementally; only observed collections materialize ordered arrays, and unrelated Turns or kinds do not notify them.
+产物扩展可通过 `ChatNodeStore.turnDataSource` 订阅一个 Turn 中指定类型的节点数据。来源包含隐藏节点，并按锚点顺序提供其业务数据。成员关系增量更新；只有被订阅的集合才生成有序数组，其他 Turn 或类型的更新不通知该集合。
 
-The completed-turn action footer follows the recorded Turn end. Its action row starts 20px below preceding prose or extension content. Actions remain visible only on the latest Turn when its final visible content is a reply; other endings and historical Turns reveal actions on hover or keyboard focus. Devices without hover keep actions visible.
+已完成轮次的操作页脚位于记录的轮次结束之后。操作行与前方正文或扩展内容相隔 20px。只有最新轮次且最后可见内容为回复时，操作常显；其他结尾及历史轮次在悬停或键盘聚焦时显示操作。不支持悬停的设备始终显示操作。
 
 -----
 
 <a id="turn-process-folding"></a>
-## Turn Process Folding
+## 轮次过程折叠
 
-During uninterrupted following, local transcript and steering echoes remain mounted through Inbox acceptance and claim until the durable message arrives, without triggering tail following twice. Pending steering follows Inbox order across clients, using matching local echoes in place. Admitted local steering also suppresses matching stale Inbox rows until the claim projection arrives; steering without a locally tracked submission continues to follow the Inbox projection. After reconnect, Host-owned rows replace receipt-confirmed local echoes; a claim awaiting admission may briefly have no bubble.
+正常在线时，本地 transcript 与 steering 回显在 Inbox 接受与领取期间保持挂载，直到持久消息到达，不会重复触发跟随底部。跨客户端的待处理 steering 遵循 Inbox 顺序，在匹配位置使用本地回显。已入档的本地 steering 还会排除匹配的旧 Inbox 行，直到领取投影到达；没有本地提交身份的 steering 仍按 Inbox 投影显示。重连后，Host 消息替代已有接收回执的本地回显；已领取但尚未入档时，气泡可能短暂消失。
 
-When Chat ends with an open Turn control and that Turn has no visible input, the first local transcript echo precedes the control. Other echoes remain at the flow tail. The control and echoes share one keyed list, so arrival of the control preserves the echo's mounted identity. Durable inputs replace their matching echoes in the same render.
+Chat 末尾为进行中的 Turn 控制行，且该轮尚无可见输入时，第一条本地 transcript 回显显示在控制行前。其他回显保留在正文末尾。控制行与回显共用一个 keyed 列表，因此控制行到达时不会重新挂载回显。持久输入在同一次渲染中替换匹配的回显。
 
-Work-details modes control process-group display and reasoning previews. Compact, Standard, and Detailed fold eligible completed Turns without hiding the final answer; Verbose retains the duration/status header without a collapse action and shows historical process rows directly. The [business-rule reference](src/client/conversation-nodes/README.md#display-modes) contains the mode table, title behavior, whole-Turn eligibility, clocks, and disclosure resets.
+工作步骤展示模式控制过程组显示与推理预览。简洁、标准、详细模式收起符合条件的已完成轮次，不隐藏最终答案；完全展开模式保留时长或状态抬头，但不支持收起，历史过程行直接显示。[业务规则明细](src/client/conversation-nodes/README.md#display-modes) 统一说明模式表、组头行为、整轮折叠资格、时钟与开合重置。
 
-The Settings row below Work details offers an [independent collapse-timing preference](src/client/conversation-nodes/README.md#collapse-timing), saved through the same Host profile configuration.
+工作步骤展示下方的设置行提供[独立的收起时机设置](src/client/conversation-nodes/README.md#collapse-timing)，通过相同的 Host profile 配置保存。
 
 -----
 
 <a id="grouped-rendering"></a>
-## Grouped rendering
+## 分组渲染
 
-Chat registers its process Group Definition through `uiConversation.groups`. React renders the mixed `node`/`group` root sequence through stable Group and Node seats; group headers subscribe to data separately from member arrays. Settled group titles remain independent of the live-detail preference; only running titles update when that preference changes. [Process-group business rules](src/client/conversation-nodes/README.md#process-grouping) define segmentation and activity summaries.
+Chat 通过 `uiConversation.groups` 注册过程 Group Definition。React 通过稳定的 Group 与 Node 容器渲染混合 `node`/`group` 根序列，组头数据与成员数组分别订阅。已结束组的标题独立于实时详情偏好，只有运行中的标题在该偏好变化时更新。[过程分组业务规则](src/client/conversation-nodes/README.md#process-grouping) 定义切分方式与活动摘要。
 
-`groupPart` selects reasoning or response in the Assistant renderer without copying Node payloads. A Tool node owns its preparing, dispatched, and result stages under one callId. Each part has a distinct DOM anchor for reading-position restoration; Turn navigation addresses the original Node key and lands on its first visible part. Group sources, member parents, and keys survive display-mode changes and newly loaded prefixes that extend an intact group. The source Node Store remains the only Node-data owner, and a replaced Builder rebinds keyed subscriptions without remounting seats. Mode changes retain size observers and reuse the Turn-state selector.
+`groupPart` 在 Assistant 渲染器中选择推理或回复，不复制 Node 载荷。同一个 callId 的准备、派发与结果阶段由 Tool 节点自己拥有。每个部分有独立的 DOM 锚点用于恢复阅读位置；轮次导航使用原 Node key，落到它的第一个可见部分。展示模式切换以及为完整旧组补入更早成员时，保留组来源、成员父级及 key。原 Node Store 仍是唯一节点数据所有者，替换 Builder 时重新绑定按键订阅，不重挂载容器。模式变化保留尺寸观察器，并复用整轮状态选择器。
 
-The Chat Builder publishes `bottomSource` per Node: true for visible Nodes belonging to the latest loaded exchange, not just the final row. Nodes declare their group-tree position through `groupTree`; a Turn holding an `exchange` Node opens an exchange, and the exchange lasts until the next opening Turn. The positions, from outermost inward `exchange`, `input`, `turn`, and `process`, are defined in [group-tree.ts](src/client/contract/group-tree.ts); process grouping, whole-Turn folding, and Turn-input detection read them, so an external Definition places its Chat rows by declaring one. Moving the exchange start notifies only Nodes in Turns that entered or left it. Groups read their first member's position. Pending-input deduplication and collapse decisions remain in the Chat view, outside the Builder.
+Chat Builder 按节点发布 `bottomSource`：节点可见且属于已加载的最新交互段时为 true，而不只是列表最后一行。节点通过 `groupTree` 声明自己在分组树中的位置；含 `exchange` 节点的轮次开启一个交互段，交互段持续到下一个开启轮次。这些位置由外到内依次为 `exchange`、`input`、`turn`、`process`，定义在 [group-tree.ts](src/client/contract/group-tree.ts)；过程分组、整轮折叠和轮次输入判断都读取它们，外部 Definition 声明位置即可放置自己的 Chat 行。交互段起点移动时，只有进入或离开该交互段的轮次中的节点收到通知。Group 读取其首个成员的位置。待发送消息去重与收起判断仍由 Chat 视图处理，不进入 Builder。
 
-Live tool deltas share reasoning's frame-batched publication; durable calls and results publish immediately. Native and nested results retain event presentation metadata, so historical file and command labels use the operation’s location. Repeated deltas retain the Tool node when observed argument answers, the anchor, location, and visibility are unchanged. The Definition supplies the same lazy argument reader to tool rows and group detail, without tool-specific registration.
+实时工具 delta 与推理共用按帧合并的发布节奏；持久调用和结果立即发布。原生与嵌套结果保留事件中的展示元数据，使历史文件与命令标签使用执行时的位置。当已读取参数的答案、锚点、位置及可见性均未变化时，重复 delta 保持 Tool 节点不变。Definition 向工具行和分组详情提供同一个懒计算参数读器，无需按工具注册。
 
-The process group uses a stable `div` layout box, a scroll body, and an uncapped content box that reports growth inside the body. Business styles must adapt spacing within and across groups, including hidden or empty members and the answer-spacing exception. The `conversation.chat.flow` slot adds a `display: contents` DOM anchor; row selectors match that anchor directly, without repeating its column ancestry. The running status shares the rows' parent, so its divider uses the same visible-sibling rules. The anchor contributes no spacing of its own. CSS variables do not belong in the Group Definition.
+过程组使用稳定的 `div` 布局盒子、滚动正文及不限高的内容盒子，后者报告正文内部的内容增长。业务样式必须适配组内及组边界间距，处理隐藏或空成员以及回答前的间距特例。`conversation.chat.flow` 插槽添加一个 `display: contents` DOM 锚点；行选择器直接匹配该锚点，不重复匹配其正文容器祖先。运行状态与各行共享父级，使分隔线使用同一套可见兄弟节点规则。锚点自身不产生间距。CSS 变量不属于 Group Definition。
 
-Running group titles, reasoning previews, tool and command rows, the active retry line, and the bottom running status use the shared [TextShimmer](../ui-primitives/README.md#component-catalog). Each row’s text shares one left-to-right highlight, including collapsed group titles; icons and hover chevrons retain their base appearance. Tool and process rows sit 6px apart. An expanded group title has 8px before its content, Assistant responses have 12px from adjacent process rows, and completed-Turn duration/status controls have 16px around them. Hidden and empty rows, including retained empty slot anchors, add no gap. The running “Deep diving” text retains its blue base while its theme-specific highlight sweeps across it.
+运行中的分组标题、思考预览、工具与命令行、当前重试行以及底部运行状态使用共享的 [TextShimmer](../ui-primitives/README.zh.md#component-catalog)。每行的文字共用一道从左到右的高光，包括折叠的分组标题；图标和悬停箭头保留底色。工具和过程行之间相隔 6px；展开的分组标题与内容之间相隔 8px；Assistant 回复与相邻过程行之间相隔 12px；每轮完成／耗时控件周围保留 16px。隐藏行与空行（包括保留的空 slot 锚点）不产生间距。“深度求索”运行文字保留蓝色底色，并使用主题专用高光扫过文字。
 
-The running status shows a whale whose APNG mask inherits the text color. CSS selects the static SVG when reduced motion or forced colors are active, or alpha masks are unsupported. The build embeds the image in the plugin stylesheet; React does not pass image data through DOM styles.
+运行状态显示一只鲸鱼，其 APNG 遮罩继承文字颜色。启用减少动态效果或强制颜色模式、或浏览器不支持 alpha 遮罩时，CSS 选择静态 SVG。构建将图片嵌入插件样式表；React 不通过 DOM 样式传递图片数据。
 
-Scroll-edge fades initialize when `ResizeObserver` reports the open group's layout; opening the group performs no immediate scroll-dimension read in a layout effect.
+滚动边缘渐隐在 `ResizeObserver` 报告已展开组的布局后初始化；展开组时不会在 layout effect 中立即读取滚动尺寸。
 
-Each group owns local `useDisclosure` state that survives mode changes while its component stays mounted.
+每个组拥有本地 `useDisclosure` 状态，组件保持挂载时，模式切换保留该状态。
 
-The session-scoped `conversation.chat.reasoning.body` single Slot offers the original reasoning text and streaming state only when its body is expanded. Its official entry registers at priority 100 and calls the `conversation.chat.reasoning.content` Factory. A replacement uses a lower priority number and may call that same Factory with original or derived text. The root-scoped Factory requires no Session and fixes compact typography. Its optional `labels` accepts complete `MarkdownLabels` unchanged; omission uses Chat's localized defaults. The host supplies no inline fallback or plugin action state. Display extensions must preserve access to the original text and own their controls inside their Body wrapper. Extensions do not replace the reasoning preview or its disclosure policy. The [reasoning display rules](src/client/conversation-nodes/README.md#display-modes) define which blocks produce rows.
+Session 作用域的 `conversation.chat.reasoning.body` single Slot 仅在思考正文展开时提供原始思考文本和流式状态。官方条目以优先级 100 注册，并调用 `conversation.chat.reasoning.content` Factory。替换项使用更小的优先级数值，可向同一个 Factory 传入原文或派生显示文本。root 作用域的 Factory 不要求 Session，并固定使用紧凑排版。其可选 `labels` 原样接受完整的 `MarkdownLabels`，省略时使用 Chat 的默认本地化文案。宿主不提供内联 fallback 或插件操作状态。显示扩展必须保留查看原文的能力，并在自己的 Body 包装内维护控件。扩展不替换思考预览或展开策略。哪些块生成思考行由[思考展示规则](src/client/conversation-nodes/README.md#display-modes)定义。
 
-The Chat-node slot injects a reset-bound `useDisclosure` Hook for reasoning and tools. Intermediate renderers forward it without subscribing; each invocation owns independent open state. Source callbacks retain their receiver and stable identity. When an enclosing Turn actually hides a process member, its seat resets those disclosures without replacing component keys or changing the Hook reference. Display-mode changes preserve their open state.
+Chat 节点 slot 为推理与工具注入绑定重置来源的 `useDisclosure` 钩子。中间 renderer 只透传、不订阅，每次调用拥有独立展开状态。来源回调保留接收对象及稳定引用。外层轮次实际隐藏过程成员时，所在节点重置这些开合状态，不替换组件 key，也不改变钩子引用。展示模式切换保留展开状态。
 
-Process rows share one text and icon color in every Work details mode: tertiary at rest and secondary on hover, while error and warning text keeps its semantic color. Leading icons, disclosure chevrons, and their boxes scale with the content font-size delta.
+过程行的文字与图标在所有工作过程展示模式下共用一种颜色：默认 tertiary、悬停 secondary，错误与警告文字保留语义色。前置图标、折叠箭头及其容器随正文字号增量缩放。
 
 -----
 
 <a id="scroll-ownership"></a>
-## Scroll ownership
+## 滚动归属
 
-Chat waits for initial history before automatic content, scroll, or size updates initialize reading state. Running Sessions restore their initial visibility and position before fold animations become eligible.
+Chat 等待初始历史就绪后，才允许自动内容、滚动或尺寸更新初始化阅读状态。进行中的 Session 先恢复初始显隐和位置，再允许折叠动画。
 
-Chat restores semantic anchors across history prepend and renderer remounts, with browser scroll anchoring disabled on its scrollport only while following the tail. Pinned scroll deliveries without reader movement, and reader input that reaches the floor within subpixel rounding, update follow ownership immediately, before subsequent layout changes can invalidate their floor. Other reader movement remains pending until the sampling interval or `scrollend`, even inside the follow threshold, so layout growth cannot erase small scroll gestures. Under completion-time folding, submitting transcript input or steering immediately restores tail following and clears an older pending reader sample. While the reader is pinned to the floor, `ResizeObserver` follows the new floor and selects the latest loaded Turn without reading row geometry. Once the reader moves away, flow-height changes preserve the top position and the reading-line geometry selects the active Turn. Turn-rail previews paint above sticky Markdown code-block banners, while the rail frame remains inside the transcript band above the composer.
+Chat 会在历史前插与 renderer 重新挂载时恢复语义锚点，并且只在跟随底部时禁用自己滚动区域的浏览器自动锚定。没有读者移动的贴底滚动事件，以及到达底部（容许小于 1px 的取整误差）的读者输入，会立即更新跟随归属，避免后续布局变化使其底部位置失效。其他读者移动即使位于跟随阈值内，也保持待处理直到采样周期或 `scrollend`，防止布局增长抵消小幅滚动操作。采用完成时收起时，提交正文输入或 steering 会立即恢复跟随底部，并清除先前待处理的读者滚动采样。读者跟随底部时，`ResizeObserver` 追随新的底部，并且无需读取行几何就选中最后一个已加载轮次；读者离开底部后，高度变化会保持顶部位置，再由阅读线几何选择活跃轮次。轮次导航预览位于 Markdown 代码块粘性头栏上方，而导航外框始终处于 composer 上方的 transcript 区域内。
 
-The turn rail and back-to-bottom button sit outside the clipped transcript. They use the shared conversation scrollport for sticky positioning, or the Chat frame for absolute positioning when Chat owns its scrollport. The rail hides when the transcript's available width, excluding its horizontal padding, is at most 900px; the browser viewport width is not the criterion.
+轮次轨道与回到底部按钮位于正文裁剪层外。它们相对共享会话滚动容器做 sticky 定位；Chat 自己持有滚动容器时，则相对 Chat 外框做 absolute 定位。正文扣除水平内边距后的可用宽度不超过 900px 时，隐藏轮次轨道；判断依据不是浏览器视口宽度。
 
-The transcript root uses `overflow-x: visible; overflow-y: clip`: vertical overflow is clipped without creating a scroll container. Sticky Markdown code banners and expanded compaction headers therefore retain the actual conversation scrollport as their reference when no nearer scrolling ancestor exists. Capped process groups and terminal sections keep their own scrollports.
+正文根节点使用 `overflow-x: visible; overflow-y: clip`：裁剪纵向溢出，但不创建滚动容器。因此，在没有更近的滚动祖先时，Markdown 代码块的 sticky 头栏和展开的压缩摘要头栏仍以实际会话滚动容器为参照。限高过程组和终端区域保留各自的滚动容器。
 
-Outer transcript following and each open capped group's following are independent. Native animation progress retains follow intent; only that scrollport's own `scrollend` settles its animation. Browsers without `scrollend` may retain the native follow target until a later bottom-aligned update or reader gesture. A reader gesture interrupts the animation, and actual movement determines whether following remains enabled. Scroll chaining can move the outer transcript, which then applies its own distance threshold. The back-to-bottom button restores only outer following.
+外层文本记录与每个已展开限高组的跟随状态彼此独立。原生动画的中间滚动保留跟随意图；只有该滚动容器自身的 `scrollend` 才结束其动画。不支持 `scrollend` 的浏览器可能保留原生跟随目标，直到后续贴底更新或读者手势将其结束。读者手势中断动画，是否继续跟随由实际位移决定。滚动传递可以带动外层，外层再按自身离底距离判断。回到底部按钮只恢复外层跟随。
 
-Next-message folding moves every batch of closing rows and the scrollport on one frame clock, with browser scroll anchoring disabled during the fold; there is no separate reserve-then-follow path. A row that starts closing or revealing while a batch runs keeps its size until that batch settles and then changes in the next batch; a batch continues each row from the size it already has. The batch lands at the tail when this client's own input caused it (including a subagent child's continuation) or when the reader was following; otherwise the reader's visible content stays still, whoever sent the message. Content above the reading line never slides back down: when the retained answer and the new content cannot fill the viewport, only that deficit remains as bottom space, and new content fills it before following advances again. Reader gestures cancel the automatic target and active native following; resize cannot revive it in the same fold, but new submitted input can. Acknowledged scrolling releases only space that can be removed without clamping the reader. Unloading Chat cancels waiting callbacks and row transitions. Reduced-motion users receive immediate visibility and positioning changes.
+下次消息触发的折叠中，每一批收起行与滚动容器在同一个帧时钟上推进，折叠期间禁用浏览器滚动锚定；不存在「先预留、再跟随」的另一条路径。批次运行期间开始收起或展开的行先保持当前尺寸，等当前批次落定后在下一批中变化；批次从每一行已有的尺寸继续。由本客户端自己的输入（包括子代理会话的 continuation）触发、或读者原本在跟尾时，这一批落到底部；其余情况下，无论消息由谁发出，读者正在看的内容保持不动。阅读线以上的内容不会回滑：保留的正文和新内容填不满视口时，只把差额保留为底部空间，后续新增内容先填满它，再继续跟尾。读者手势取消自动目标及进行中的原生跟随；同一次折叠中的尺寸变化不能恢复它，但新提交的输入可以。已确认的滚动只释放不会造成位置钳制的多余空间。卸载 Chat 时取消等待回调和行过渡。启用减少动态效果偏好时，可见性和定位立即变化。
 
-Changing Work details clears reserved bottom space after active folds finish and reconciles the scroll range with the selected mode. Readers already following the tail stay at the new bottom; other readers are not forced to follow.
+切换工作步骤展示档位时，当前折叠结束后清空底部预留空间，并按所选档位调整滚动范围。原本跟随底部的读者保持在新的底部；其他读者不会被强制拉回底部。
 
-Fold coordination is viewport-local: fold batches, bottom space, and idle callbacks never broadcast to other Chat views. ChatView supplies its motion capability once to `conversation.chat.flow` through the render's `hookContext`. Flow binds the group and header behavior hooks, owns node dispatch, supplies Factory rendering for local echoes, and shares the existing Chat store and Session node sources. The image entry Factory owns the replaceable image Slot. Layout nodes and inline reasoning receive the bound hooks without receiving the motion controller or changing content parents. Generic searchable hiding applies before paint and owns focus protection and beforematch handling; pending-input reconciliation remains in ChatView.
+折叠协调状态由各自的 viewport 持有，折叠批次、底部空间和空闲回调不会广播到其他 Chat 视图。ChatView 通过本次渲染的 `hookContext`，向 `conversation.chat.flow` 交接一次动画能力。Flow 绑定组内容与组头的行为 hook，负责节点分发，为本地回显提供 Factory renderer，并共享既有 Chat store 与 Session 节点来源。图片入口 Factory 拥有可替换的图片 Slot。布局节点和行内思考接收绑定后的 hook，不接收动画控制器，也不改变内容的父级。通用的可搜索隐藏在绘制前生效，并负责焦点保护及 beforematch；pending 输入对账仍留在 ChatView。
 
-| Outer follows | Open group follows | Back-to-bottom button | New content |
+| 外层跟随 | 已展开小组跟随 | 回到底部按钮 | 新增内容 |
 |---|---|---|---|
-| Yes | Yes | Hidden | Each scrollport follows its own floor. |
-| Yes | No | Hidden | The outer transcript follows; the group retains its position. |
-| No | Yes | Visible | The group follows; the outer transcript retains its reading position. |
-| No | No | Visible | Both retain their reading positions. |
+| 开启 | 开启 | 隐藏 | 各自跟随自己的底部。 |
+| 开启 | 关闭 | 隐藏 | 外层跟随，小组保持原位置。 |
+| 关闭 | 开启 | 显示 | 小组跟随，外层保持阅读位置。 |
+| 关闭 | 关闭 | 显示 | 两者都保持阅读位置。 |
 
-The turn rail mounts only visible marks, overscan, and the focused mark's neighbors. Its fixed pitch and observed viewport size determine scroll offsets without reading the DOM scroll extent. Initial placement waits for the body's restored active Turn and the rail's first usable viewport size. The ref controls activate a Turn or scroll the rail independently; the transcript itself remains fully mounted.
+轮次轨道只挂载可见刻度、预加载范围及键盘焦点刻度的相邻项。固定间距和观察到的视口尺寸决定滚动偏移，不读取 DOM 滚动总高度。初始定位等待正文恢复活跃轮次，以及轨道首次获得可用视口尺寸。ref 控制接口分别支持激活轮次和仅滚动轨道；正文自身仍完整挂载。
 
-While the pointer is outside the rail, automatic follow keeps the rail still when the active mark's center is inside the fade-free band and centers it after it leaves that band. Previews follow pointer movement or focus; marks scrolling under a stationary pointer do not select another preview.
+指针位于轨道外时，自动跟随在活跃刻度中心处于非渐隐区域内时保持轨道不动，越界后才将其居中。预览随指针移动或焦点切换；刻度在静止指针下滚动不会选中另一个预览。
 
 <details>
-<summary>Scroll implementation — click to expand</summary>
+<summary>滚动实现——点击展开</summary>
 
-Within a process group, wheel, touchstart, and any pointerdown interrupt an active smooth animation, including presses on tool cards. ArrowUp/ArrowDown, PageUp/PageDown, Home/End, and Space keys also interrupt it unless a child has prevented the key's default action; editable controls are not excluded. These events stop the animation without requiring a scroll displacement. Subsequent position sampling determines whether following continues.
+过程组内的 wheel、touchstart 和任意 pointerdown 都会中断正在进行的平滑动画，包括按下工具卡片。上下方向键、PageUp/PageDown、Home/End 和空格键也会中断动画，除非子控件已阻止该按键的默认行为；输入控件不被排除。这些事件无需产生滚动位移就会停止动画，之后的位置采样再决定是否继续跟随。
 
-`useScrollFollow` supplies independent controllers for shared bottom thresholds, follow intent, and native scrolling. `useProcessScroll` owns group observation, initial placement, and edge fades. Outer following remains immediate; group growth uses native smooth scrolling unless reduced motion is requested. Growth retains an in-flight target until `scrollend`; arrival at that target or its shrink-clamped position continues toward the latest floor, while another endpoint releases following. Opening placement remains immediate. A bottom-follow request within tolerance uses immediate positioning when no animation is outstanding, so a fractional no-op cannot leave a pending smooth target.
+`useScrollFollow` 提供各自独立的控制器，共用触底阈值判断、跟随意图与原生滚动实现。`useProcessScroll` 负责小组观察、初始定位及边缘渐隐。外层保持即时跟随；组内增长使用原生平滑滚动，减少动态效果偏好开启时改为即时滚动。`scrollend` 前的增长保留当前动画目标；到达该目标或因内容缩短而钳制的位置后，再追随最新底部；停在其他位置则释放跟随。展开时仍即时定位。没有进行中动画时，容差范围内的贴底请求使用即时定位，避免小数位置上的无位移操作留下未结束的平滑目标。
 
-`useChatViewport` owns turn-aware DOM reads, clamped writes, native events, and one retained paging anchor. For Load older, Node and Group seats mark eligible anchors from their existing disclosure state. The viewport selects the first nonempty, unhidden marker in transcript order without hit testing or geometry-based search, then measures that element and its scroll containers. It compensates the anchor's capped group first, then gives the remaining displacement to the transcript scrollport. An inner compensation write cancels that group's animation through its bound controller and pauses following; reader scrolling back to the bottom resumes it. Commits and later content resizes reuse that anchor; a remounted row is resolved by the same semantic key. Compensation stays within the actual scroll ranges without adding bottom space.
+`useChatViewport` 负责识别轮次的 DOM 读取、限制范围后的写入、原生事件及一个持续保留的分页锚点。加载更早时，Node 与 Group 容器根据已有开合状态标记可选锚点。视口按正文顺序选择第一个非空、未隐藏的标记，不做命中测试或按几何位置搜索，再测量该元素及其滚动容器。先补偿锚点所在的限高组，再把剩余位移交给整段文本的滚动区域。内层补偿写入通过该组绑定的控制器取消动画并暂停跟随，读者滚回底部后恢复。提交和后续内容尺寸变化复用该锚点；消息行重挂载时按同一语义 key 重新定位。补偿限于实际可滚动范围，不增加底部空白。
 
-`useChatReading` owns follow policy, sampled reader input, and semantic memory; `useChatNavigation` owns turn jumps and requests preservation from the viewport. Reading gestures release the paging anchor, but composer clicks, typing, and non-scrolling keys retain it; while a page is still loading, `scrollend` captures the reader's new position. `useChatScroll` coordinates their committed inputs. Explicit navigation carries its measured landing into reading policy, so it does not rediscover the known target with a hit test.
+`useChatReading` 负责跟随策略、读者输入采样和语义位置记忆；`useChatNavigation` 负责轮次跳转，并向视口请求位置保持。阅读手势释放分页锚点，composer 内的点击、打字和非滚动按键则保留锚点；分页仍在加载时，`scrollend` 会记录读者的新位置。`useChatScroll` 协调已提交的输入。显式导航把测得的落点交给阅读策略，因此无需通过命中测试重新寻找已知目标。
 
-Active-Turn highlighting is approximate: `readVisibleTurn` binary-searches the flow slot's direct Node/Group boxes (or the column's in standalone rendering) and retains the preceding candidate in gaps. It neither hit-tests the document nor searches Group members or all Turn markers. Empty Seats retain zero-height in-flow boxes so outer positions remain ordered without extra spacing. This lookup does not change semantic position capture or paging compensation.
+活跃轮次高亮采用近似定位：`readVisibleTurn` 对 flow 插槽的直属 Node/Group 布局盒二分（独立渲染时使用正文容器的直属布局盒），落在间隙时保留前方候选。它不做文档命中测试，也不查询 Group 成员或全部 Turn 标记。空 Seat 保留零高度的流内布局盒，使外层位置有序且不增加间距。这种定位不改变语义位置捕获或分页补偿。
 
 </details>
 
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
-None, as this package renders logged conversation state in the browser and registers nothing model-facing.
+无，因为本包在浏览器中渲染已记录的对话状态，不注册任何面向模型的内容。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None; Chat presentation does not assemble or mutate provider requests.
+无；Chat 呈现不会组装或修改提供方请求。
 
-## Known Limitations and Deferred Work
+## 已知限制与暂缓事项
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Running-icon resolution** — the animated whale uses a 28×28 image at a default 14×14 CSS size. Larger content fonts or device pixel ratios above 2 can soften the raster stroke; the static fallback remains vector-based. Browser image caching owns the animation clock, so remounting does not guarantee playback restarts at the first frame.
+- **运行图标分辨率**——动态鲸鱼使用 28×28 图片，默认 CSS 尺寸为 14×14。较大的正文字号或大于 2 的设备像素比可能使位图描边变模糊；静态回退图标仍为矢量图。浏览器图片缓存管理动画时钟，因此重新挂载不保证从第一帧重新播放。
 
-- **Tool-change presentation** — The `developer-message` Definition shares context presentation with `input-message`. Tool-only developer messages name a single added or removed tool inline without expansion. Multiple changes show added/removed counts and expand to comma-separated tool lists, one line per change kind. Mixed content uses the generic context presentation.
+- **工具变更展示** — `developer-message` Definition 与 `input-message` 共用上下文展示。仅包含工具变更的 developer 消息在单个工具新增或移除时直接显示工具名，不提供展开操作。多个变更显示新增、移除数量，展开后按变更类型分别以逗号分隔显示一行工具列表。混合内容使用通用上下文展示。
 
-- **Opening echoes predict local order** — several submissions made before the running update can all remain in Chat. Their initial order follows local submission order, not Host queue order; admission can reposition them when the Host receives requests in a different order.
+- **开场回显预测本地顺序**——运行状态更新前连续发出的多条消息可能都留在 Chat。初始排列遵循本地提交顺序，而非 Host 队列顺序；Host 按不同顺序接收请求时，入档可能调整它们的位置。
 
-- **The transcript reflects the loaded Session window** — older transcript nodes become available only after Session Controller loads the preceding event page. Turn navigation is wider than the window: the rail merges the loaded Turns with the host `turnOutline` projection, so every started Turn gets a fixed-pitch mark (10px apart; a ladder taller than the frame scrolls inside it with gradient fades), and activating an unloaded mark pages history through the Turn's `turn/start` seq before landing on its row. Without the projection (assemblies not mounting `dsh-session-turn-outline`) the rail falls back to loaded Turns only.
-- **Rail previews are card-sized** — one prompt line (50 characters) and up to three response lines (120), on loaded and unloaded Turns alike; an unloaded Turn's response arrives from the outline only once the Turn settled, so an open Turn previews its prompt (or just the Turn number) until then.
+- **transcript 只反映已加载的 Session 窗口**——只有会话控制器加载前一页事件后，更早的 transcript node 才会出现。轮次导航比窗口更宽：轨道把已加载的轮次与宿主 `turnOutline` 投影合并，每个已开始的轮次都有固定间距刻度（相隔 10px；阶梯高于外框时在框内滚动并以渐变淡出标示可滚方向），激活未加载刻度会先把历史分页拉到该轮次的 `turn/start` seq 再落到它的行上。没有该投影时（未挂载 `dsh-session-turn-outline` 的装配），轨道回退到仅显示已加载轮次。
+- **导航预览按卡片尺寸截断**——提示词一行（50 字符）、回复至多三行（120 字符），已加载与未加载 Turn 一致；未加载 Turn 的回复要等该轮落定后才随大纲到达，进行中的轮次在此之前只预览提示词（或仅轮次号）。
 
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>维护者工作上下文——点击展开</summary>
 
-None.
+无。
 
 </details>

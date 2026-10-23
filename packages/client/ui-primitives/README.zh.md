@@ -176,7 +176,7 @@ kind: "package-library"
 以下页面说明这些原子组件在客户端技术栈与设计系统中的位置。
 
 - [ui-renderer](../ui-renderer/README.zh.md)——挂载组装后应用并绑定 slot 数据的 React 渲染器。
-- [ui-tool](../ui-tool/README.zh.md)——拼装这些输出卡片的工具调用展示层。
+- [ui-tool](../ui-tool/README.md)——拼装这些输出卡片的工具调用展示层。
 - [ui-conversation](../ui-conversation/README.zh.md)——渲染 Markdown 回复与工具卡片的聊天界面。
 - [ui-theme](../ui-theme/README.zh.md)——这些原子组件样式所依赖的 `--dsw-*` token 体系。
 - [Web 样式](../../../docs/web-styling.zh.md)——Web 客户端组件的权威样式规则。

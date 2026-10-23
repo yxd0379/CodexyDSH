@@ -1,331 +1,329 @@
 ---
-description: "Detailed business rules for Chat process grouping and activity summaries."
+description: "Chat 过程分组与活动摘要的明细业务规则。"
 ---
-# Chat conversation node rules
+# Chat 节点业务规则
 
-English | [中文](README.zh.md)
+## 概述
 
-## Summary
+一轮对话既要展示答案，也要让用户按需查看产生答案的过程。先通过下面的完整例子理解画面，再看整轮折叠和展示模式决定什么可见；后面的明细逐项定义分组边界、所有工具名称类别、计数及实时详情选择。
 
-A Turn shows an answer and lets the reader inspect the work behind it. Start with the complete example below, then read the folding and display rules to understand what is visible. The later sections define exact group boundaries, every tool-name category, counting, and live-detail selection.
+## 目录
 
-## Table of Contents
-
-- [How one Turn becomes a transcript](#reading-model)
-- [Whole-Turn folding](#whole-turn-folding)
-- [Display modes](#display-modes)
-- [Collapse timing](#collapse-timing)
-- [Process grouping](#process-grouping)
-- [Activity summaries and tool rules](#activity-summaries)
+- [先理解一轮对话怎样显示](#reading-model)
+- [整轮折叠](#whole-turn-folding)
+- [展示模式](#display-modes)
+- [收起时机](#collapse-timing)
+- [过程分组](#process-grouping)
+- [活动摘要与工具明细](#activity-summaries)
 
 -----
 
 <a id="reading-model"></a>
-## How one Turn becomes a transcript
+## 先理解一轮对话怎样显示
 
-Grouping, counts, display modes, and whole-Turn folding answer different questions. Grouping decides which process rows belong together. Counts summarize work inside an existing group. Display modes decide how much of each group to show. Without an intervening input, whole-Turn folding can hide the entire process across several groups and intermediate replies.
+分组、类别计数、展示模式和整轮折叠分别回答不同问题：分组决定哪些过程行放在一起；计数概括一个已有组里做了什么；展示模式决定组内显示多少；整轮折叠可以一次隐藏跨越多个组和阶段回复的全部过程，同时保留用户输入。
 
-### A complete example
+### 一个完整例子
 
-Suppose the assistant thinks, reads a file, runs a command, posts a progress reply, then thinks and runs code before giving its final answer. After completion, that Turn contains:
+假设助手先思考、读文件、运行命令，给出一段进展回复，然后继续思考、执行代码，最后给出答案。该轮完成后，内容在业务上分成：
 
-- User input.
-- Whole-Turn control.
-- Process content controlled by the whole-Turn control:
-  - Group G1: reasoning, `read`, `bash`.
-  - Intermediate reply: outside both groups, but still part of the Turn's process.
-  - Group G2: reasoning, `run_code`.
-- Final response, outside the process fold.
-- Completed-turn footer.
+- 用户输入。
+- 整轮控件。
+- 由整轮控件控制的过程范围：
+  - 过程组 G1：思考、`read`、`bash`。
+  - 阶段回复：不属于 G1 或 G2，但仍属于整轮过程。
+  - 过程组 G2：思考、`run_code`。
+- 最终答案正文，不随过程收起。
+- 已完成轮次页脚。
 
-Every reply separates secondary groups; only the final answer is protected from whole-Turn folding. An intermediate reply can be an independent row and still disappear when the Turn is folded. Reasoning attached to the final answer remains process content.
+每次回复都会截断二级组，但只有最终答案正文不参与整轮折叠。因此，阶段回复虽然是一行独立内容，整轮收起时仍会消失。最终答案附带的思考仍属于过程内容。
 
-| Question | Deciding rule | Result in this example |
+| 问题 | 由什么决定 | 例子中的结果 |
 |---|---|---|
-| Which rows belong together? | Group boundaries | The reply separates G1 and G2; changing from `read` to `bash` does not. |
-| What did a group do? | Category counts | G1 has `read=1, commands=1`; G2 has `code=1`. Reasoning adds no tool count. |
-| What does its title say? | Group state and summary | Running groups use their latest running activity; closed groups use their highest-count categories. Counts never decide folding. |
-| How much detail is visible? | Display mode and manual group opening | Compact, Standard, and Detailed retain historical group headers; Detailed shows running bodies directly, while Verbose shows both running and historical bodies directly. |
-| Is the process visible at all? | Whole-Turn opening | Closing the Turn hides G1, the intermediate reply, and G2 together. |
+| 哪些行放在一起？ | 分组边界 | 阶段回复分开 G1 与 G2；从 `read` 换成 `bash` 不会拆组。 |
+| 一组做了什么？ | 类别计数 | G1 为 `read=1, commands=1`，G2 为 `code=1`；思考不增加工具次数。 |
+| 组标题写什么？ | 组状态与摘要 | 未结束组显示最近运行活动；已结束组显示次数最多的类别。次数不决定折叠。 |
+| 组内显示多少细节？ | 展示模式与手动开合 | 简洁、标准、详细模式保留历史组头；详细模式直接显示运行中正文，完全展开模式直接显示运行中与历史正文。 |
+| 过程整体是否可见？ | 整轮开合 | 整轮收起时，G1、阶段回复和 G2 一起隐藏。 |
 
-### What the reader sees
+### 用户实际看到什么
 
-Assume the Turn above completed normally, with no inner disclosure manually opened:
+以下假设上面的轮次正常结束，用户尚未手动打开内部控件：
 
-| Viewing state | Visible content |
+| 查看状态 | 可见内容 |
 |---|---|
-| Whole Turn collapsed, Compact/Standard/Detailed | Input, whole-Turn control, final response, and footer. No process headers, bodies, or intermediate reply. |
-| Whole Turn open, Compact/Standard/Detailed | G1/G2 headers, the intermediate reply, and final response. Group bodies start collapsed. |
-| Whole Turn and G1 open, Standard or Detailed | G1's reasoning and tool rows with the settled reasoning preview; G2 remains a header. Full reasoning/tool bodies are still manual. |
-| Verbose | Whole-Turn duration/status header without a collapse action, all process rows, intermediate reply, and final response. No group headers; individual tool/reasoning bodies remain manual. |
+| 整轮收起，简洁／标准／详细模式 | 输入、整轮控件、最终答案和页脚；过程组头、正文及阶段回复都不显示。 |
+| 整轮展开，简洁／标准／详细模式 | G1/G2 组头、阶段回复及最终答案；组正文初始收起。 |
+| 整轮和 G1 展开，标准或详细模式 | G1 的思考与工具行，思考带已结算预览；G2 仍是组头。单个完整正文仍需手动打开。 |
+| 完全展开模式 | 不可收起的整轮时长或状态抬头、全部过程行、阶段回复与最终答案。没有组头，单个工具／思考正文仍需手动展开。 |
 
-Visibility applies from outside inward: whole Turn → secondary group → individual reasoning/tool disclosure. Opening an inner layer cannot bypass a closed outer layer. Category changes never open or close a layer. Mode changes preserve membership and manual opening choices.
+显隐从外向内生效：整轮 → 二级组 → 单个思考或工具。内层展开不能越过外层收起。类别变化不会开合任何一层；切换模式保留分组和用户的手动展开选择。
 
-If steering, a User message, or a trigger notice follows process output, the Turn offers only individual group disclosures, not whole-Turn collapse. In Compact/Standard, `G1 → steering 1 → G2 → steering 2 → G3` retains all three headers and both inputs in that order, with intermediate replies visible; opening one group reveals only its body. Detailed directly shows group bodies only while the Turn runs; completed Turns retain headers and manual disclosure. Verbose shows group bodies directly in both cases. The Turn control still shows duration or status, without a collapse action.
+Steering、User 消息和触发通知始终位于过程折叠之外，保留各自的位置。已完成轮次有最终回答时，可以跨这些输入收起过程，输入与最终回答仍然可见。展开整轮后，过程组和阶段回复按原始顺序恢复。详细模式仅在该轮仍运行时直接显示组正文，完成后保留组头及手动开合；完全展开模式在两种情况下都直接显示组正文。
 
 -----
 
 <a id="whole-turn-folding"></a>
-## Whole-Turn folding
+## 整轮折叠
 
-Whole-Turn folding controls the loaded process range, independently of secondary groups, in Compact, Standard, and Detailed. Verbose keeps that range visible and retains the duration/status header without a collapse action. A recorded Turn end makes that range eligible even when paging has not loaded the Turn start.
+简洁、标准、详细模式的整轮折叠控制已加载的过程范围，独立于二级组。完全展开模式保持该范围可见，保留时长或状态抬头，但不支持收起。已经记录轮次结束时，即使向前分页尚未加载到轮次起点，也可以对该范围折叠。
 
-The rules below use the default completion-time folding. The [collapse-timing preference](#collapse-timing) can defer the latest exchange's historical presentation without changing whole-Turn eligibility.
+以下规则采用默认的完成时收起。[收起时机设置](#collapse-timing) 可以推迟最新交互段恢复历史呈现的时间，不改变整轮折叠资格。
 
-The Turn control follows all its opening inputs, including human steering and non-human trigger notices, while waiting for the first Assistant output and after that output arrives. Consecutive inputs before the first process evidence are opening inputs, anchored by the last one. Later inputs retain their positions: even when paging has not loaded their inbox insertions and they temporarily appear as ordinary User messages, preceding process content must not move after them.
+整轮控件位于该轮所有起始输入之后，包括人工 steering 和非人工触发通知；等待首个 Assistant 输出及输出到达后均保持这一顺序。首个过程证据之前的连续输入都属于开场，以最后一条为准；过程证据之后的输入留在原位，即使分页尚未加载其入队记录、消息暂时归为普通 User，也不能把前面的过程移到它后面。
 
-| Admitted input | Chat presentation |
+| 已进入请求的输入 | Chat 展示 |
 |---|---|
-| Human message claimed from `next-step` | Steering message, outside process folding. |
-| Non-human message in the current `next-turn` claim | Independent, initially collapsed Turn-trigger notice. |
-| Non-human message in an idle `next-step` claim | Turn-trigger notice only in Step 1, with a loaded Turn start, a claim after that start, no `next-turn` claim in this Turn, and no human in the same `next-step` batch. |
-| Other non-human input | Ordinary Context, retained in the Node Store but omitted from Chat. Unclaimed, canceled, or requeued messages do not establish a waking claim. |
+| 从 `next-step` 领取的人工消息 | Steering 消息，不参与过程折叠。 |
+| 当前 `next-turn` 领取批次中的非人工消息 | 独立、默认收起的轮次触发通知。 |
+| 空闲时从 `next-step` 领取的非人工消息 | 仅在 Step 1、已加载轮次起点、领取发生于起点之后、本轮没有 `next-turn` 领取、同一 `next-step` 批次没有人工消息时，作为轮次触发通知。 |
+| 其他非人工输入 | 普通 Context，保留在 Node Store，但不显示在 Chat 中。未领取、已取消或重新入队的消息不构成唤醒领取。 |
 
-Trigger titles and icons use the recorded `source.kind`: `schedule`, `tool-jobs`, and `cordis-host-runner` identify scheduled work, background work, and plugin updates. Schedule notices are labeled Automation task and use the same plain clock icon as the Automation tasks entry. Goal, agent, team, subagent, and webhook sources have their own titles; a webhook with `provider: github` uses the GitHub title. Unknown sources use the generic execution-request title. Expanding the notice shows its recorded body; it does not imply successful execution.
+触发通知的标题与图标使用记录中的 `source.kind`：`schedule`、`tool-jobs`、`cordis-host-runner` 分别表示定时任务、后台任务和插件更新。定时任务通知显示为「自动化任务」，与「自动化任务」入口使用同一个普通时钟图标。目标、Agent、团队、子任务和 webhook 来源有各自的标题；`provider: github` 的 webhook 使用 GitHub 标题。未知来源显示通用执行请求标题。展开通知显示记录的正文，不代表执行成功。
 
-| Turn condition | Current behavior |
+| 轮次条件 | 当前行为 |
 |---|---|
-| Not closed | Keep process content open; whole-Turn collapse is unavailable. Secondary groups still follow the mode table. |
-| Stopped or failed | Keep process content open; whole-Turn collapse is unavailable. |
-| Visible input after the first process evidence | Whole-Turn collapse is unavailable. Preserve process segments, intermediate replies, and input order; group disclosures remain available. Consecutive opening inputs do not qualify. |
-| Other closed Turn with loaded process content | Initially collapse the process; allow manual opening and closing. Neither the Turn start nor the rest of Session history must already be loaded. |
-| Closed Turn with no final answer | Collapse all process rows when otherwise eligible. |
-| End is loaded but start is absent | Apply the closed-Turn rules above to loaded content. Show no elapsed duration; do not use the first loaded tool/message time as the start. |
-| Neither start nor end is loaded | Keep process rows visible and withhold the whole-Turn control. |
-| A Turn control exists, but there is no process content | Retain its title, without a collapse action. |
+| 尚未结束 | 过程内容保持展开，不能收起整轮；二级组仍按模式表展示。 |
+| 已停止或失败 | 过程内容保持展开，不能收起整轮。 |
+| 首个过程证据之后还有可见输入 | 输入不参与过程折叠；最终回答完成后可收起其前后过程，输入顺序不变。 |
+| 其他已结束轮次，有已加载的过程内容 | 过程默认收起，允许手动开合；不要求已加载到轮次起点，也不要求整个 Session 历史都已加载。 |
+| 已结束但没有最终答案 | 保留旁白及过程可见，不能收起整轮。 |
+| 已加载结束记录，但缺少起点 | 对已加载内容应用上述已结束轮次规则；不显示耗时，不用最早加载的工具或消息时间冒充起点。 |
+| 起点与结束记录均未加载 | 保留过程行可见，不显示整轮控件。 |
+| 存在整轮控件，但没有过程内容 | 保留标题，不提供折叠操作。 |
 
-The final answer is the latest Step's settled Assistant reply, provided it has visible reply content and no tool-call block. Its response remains outside whole-Turn folding; its reasoning remains process content. A Node whose [group-tree position](../contract/group-tree.ts) is `turn` or outer remains independent of whole-Turn folding. Turn inputs stand at `input` or `exchange`: user and steering messages and trigger notices; an input after the process start keeps the whole Turn open. Terminal errors, max-token notices, the completed-turn footer, and the Turn control stand at `turn`. A `process` Node, such as a model retry, separates secondary groups but whole-Turn folding still includes it.
+最终答案取最后一个 Step 中已结算且未中断的 Assistant 回复，要求有可见回复内容且没有工具调用块。最终答案的回复正文不参与整轮折叠，推理仍属于过程。[分组树位置](../contract/group-tree.ts)为 `turn` 或更外层的 Node 不参与整轮折叠。轮次输入位于 `input` 或 `exchange`：用户与 steering 消息、触发通知在过程收起后仍然可见。终止错误、最大 token 提示、已完成轮次页脚和整轮控件位于 `turn`。`process` 位置的 Node（如模型重试）分隔二级分组，但整轮折叠仍包含它。
 
-Loading an older page preserves the reader's group-opening choices. Newly loaded process content follows the same Turn state while the final answer is unchanged and whole-Turn folding remains eligible. If the page reveals an intervening input, individual group disclosures replace whole-Turn hiding. When the real start arrives, the duration becomes available; loading all history is not an additional folding condition. When new content only extends an existing group at its beginning, that group and its old message rows retain their identities and opening choices. Replies, steering, and other real boundaries in the new page still separate groups; not every new row joins the old group.
+加载更早的一页保留用户的组级开合选择。最终答案未变化且仍符合整轮折叠条件时，新加载的过程内容沿用该轮的开合状态；新页中的中途输入保持可见，不展开其前后过程。真正的起点到达后才显示时长，是否已加载完全部历史不是额外折叠条件。若新内容只是接在旧组前面，旧组和旧消息行保留身份及已有展开状态。新页出现回复、steering 等真实边界时仍按规则分组，不把所有新增内容强并进旧组。
 
-Clicking Load older anchors the first visible content item below that button in transcript order, regardless of its position in the viewport. A collapsed group anchors its header; an expanded group skips its header and anchors its first visible member. The whole-Turn process control is excluded because paging can move it ahead of newly loaded work and steering. When a whole Turn is collapsed, the anchor is its first remaining visible message, such as steering or the final answer. Ordinary messages and steering anchor themselves; hidden and empty rows are skipped. Loading more content inside a collapsed group keeps its header stationary; adding earlier groups or rows preserves that same group header while they appear above it.
+点击加载更早时，按正文顺序锚定按钮下的第一个可见内容项，不根据它在视口中的位置选择。组收起时选组 header；展开时跳过组 header，选内部第一个可见成员。整轮过程控件不作为锚点，因为分页可能将它移到新加载的过程及 steering 前面。整轮收起时，锚定第一个仍可见的消息，例如 steering 或最终答案。普通消息与 steering 选择自身，跳过隐藏和空行。新增内容全进入收起的组时，组 header 保持原位；前面出现更早的组或节点时，仍保持该组 header 的位置，让新增内容出现在它上方。
 
-Paging adds older content above the retained anchor without jumping to the new top. A capped group absorbs the displacement within its scroll range; the outer transcript absorbs the remainder, including when the group first reaches its cap. If the available scroll range is insufficient, compensation stops at the actual limit without adding bottom space. Later content growth keeps the same anchor until a reading gesture or explicit navigation releases it. Typing or clicking within the composer and non-scrolling transcript keys retain the anchor. If the reader scrolls while a page is loading, scrolling takes priority and its settled reading position becomes the new paging anchor.
+分页把更早内容加到保留的锚点上方，不主动跳到新内容顶部。限高组先在自己的滚动范围内吸收位移，剩余部分由外层文本滚动补偿，包括组正文刚达到限高的情况。可滚动范围不足时，补偿停在实际边界，不增加底部空白。后续内容撑高沿用同一个锚点，直到阅读手势或显式导航释放它。在 composer 中打字或点击，以及 transcript 内的非滚动按键，保留锚点。分页请求期间若读者滚动，优先服从滚动，停止后以新的阅读位置作为分页锚点。
 
-While the Session runs, Chat appends a Session-level indicator at the bottom of the current transcript, after pending submission or steering rows: a whale tail beside shimmering elapsed time. Before the current Turn start time arrives, the indicator shows status text without a duration. The clock updates in whole seconds, starts at one second, and uses hours from 60 minutes. When the Session stops running, the indicator disappears; the closed Turn process control shows the fixed duration, cancellation, or failure status. Lifecycle changes have a polite announcement; clock ticks do not. The whale is hidden from assistive technology and remains static under reduced motion.
+会话运行期间，Chat 在当前 transcript 最底部、待提交或 steering 行之后附加 Session 级运行指示：鲸鱼摆尾旁显示闪烁的已用时间。当前 Turn 的开始时间到达前，运行指示只显示状态文字，不显示时长。时钟按整秒更新，最少显示一秒，满 60 分钟使用小时。会话停止运行后，该指示消失；已结束 Turn 的过程控件显示固定时长、取消或失败状态。生命周期变化有礼貌播报，时钟跳动不播报。鲸鱼对辅助技术隐藏，启用减少动态效果时保持静态。
 
-The top duration/status control and trigger title use the group-title font size and follow the font-size setting. Completed duration digits use the code font with tabular numerals; running and completed minutes and seconds have no leading zero. The timed running label ends with a space and “···”; completion shows “Completed in”.
+顶部用时／状态控件与唤醒标题沿用二级汇总标题字号，并跟随字号设置。已完成用时的数字使用代码等宽字体；运行和完成状态的分钟和秒数均不补前导零。含用时的运行文案末尾附加一个空格及“···”，完成后显示“已完成，用时”。
 
-Automatic collapse keeps the process open if hiding it would hide keyboard focus. Manual closing focuses the process control before hiding its members. Closing a whole Turn resets its groups and inner reasoning/tool disclosures; it does not reset unrelated renderer state. Browser find can reveal searchable hidden content.
+自动收起若会隐藏键盘焦点，则保持过程展开。手动收起先将焦点移到过程控件，再隐藏成员。收起整轮会重置内部组及推理、工具的开合，不重置渲染器的其他状态。浏览器查找可以显示可搜索的隐藏内容。
 
 -----
 
 <a id="display-modes"></a>
-## Display modes
+## 展示模式
 
-Settings → General → Work details offers four modes for choosing how much tool-call detail to show: Compact `compact`, Standard `standard`, Detailed `detailed`, and Verbose `verbose`.
+设置 → 通用设置 → 工作步骤展示提供简洁 `compact`、标准 `standard`、详细 `detailed` 和完全展开 `verbose` 四种模式，用于选择希望看到多少工具调用细节。
 
-| Behavior | Compact | Standard | Detailed | Verbose |
+| 行为 | 简洁 | 标准 | 详细 | 完全展开 |
 |---|---|---|---|---|
-| Process-group header | Category summary | Summary and live task detail | Hidden in running Turns; retained in historical Turns | Hidden |
-| Process-group body | Initially collapsed | Initially collapsed | Directly visible without a group-level height cap in running Turns; manual disclosure in historical Turns | Directly visible without a group-level height cap in running and historical Turns |
-| Settled reasoning preview | Hidden | First line | First line | First line |
-| Individual reasoning and tool bodies | Manual expansion | Manual expansion | Manual expansion | Manual expansion |
-| Eligible completed Turn | Initially collapsed | Initially collapsed | Initially collapsed | Always open; duration/status header cannot collapse it |
+| 过程组头 | 类别摘要 | 摘要与实时任务详情 | 运行中轮次隐藏；历史轮次保留 | 隐藏 |
+| 过程组正文 | 初始收起 | 初始收起 | 运行中轮次直接显示、不设组级限高；历史轮次按手动开合显示 | 运行中与历史轮次都直接显示，不设组级限高 |
+| 已结算推理预览 | 隐藏 | 首行 | 首行 | 首行 |
+| 单个推理与工具正文 | 手动展开 | 手动展开 | 手动展开 | 手动展开 |
+| 符合条件的已完成轮次 | 初始收起 | 初始收起 | 初始收起 | 始终展开；时长或状态抬头不能收起它 |
 
-### Defaults and saving preferences
+### 默认值与配置保存
 
-Work details uses the Host setting `ui-chat.transcriptView`. The client reads it according to these rules:
+工作步骤展示对应 Host 设置 `ui-chat.transcriptView`，由客户端按以下规则读取：
 
-- Saved values for the four modes are used directly, regardless of changes to defaults.
-- Legacy `normal` and `expanded` values display as `detailed`, without automatically rewriting the saved values on disk.
-- When the setting is missing, `null`, or invalid, Desktop uses `standard` and non-Desktop Web uses `detailed`. Each client also uses its default before Host settings arrive; invalid values in other settings still fail validation.
+- 已保存的四种模式直接使用，不受默认值变化影响。
+- 旧值 `normal` 和 `expanded` 均按 `detailed` 展示，不自动改写磁盘中的值。
+- 未配置、值为 `null` 或无效时，Desktop 与 Web 均使用 `standard`，包括 Host 设置到达前；其他设置的无效值仍会校验失败。
 
-Reading a default does not automatically save configuration. When the user changes modes, the selected value is saved through Host settings and stays process-local when settings cannot persist writes. Desktop onboarding writes preferences according to its rules when completed or skipped.
+读取默认值不会自动保存配置。用户切换模式时，通过 Host 设置保存所选值；设置无法持久化写入时仅在当前进程内生效。Desktop onboarding 完成或跳过时，按引导规则写入偏好。
 
 <a id="collapse-timing"></a>
-### Collapse timing
+### 收起时机
 
-Settings → General → Collapse work details appears directly below Work details and is independent of the display mode. On completion is the default and retains immediate folding and tail positioning. On next message enables delayed folding and its coordinated transitions. The choice is saved as `ui-chat.collapseTiming` through the same Host profile settings as Work details and is restored after reload or reopening the app. Profiles without a saved value use On completion without writing that default. It does not write browser storage or Session data.
+设置 → 通用设置 → 过程收起时机位于工作步骤展示正下方，与展示模式独立。「完成时收起」是默认值，保留立即折叠和即时跟尾定位；「下次发送时收起」启用延后折叠及其协调过渡。选择以 `ui-chat.collapseTiming` 保存到与工作步骤展示相同的 Host profile 设置，刷新或重新打开应用后会恢复。未保存此值的 profile 使用「完成时收起」，不会自动写入默认值。此偏好不写入浏览器存储或 Session 数据。
 
-With On next message, the latest exchange keeps its running presentation after completion: Compact and Standard retain their process headers, and Detailed retains its flat process rows. An exchange starts with the Turn whose first Step admits human input and includes every later Turn until the next such Turn, so a Turn woken by a notice (a settled subagent, goal round, schedule, or job) leaves the preceding Turns of its exchange expanded. A pending ordinary transcript submission or a Turn that opens a newer exchange ends this exemption without clearing the reader's manual whole-Turn choice; a bare Turn start does not, because the host claims the waking input before it logs Step 1. Inner disclosures reset only when their outer process actually hides. Queued input and steering alone do not end it. The latest exchange of a reopened Session also receives the exemption, starting at the first loaded Turn when the loaded window holds no opening Turn; manual whole-Turn choices still take precedence. Switching back to On completion ends the exemption immediately.
+选择「下次发送时收起」后，最新交互段完成时保留运行中的呈现：简洁和标准保留过程组头，详细保留平铺过程行。交互段从首个 Step 接收真人输入的轮次开始，包含之后的所有轮次，直到下一个这样的轮次，因此由通知（子 agent 完成、Goal Round、定时任务或后台作业）唤醒的轮次不会收起同一交互段里更早的轮次。普通 transcript 输入进入待发送状态，或出现开启更新交互段的轮次时，取消这项例外，但保留用户对整轮的手动开合选择；仅出现新轮次的开始不会取消，因为 Host 先认领唤醒输入，再记录 Step 1。只有外层过程实际隐藏时，才重置内部开合。排队输入和单独的 steering 不会取消例外。重新打开 Session 时，其最新交互段也享有例外，已加载窗口中没有开启轮次时从第一个已加载轮次算起；整轮的手动开合选择仍优先。切回「完成时收起」会立即取消例外。
 
-When a new message triggers a fold, process details close in one movement with no second scroll after the fold. If this client sent the message, or the reader was following the tail, the transcript lands on the new message; otherwise, such as a message from another tab or a queued message delivered after the previous Turn, the content the reader is looking at stays still. Off-screen steps do not add bottom space; only the space needed to preserve the visible movement remains when the retained answer and new message cannot fill it. Content added during the fold updates its remaining movement. Reopening every closing row cancels that movement and releases obsolete bottom space. A reading gesture interrupts automatic following; finishing the fold does not resume it.
+新消息触发折叠时，过程收起为一次运动，折叠结束后不再追加滚动。消息由本客户端发出、或读者原本在跟尾时，对话落到新消息；其余情况（例如另一个标签页发来的消息，或上一轮结束后才投递的排队消息）下，读者正在看的内容保持不动。屏幕外的步骤不增加底部补白；只有保留的正文和新消息无法填满可见内容移动所需空间时，才保留必要差额。折叠期间新增的内容会更新剩余运动；重新展开全部正在收起的行时，取消该运动并释放失效的底部补白。阅读手势会中断自动跟随，折叠结束不会重新接管。
 
-Verbose retains its flat process rows under either timing. Failed, stopped, and interleaved-input Turns retain their existing whole-Turn eligibility rules; delayed folding can still postpone Detailed's conversion from flat rows to historical groups.
+完全展开模式在两种时机下都保留平铺过程行。失败、停止及没有最终回答的轮次保持展开；延后折叠仍可推迟详细模式从平铺行转换为历史分组的时机。
 
-### Group-title rules
+### 组标题规则
 
-A closed group's header names the first three categories from its ranked summary, without displaying counts. A group without categories uses the thinking label. A running header names its live tool category, otherwise thinking; Standard appends live detail. Live titles remain visible for at least 150ms, retaining only the newest pending title.
+已结束组的组头展示排序摘要的前三类，不显示次数；没有类别时使用思考标题。运行中的组头展示实时工具类别，没有运行工具时使用思考标题；标准模式附加实时详情。实时标题至少保留 150ms，只保留最新待显示标题。
 
-All three stages share the tool-name classification below. A preparing Tool node uses its category's preparation label: read files for `read`, read images for `read_image`, write files for `write`, edit files for `edit` and `apply_patch`, and update the plan for `todo_write` and goal tools. Standard mode appends available argument detail using the same readers as dispatched calls. It contributes one call and renders one non-expandable row. A named live delta can create this node; historical calls start directly from tool/call without replaying preparation.
+三个阶段共用下方工具名分类。准备中的 Tool 节点使用对应类别的准备文案；`read` 为「准备读取文件」，`read_image` 为「准备读取图片」，`write` 为「准备写入文件」，`edit` 和 `apply_patch` 为「准备编辑文件」，`todo_write` 及目标工具为「准备更新计划」。标准模式通过与已派发调用相同的读器追加可用参数详情。它计为一次调用，只渲染不可展开的一行。具名实时 delta 可以创建该节点；历史调用直接从 tool/call 开始，不重现准备过程。
 
-The labels below describe recorded activity, not successful outcomes. For example, a failed read still participates in the “Read files” category.
+以下文案描述已记录的活动，不保证操作成功；例如失败的读取仍参与「已读取文件」类别。
 
-| Category | Running label | Closed label |
+| 类别 | 未结束组的活动文案 | 已结束组的摘要文案 |
 |---|---|---|
-| No live category / no counted categories | Analyzing the request | Analysis completed |
-| `read` | Reading files | Read files |
-| `readImage` | Reading images | Read images |
-| `search` | Searching code | Searched code |
-| `write` | Writing files | Wrote files |
-| `edit` | Editing files | Edited files |
-| `commands` | Running commands | Ran commands |
-| `code` | Running code | Ran code |
-| `webSearch` | Searching the web | Searched the web |
-| `webFetch` | Visiting web pages | Visited web pages |
-| `subagents` | Coordinating subagents | Coordinated subagents |
-| `plan` | Updating the plan | Updated the plan |
-| `questions` | Waiting for your action | Asked questions |
-| `tools` | Calling tools | Called tools |
+| 无实时类别 / 无计数类别 | 正在分析请求 | 已完成分析 |
+| `read` | 正在读取文件 | 已读取文件 |
+| `readImage` | 正在读取图片 | 已读取图片 |
+| `search` | 正在搜索代码 | 已搜索代码 |
+| `write` | 正在写入文件 | 已写入文件 |
+| `edit` | 正在编辑文件 | 修改了文件 |
+| `commands` | 正在运行命令 | 执行了命令 |
+| `code` | 正在运行代码 | 运行了代码 |
+| `webSearch` | 正在搜索网页 | 已搜索网页 |
+| `webFetch` | 正在访问网页 | 已访问网页 |
+| `subagents` | 正在协调子代理 | 已协调子代理 |
+| `plan` | 正在更新计划 | 更新了计划 |
+| `questions` | 等待你的操作 | 向用户提出了问题 |
+| `tools` | 正在调用工具 | 已调用工具 |
 
-| Group state | Title composition |
+| 组状态 | 标题组合规则 |
 |---|---|
-| Not closed, with a running tool | Use the live category, not the highest-count category. Standard appends nonempty detail with ` · `; Compact omits detail. |
-| Not closed, without a running tool | Use the analysis label even when completed-tool counts are nonzero. Standard may append running reasoning detail. |
-| Closed, zero categories | Use the completed-analysis label. |
-| Closed, one category | Use its closed label without a count. |
-| Closed, two categories | Join ranked labels with “and”. Chinese removes the second leading `已` only when both labels start with it. |
-| Closed, three categories | Join all three ranked labels with commas. |
-| Closed, more than three categories | Show the first three labels followed by “etc.” (`等` in Chinese). |
+| 未结束，有运行工具 | 取实时类别，不取计数最多的类别。标准模式用 ` · ` 追加非空详情，简洁模式不追加。 |
+| 未结束，没有运行工具 | 即使已完成工具次数非零，也使用分析文案；标准模式可以追加运行中推理详情。 |
+| 已结束，零个类别 | 使用「已完成分析」。 |
+| 已结束，一个类别 | 使用该类别的已结束文案，不带次数。 |
+| 已结束，两个类别 | 按排名用「并」连接；仅当两项都以 `已` 开头时省略第二项的 `已`，例如 `已读取文件并搜索代码`。 |
+| 已结束，三个类别 | 按排名用中文逗号 `，` 连接三项文案。 |
+| 已结束，超过三个类别 | 只显示前三项文案，末尾加「等」。 |
 
-English lowercases the initial letter of joined labels after the first. Closing a group immediately selects the completed summary; the 150ms minimum applies to running-title changes, not to delaying completion. Detailed hides group headers in running Turns, including groups ended by a reply or steering before their Turn ends. Verbose also hides historical group headers.
+英文组合标题将第一项之后各项的首字母转为小写。组结束时立即切换完成摘要；150ms 最短保留时间针对运行中标题变化，不延迟完成状态。详细模式隐藏运行中轮次的组头，包括被回复或 steering 截断、但所属轮次尚未结束的小组；完全展开模式也隐藏历史组头。
 
-Group headers show a category icon, replace it with a down arrow on hover or keyboard focus, and show an up arrow while open. Manually expanded group bodies use 6px row spacing, a `min(400px, 50vh)` height cap, and 24px directional fades. Wheel scrolling can continue into the outer transcript at an edge. Detailed removes the group-level cap in running Turns; Verbose applies this layout to historical Turns as well. Process rows retain 6px spacing in both modes; Assistant responses have 12px clearance. Expanded group titles sit 8px above their content; Turn process controls retain 16px clearance.
+组头显示类别图标，悬停或键盘聚焦时替换为向下箭头，展开时显示向上箭头。手动展开的组正文使用 6px 行间距、`min(400px, 50vh)` 限高及 24px 方向渐隐；到达边缘时滚轮可以继续滚动外层文本记录。详细模式对运行中轮次取消组级限高；完全展开模式对历史轮次也采用该布局。两种模式下过程行均保留 6px 间距，Assistant 回复周围保留 12px 间距。展开组头与内容相隔 8px，整轮过程控件周围保留 16px 间距。
 
-An open capped group follows content growth only while its own scroll position is at the bottom. Scrolling away pauses that group's following; returning to the bottom resumes it, independently of outer transcript following. Manually opening an unclosed group starts at the bottom and follows growth; manually opening a closed group starts at the top with following disabled, even when its initial content fits without scrolling. Closing the group in the data or restoring its height cap through a mode change does not reset an already-open reader's position. Browser find retains its own reveal position.
+已展开的限高组仅在自己的滚动位置处于底部时跟随内容增长。滚离底部暂停该组跟随，滚回底部后恢复，与外层文本记录的跟随状态独立。手动展开未关闭的组时定位到底部并跟随增长；手动展开已关闭的组时从顶部开始且不启用跟随，即使初始内容无需滚动即可容纳。数据中的组变为已关闭，或通过模式切换恢复限高时，不重置已展开组的阅读位置。浏览器查找沿用自身的展开定位。
 
-Only reasoning blocks with non-whitespace text produce individual rows; each retains its original text and expands independently. A blank streaming tail produces no row and does not transfer its running state to an earlier block. Individual reasoning starts collapsed, including while streaming. All modes preview the latest paragraph whose first line ends with a newline; an unfinished single line has no preview. Later text in that paragraph does not change the preview. After settlement, the mode table applies. Expanded reasoning uses compact Markdown typography.
+只有含非空白文本的推理块生成独立行，各自保留原文并独立展开。空白流式尾块不生成行，也不将运行状态转移给前面的块。单个推理初始收起，包括流式输出期间。四档都预览最近一个首行以换行结束的段落；未完成的单行没有预览，该段落后续文本不改变预览。结算后按上表展示。展开的推理使用紧凑 Markdown 排版。
 
-Switching modes retains manually opened groups and inner disclosures. It changes visibility and sizing without recreating the message rows. Detailed and Verbose do not open every individual disclosure. Only Verbose keeps the whole Turn open.
+切换模式保留手动展开的组和内部开合状态，只改变显隐与尺寸，不重建消息行。详细和完全展开都不表示自动打开每个内部控件；只有完全展开模式始终展开整轮。
 
 -----
 
 <a id="process-grouping"></a>
-## Process grouping
+## 过程分组
 
-[process-groups.ts](process-groups.ts) groups visible Chat content; [process-activity.ts](process-activity.ts) summarizes the activity inside each group. Both follow the rules below.
+[process-groups.ts](process-groups.ts) 划分可见 Chat 内容，[process-activity.ts](process-activity.ts) 汇总每组活动，两者共同遵循下列业务规则。
 
-A group collects adjacent process content within one Turn. Step-number changes alone do not split it. All four modes use the same grouping result. A group's `closed` flag means its content segment has ended, not that its UI disclosure is collapsed.
+一组收集同一轮次内相邻的过程内容，仅 Step 编号变化不会拆组。四档模式使用同一分组结果。组的 `closed` 表示这段内容已经结束，不表示 UI 开合控件处于收起状态。
 
-Grouping reads each Node's [group-tree position](../contract/group-tree.ts), which its Definition sets, rather than its kind.
+分组读取每个 Node 由其 Definition 设定的[分组树位置](../contract/group-tree.ts)，而不是它的 kind。
 
-| Input | Membership and segmentation |
+| 输入 | 归属与切分 |
 |---|---|
-| Non-blank Assistant reasoning | Append one `reasoning` reference for that Assistant to the current group, creating a group if necessary. |
-| Assistant reply | End the preceding group and emit an independent `response` reference. If the same Node has reasoning, append that reasoning before ending the group. |
-| Node at `process` or an outer position: `model-retry`, Turn inputs, `turn-error`, `turn-max-tokens`, `turn-tail`, and the `turn-process` control | End the preceding group and retain the Node as an independent root. |
-| Other visible Nodes owned by a Turn without a position, including tools | Append the whole Node to the current group, creating a group if necessary. |
-| Node from another Turn or without a Turn | Break the same-Turn sequence. A Node without a Turn remains independent, including an unsplit Assistant. |
-| Hidden Nodes, system prompts, ordinary Context injection, and `permission` commands | Excluded from the grouping input; they neither join nor split a group. |
+| 非空白 Assistant 推理 | 将该 Assistant 的一个 `reasoning` 引用加入当前组，必要时创建组。 |
+| Assistant 回复 | 结束前面的组，输出独立的 `response` 引用。同一 Node 含有推理时，先将推理加入组，再结束该组。 |
+| 位于 `process` 或更外层位置的 Node：`model-retry`、轮次输入、`turn-error`、`turn-max-tokens`、`turn-tail` 及 `turn-process` 控件 | 结束前面的组，Node 作为独立根引用保留。 |
+| 轮次内没有位置的其他可见 Node，包括工具 | 将整个 Node 加入当前组，必要时创建组。 |
+| 另一轮次或没有轮次归属的 Node | 截断同轮次序列。无轮次 Node 保持独立，Assistant 也不拆分。 |
+| 隐藏 Node、系统提示词、普通 Context 注入及 `permission` 命令 | 不进入分组输入，既不入组，也不截断组。 |
 
-A reply contains non-blank text, an image, or another visible block; reasoning and tool-call protocol blocks do not count as a reply. An Assistant with neither non-blank reasoning nor reply content contributes no reference. Group creation requires a member, so metadata-only Turns create no empty group.
+回复须包含非空白文本、图片或其他可见块；推理和工具调用协议块不算回复。既无非空白推理、也无回复内容的 Assistant 不产生引用。只有存在成员才创建组，因此仅含元数据的轮次不会产生空组。
 
-### Examples
+### 示例
 
-`A` denotes an Assistant Node, `T` a tool Node, and `G[...]` a process group. Arrows show input or root-reference order; examples share one Turn unless stated otherwise.
+`A` 表示 Assistant Node，`T` 表示工具 Node，`G[...]` 表示过程组。箭头表示输入或根引用顺序；未注明时，示例均属于同一轮次。
 
-| Input sequence | Grouped roots |
+| 输入序列 | 分组后的根引用 |
 |---|---|
-| `A1(thought, reply) → T1` in one Step | `G[A1.reasoning] → A1.response → G[T1]` |
+| 同一 Step 的 `A1(thought, reply) → T1` | `G[A1.reasoning] → A1.response → G[T1]` |
 | `T1(step=1) → A2(thought, step=2) → T2` | `G[T1, A2.reasoning, T2]` |
 | `T1 → steering → T2` | `G[T1] → steering → G[T2]` |
 | `T1(turn=1) → U(no turn) → T2(turn=1)` | `G[T1] → U → G[T2]` |
-| `A1(reply)` | `A1.response`, without a process group |
-| `read → bash → subagent_codex` without an intervening reply or input | One group; changing tool category does not split it. |
-| `run_code` with nested `read` and `bash` calls | One group member for the `run_code` tool Node; its nested calls do not create separate roots. |
-| A tool receives a failed result | Update that member without splitting its group; a separate `turn-error` Node does split the sequence. |
+| `A1(reply)` | `A1.response`，不产生过程组 |
+| `read → bash → subagent_codex`，中间没有回复或输入 | 同一组；工具类别变化不会拆组。 |
+| `run_code` 内含 `read`、`bash` 子调用 | `run_code` 工具 Node 是一个组成员，其嵌套调用不产生独立根引用。 |
+| 工具收到失败结果 | 更新该成员，不因此拆组；另外产生的 `turn-error` Node 才会截断序列。 |
 
-Replies and independent separators close preceding groups immediately, even while the Turn is running. The final group also closes when another Turn or unscoped Node follows it, or when its Turn has status `closed`. Any other or unavailable Turn status alone does not close that trailing group. Regrouping after a separator disappears may reopen it.
+即使轮次仍在运行，回复和独立分隔节点也会立即结束前面的组。尾组在后面出现另一轮次或无轮次 Node 时结束，所属轮次状态为 `closed` 时也结束。其他轮次状态或无法获知轮次状态，本身不会结束尾组。分隔节点消失后重新分组，原组可以再次变为未结束。
 
 -----
 
 <a id="activity-summaries"></a>
-## Activity summaries
+## 活动摘要
 
-[process-activity.ts](process-activity.ts) derives one group's category counts and live detail from its member Nodes. It does not decide membership or presentation text.
+[process-activity.ts](process-activity.ts) 从一组的成员 Node 计算类别次数和实时详情，不决定成员归属或展示文案。
 
-### Category counts
+### 类别计数
 
-Counts describe calls in this group, not successful operations, files changed, child Agents, or elapsed work. The following rules apply before category ranking.
+这里统计本组的工具调用，不是成功操作数、修改文件数、子 Agent 数量或工作时长。先按下表确定计数，再按类别排序。
 
-| Call evidence in this group | Counting rule |
+| 本组中的调用记录 | 计数规则 |
 |---|---|
-| Preparing call, running call, successful result, failed result, or projected interrupted result with its original call | Count one call in the category selected by its recorded tool name. Settlement and failure do not add or subtract a call. |
-| Repeated `callId` | Count only the first occurrence, including when it appears both as a root and as a nested call. Later occurrences and their subtrees are skipped. |
-| Parent and child with different `callId` values | Count both, in their own categories; visit the parent before its children and siblings in recorded order. |
-| Repeated calls to the same tool with different `callId` values | Count each call, even with identical arguments or the same terminal/session target. |
-| Settled root result whose original call is missing | Do not infer its category from result text or metadata. Count no root call; its recorded subcalls still participate. |
-| Assistant reasoning, Assistant tool-call protocol blocks, or another Node kind | Add no tool count. The separately projected tool Node owns that call's count. |
+| 准备中调用、运行中调用、成功结果、失败结果，或保留原调用信息的中断结果 | 按记录的工具名计入对应类别一次；结算或失败不会增加或扣除次数。 |
+| 重复的 `callId` | 只计首次出现，包括同时作为根调用和嵌套调用出现的情况；后续重复记录及其子树不再处理。 |
+| 父子调用的 `callId` 不同 | 父子分别按各自类别计数；父调用先于子调用，同级按记录顺序处理。 |
+| 同一工具使用不同 `callId` 多次调用 | 每次都计数，即使参数相同，或操作的是同一个终端、Session。 |
+| 已结算根结果缺少原调用记录 | 不从结果文字或 metadata 猜测类别；根调用不计数，已记录的子调用仍参与统计。 |
+| Assistant 推理、Assistant 内的工具调用协议块，或其他 Node 类型 | 不增加工具次数；调用由独立投影出的工具 Node 负责计数。 |
 
-Deduplication is group-local. Counts sort descending; ties retain the category's first occurrence in member order and parent-before-child traversal. For `read → bash → read`, the ranking is `read=2, commands=1`; for `bash → read`, it is `commands=1, read=1`. No category has a fixed priority when counts tie.
+去重范围是单个组。类别按次数降序排列，同数时保留该类别在成员顺序及父先子后遍历中的首次出现顺序。`read → bash → read` 排为 `read=2, commands=1`；`bash → read` 排为 `commands=1, read=1`。次数相同时没有固定的类别优先级。
 
-### Tool-name classification
+### 工具名分类
 
-Classification uses the recorded tool name exactly: no case folding, namespace stripping, provider lookup, or inference from arguments. Names match the first applicable row below. All nonzero categories remain in the summary.
+分类只使用记录的工具名：不转换大小写、不剥离命名空间、不查 provider，也不根据参数推断。名称按下表从上到下首次命中的规则分类，摘要保留全部非零类别。
 
-| Category | Tool-name match |
+| 类别 | 工具名匹配 |
 |---|---|
 | `read` | `read` |
 | `readImage` | `read_image` |
-| `search` | `grep`, `glob`, or suffix `_inspect` |
+| `search` | `grep`、`glob`，或以 `_inspect` 结尾 |
 | `write` | `write` |
-| `edit` | `edit`, `apply_patch` |
-| `commands` | `bash`, `pwsh`, `exec_command`, `write_stdin`, or prefix `terminal_` |
+| `edit` | `edit`、`apply_patch` |
+| `commands` | `bash`、`pwsh`、`exec_command`、`write_stdin`，或以 `terminal_` 开头 |
 | `code` | `run_code` |
 | `webSearch` | `web_search` |
 | `webFetch` | `web_fetch` |
-| `subagents` | `subagent` or prefix `subagent_` |
-| `plan` | `todo_write`, `create_goal`, `update_goal`, `get_goal` |
-| `questions` | `ask_user_question`, `request_user_input` |
-| `tools` | Every other name, including `list_mcp_resources`, `list_mcp_resource_templates`, and `read_mcp_resource` |
+| `subagents` | `subagent`，以 `subagent_` 或 `multi_agent_v1__` 开头，以及 `spawn_agent`、`followup_task`、`send_message`、`list_agents`、`wait_agent`、`interrupt_agent` |
+| `plan` | `todo_write`、`create_goal`、`update_goal`、`get_goal` |
+| `questions` | `ask_user_question`、`request_user_input` |
+| `tools` | 其他所有名称，包括 `list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` |
 
-### Subagents, background jobs, and nested calls
+### Subagent、后台任务与嵌套调用
 
-A subagent tool follows ordinary group boundaries: it does not create a group merely because it delegates work. Its category describes the parent Session's tool call, not the number or lifecycle of child Sessions.
+Subagent 工具遵循普通分组边界，不会仅因委派任务就单独成组。它的类别描述父 Session 中的工具调用，不表示子 Session 的数量或生命周期。
 
-| Case | Category and activity behavior |
+| 情况 | 类别与活动规则 |
 |---|---|
-| `subagent`, `subagent_codex`, `subagent_claude_code`, or another `subagent_*` name | Count one `subagents` call per distinct `callId`, unless an earlier name rule matches. Provider and model choices do not change the category. |
-| A configured name such as `subagent_inspect` | Classify as `search`: suffix `_inspect` is checked before prefix `subagent_`. The same precedence makes `terminal_inspect` a `search` call rather than `commands`. |
-| Subagent controls `send_message`, `list_agents`, and `list_subagent_models`; job controls `job_output` and `job_kill` | Classify as `tools`, not `subagents`. Their business purpose does not override the name table. |
-| A delegation tool renamed to a name outside the table, such as `research_agent` | Classify as `tools`, even if it invokes the same subagent provider. |
-| Background subagent startup has returned its tool result, while the child is still running | Keep its category count, but remove that call from running-activity candidates. The child does not keep the parent's group in the subagent activity state. |
-| Tool calls recorded only in a child Session | Do not include them in the parent group's counts or live detail. Only calls actually attached to a member's `subCalls` participate recursively. |
+| `subagent`、`subagent_codex`、`subagent_claude_code` 或其他 `subagent_*` 名称 | 每个不同 `callId` 计一次 `subagents`，但先命中更靠前的名称规则时除外；provider 和 model 选择不改变类别。 |
+| 配置为 `subagent_inspect` 这样的名称 | 归 `search`：`_inspect` 后缀先于 `subagent_` 前缀匹配；同理，`terminal_inspect` 归 `search` 而不是 `commands`。 |
+| Codexy 控制工具 `followup_task`、`send_message`、`list_agents`、`wait_agent`、`interrupt_agent` | 归 `subagents`；工具调用结束不代表子任务完成。`list_subagent_models`、`job_output`、`job_kill` 仍归 `tools`。 |
+| 委派工具被改为表外名称，例如 `research_agent` | 即使调用相同的 subagent provider，也归 `tools`。 |
+| 后台 subagent 的启动调用已返回工具结果，但子代理仍在运行 | 保留类别次数，但该调用不再参与运行中活动选择；子代理的执行不会维持父组的 subagent 活动状态。 |
+| 工具调用只记录在子 Session 中 | 不纳入父组计数或实时详情；只有实际附在本组成员 `subCalls` 中的调用才递归参与。 |
 
-A `run_code` root counts once as `code`; its recorded PTC subcalls each count in their own categories. The wrapper is not replaced by leaf-call counts, and children are not all classified as `code`. With distinct call ids, `run_code → [read, bash, subagent_codex]` produces `code=1, read=1, commands=1, subagents=1`, in that tie order. A subcall can supply the live category while the outer `run_code` remains running.
+`run_code` 根调用自身计一次 `code`，已记录的每个 PTC 子调用另按自己的类别计数。不会用叶子调用替代包装调用，也不会把子调用统一归为 `code`。各调用 id 不同时，`run_code → [read, bash, subagent_codex]` 得到 `code=1, read=1, commands=1, subagents=1`，同次数时按此顺序排列。外层 `run_code` 仍在运行时，组的实时类别可以由子调用决定。
 
-Exact-name rules also mean that a recorded name such as `functions.read`, `mcp.read`, or `Read` falls into `tools`, while `browser_inspect` falls into `search`. A `terminal_*` name follows the command rule even when its operation only inspects or closes a terminal, unless the earlier `_inspect` rule matches.
+精确名称规则也意味着：记录为 `functions.read`、`mcp.read` 或 `Read` 的名称归 `tools`，`browser_inspect` 归 `search`。`terminal_*` 即使只检查或关闭终端，也按命令规则分类，除非先命中 `_inspect` 规则。
 
-### Live activity and detail
+### 实时活动与详情
 
-Preparing calls use their first named delta time; dispatched calls use their tool/call time. Both read detail from the block's lazy `args` view.
+准备中的调用使用首个具名 delta 的时间，已派发调用使用 tool/call 的时间。两者都从块的懒计算 `args` 视图读取详情。
 
-The Tool Definition alone retains streamed argument fragments. Assistant blocks keep tool identity and timing without accumulating argument deltas; `block-end` and the durable message supply their complete text. A Tool reader compares its fragments directly against `block-end` and `tool/call` arguments, retaining its indexed fields only for an exact match. Final text replaces missing or conflicting deltas.
+仅 Tool Definition 保留流式参数分片。Assistant 块保留工具身份和时间，不累加参数 delta；完整文本由 `block-end` 和持久消息提供。Tool 读器将分片直接与 `block-end` 和 `tool/call` 的参数比较，仅在完全一致时保留字段索引。最终文本替换缺失或冲突的分片。
 
-TurnProcess and TurnTail retain tool-argument Matches as Location evidence when the Turn start is outside the loaded window, even when those fragments do not change their State.
+TurnProcess 和 TurnTail 保留工具参数 Match，作为 Turn 起始事件在已加载窗口之外时的 Location 证据，即使这些片段不改变其 State。
 
-Among running calls, the greatest `time` selects the live category and detail; equal times select the later visited call. With no running call, the category is absent and detail comes from the last nonempty reasoning paragraph of the latest running Assistant with nonempty reasoning, in member order. Reasoning detail removes `**` markers and does not require a newline-terminated first line; the individual reasoning-row preview has separate rules.
+运行中的调用以最大 `time` 决定实时类别和详情；时间相同时取后遍历的调用。没有运行调用时，类别为空，详情取成员顺序中最近一个含有非空推理段落的运行中 Assistant 的最后一个非空段落。推理详情移除 `**` 标记，不要求首行以换行结束；单个推理行的预览另有规则。
 
-Live selection uses call start `time`, not the latest output/progress time. A call is a running candidate while its projected tool value has no result; pending approval or waiting for a result does not receive a separate category.
+实时选择依据调用开始的 `time`，不是最近一次输出或进度的时间。投影后的工具值尚无结果时就参与运行中候选；等待批准或等待结果不会产生另一个类别。
 
-| Members' current state | Live category and detail source |
+| 成员当前状态 | 实时类别与详情来源 |
 |---|---|
-| `bash(time=10)` and `read(time=20)` both running | `read`, using the `read` arguments, regardless of which tool most recently emitted output. |
-| The newer `read` settles while the older `bash` remains running | Return to `commands`, using the `bash` arguments. A failed `read` result has the same selection effect. |
-| Running parent and child share the same start time | The child wins because it is visited later; later siblings win equal-time ties. |
-| All tools settled; the group is not closed; a running Assistant has reasoning | No live tool category; use the latest nonempty reasoning paragraph as detail. |
-| No running tool or usable running reasoning; the group is not closed | No live tool category and empty detail, even when category counts are nonzero. |
-| A reply or another group boundary closes the group while a tool still lacks a result | Published live category and detail are cleared. Group closure takes precedence over the unfinished call. |
+| `bash(time=10)` 与 `read(time=20)` 都运行中 | 取 `read` 及其参数，与哪个工具最近输出无关。 |
+| 较新的 `read` 已结算，较早的 `bash` 仍在运行 | 回到 `commands`，使用 `bash` 参数；`read` 失败后结算也一样。 |
+| 运行中的父子调用开始时间相同 | 子调用因后遍历而胜出；同级同时间则后遍历者胜出。 |
+| 工具全部结算，组尚未结束，运行中的 Assistant 有推理 | 实时工具类别为空，详情取最近的非空推理段落。 |
+| 没有运行工具或可用的运行中推理，组尚未结束 | 实时工具类别为空、详情为空，即使类别次数非零。 |
+| 工具尚无结果，但回复或其他分组边界已结束该组 | 发布的实时类别与详情清空；组结束优先于调用未完成。 |
 
-Tool detail uses the first nonempty supported argument field in this priority order: `title`, `description`, `objective`, `task`, `task_name`, `name`, `question`, `questions`, `prompt`, `message`, `command`, `cmd`, `queries`, `query`, `pattern`, `url`, `uri`, `file_path`, `path`, `target`, `action`, `status`. Strings may still be streaming; arrays become available when complete and must contain only strings, joined with `, `. The `questions` field instead selects the first nonempty `question` in its object array. Without usable detail, every category stays empty while fields can still arrive and falls back to the tool name only once the view is closed, invalid, or sealed after dispatch.
+工具详情按以下优先级取第一个非空且受支持的参数字段：`title`、`description`、`objective`、`task`、`task_name`、`name`、`question`、`questions`、`prompt`、`message`、`command`、`cmd`、`queries`、`query`、`pattern`、`url`、`uri`、`file_path`、`path`、`target`、`action`、`status`。字符串可仍在流入；数组完整后才可用，且必须全部为字符串，使用 `, ` 连接。`questions` 字段则取对象数组中首个非空的 `question`。没有可用详情时，所有类别在字段仍可能到达期间留空，只有视图已闭合、非法或随派发封存后才回退工具名。
 
-The priority list is shared by every tool, not specialized per category. For example, `description` can override `command` on a shell call, and `title` can override a file path. The first field whose supported value remains nonempty after whitespace normalization wins; unsupported values are skipped.
+这份优先级对所有工具相同，不按类别定制。例如 shell 调用的 `description` 可以覆盖 `command`，`title` 可以覆盖文件路径。按顺序选择受支持且合并空白后仍非空的首个字段，不支持的值会跳过。
 
-| Tool and argument example | Resulting detail |
+| 工具与参数示例 | 最终详情 |
 |---|---|
-| `subagent` with `{"description":"Review parser","prompt":"Long instructions"}` | `Review parser`; the prompt is not appended. |
-| `send_message` with `{"subagent_id":"child-1","message":"Check tests"}` | `Check tests`; its category is still `tools`. |
-| `exec_command` with `{"cmd":"pnpm test","description":"Run focused tests"}` | `Run focused tests`; without a usable description, `pnpm test`. |
-| `read` with `{"file_path":"src/app.ts","path":"fallback.ts"}` | `src/app.ts`; `file_path` precedes `path`. |
-| `grep` with `{"pattern":"TODO","path":"src"}` | `TODO`; the searched path is not appended. |
-| `web_search` with `{"queries":["React hooks","external store"]}` | `React hooks, external store`. |
-| `web_search` with only `{"queries":[{"query":"React hooks"}]}` | `web_search`; object-array queries are not extracted recursively. |
-| `web_fetch` with `{"url":"https://example.com"}`; `read_mcp_resource` with `{"uri":"resource://guide"}` | The URL or URI itself. |
-| `request_user_input` with `{"questions":[{"header":"Scope","question":"Which package?"},{"question":"Which mode?"}]}` | `Which package?`; ignore headers and later questions once a nonempty question is found. |
-| `run_code` with only `{"code":"print(1)"}` | `run_code`; `code` is not in the detail-field list. |
-| `apply_patch` with raw patch text rather than a JSON object | `apply_patch`; no patch-path extraction. |
-| Any tool with `{"description":" ","command":42,"path":"src/app.ts"}` | `src/app.ts`; whitespace-only strings and numbers are skipped. |
-| No usable field yet | Empty while arguments can grow; otherwise the tool name. |
+| `subagent`，`{"description":"Review parser","prompt":"Long instructions"}` | `Review parser`，不追加 prompt。 |
+| `send_message`，`{"subagent_id":"child-1","message":"Check tests"}` | `Check tests`，类别为 `subagents`。 |
+| `exec_command`，`{"cmd":"pnpm test","description":"Run focused tests"}` | `Run focused tests`；没有可用 description 时才是 `pnpm test`。 |
+| `read`，`{"file_path":"src/app.ts","path":"fallback.ts"}` | `src/app.ts`，`file_path` 先于 `path`。 |
+| `grep`，`{"pattern":"TODO","path":"src"}` | `TODO`，不追加搜索路径。 |
+| `web_search`，`{"queries":["React hooks","external store"]}` | `React hooks, external store`。 |
+| `web_search`，仅有 `{"queries":[{"query":"React hooks"}]}` | `web_search`，不递归提取对象数组中的查询。 |
+| `web_fetch` 的 `{"url":"https://example.com"}`；`read_mcp_resource` 的 `{"uri":"resource://guide"}` | 直接使用 URL 或 URI。 |
+| `request_user_input`，`{"questions":[{"header":"Scope","question":"Which package?"},{"question":"Which mode?"}]}` | `Which package?`；找到首个非空问题后，不取 header 或后续问题。 |
+| `run_code`，仅有 `{"code":"print(1)"}` | `run_code`，`code` 不在详情字段列表中。 |
+| `apply_patch`，参数为原始补丁文本而非 JSON 对象 | `apply_patch`，不从补丁中提取路径。 |
+| 任意工具，`{"description":" ","command":42,"path":"src/app.ts"}` | `src/app.ts`，跳过纯空白字符串和数值。 |
+| 暂无可用字段 | 参数仍可增长时留空，否则使用工具名。 |
 
-All live detail collapses whitespace, trims its ends, and is limited to 160 grapheme clusters, including a final `…` when truncated. String arguments initially supply at most 512 decoded UTF-16 units; normalization expands that prefix only when whitespace or multi-unit clusters leave too little text to determine truncation. Each truncation pass reads at most 161 clusters. A closed group's published summary clears its live category and detail while retaining category counts.
+所有实时详情都合并空白、去除首尾空白，并限制为 160 个字素簇；截断时末尾的 `…` 计入上限。字符串参数起初最多提供 512 个已解码 UTF-16 单元；只有空白或包含多个单元的字素簇使文本不足以判定截断时，规范化才扩大该前缀。每次截断遍历最多读取 161 个字素簇。已结束组发布的摘要清空实时类别和详情，保留类别次数。

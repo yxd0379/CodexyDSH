@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ContextMessageNode, ConversationNodeDefinition, SteeringMessageNode, UserMessageNode,
+  ContextMessageNode, ConversationContextReader, ConversationNodeDefinition, SteeringMessageNode, UserMessageNode,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { InboxState } from './inbox.ts'
@@ -42,6 +42,26 @@ function isCompactionCheckpoint(event: Parameters<ConversationNodeDefinition['ma
   return source.kind === 'compact-checkpoint'
 }
 
+const INTERRUPTED_TURN_NOTICES = new Set([
+  '<turn_aborted>\nThe user interrupted the previous turn on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.\n</turn_aborted>',
+  '<turn_aborted>\nThe previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.\n</turn_aborted>',
+])
+
+/** Only the runtime-authored notice cites its exact user-cancelled Turn end. */
+function isInterruptedTurnNotice(
+  event: Parameters<ConversationNodeDefinition['match']>[0],
+  reader: ConversationContextReader,
+): boolean {
+  if (event.type !== 'user/message' || event.data.source.kind !== 'user'
+    || event.data.content.length !== 1 || event.sourceEventSeqs?.length !== 1) return false
+  const block = event.data.content[0]
+  if (block?.type !== 'text' || !INTERRUPTED_TURN_NOTICES.has(block.text)) return false
+  const source = reader.previous('turn-tail')?.matches
+    .find(match => match.event.seq === event.sourceEventSeqs?.[0])?.event
+  return source?.type === 'turn/end' && source.data.reason.kind === 'aborted'
+    && source.data.reason.reason.kind === 'user'
+}
+
 /** Context presentation shared by user-role injections and developer messages. */
 function contextMessage(
   event: Pick<ContextMessageNode, 'seq' | 'time'>,
@@ -73,6 +93,7 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
   start: (_context, match, reader) => {
     const event = match.event
     if (event.type !== 'user/message') throw new Error('input-message start requires user/message')
+    if (isInterruptedTurnNotice(event, reader)) return contextMessage(event, event.data)
     if (event.data.source.kind !== 'user') {
       const nextTurn = reader.previous<InboxState>('inbox-next-turn')?.state
       const nextStep = reader.previous<InboxState>('inbox-next-step')?.state

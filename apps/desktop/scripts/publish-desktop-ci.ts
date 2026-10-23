@@ -45,7 +45,7 @@ export async function prepareDesktopPublication(env: NodeJS.ProcessEnv, verifySi
   const environment = source.preset === 'test'
     ? { DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DOWNLOAD_TEST_ORIGIN: config.origin,
       DOWNLOAD_TEST_RELEASE_ID: source.testReleaseId ?? '', DOWNLOAD_TEST_COS_BUCKET: config.bucket }
-    : { DSH_DESKTOP_AUTO_UPDATE_ENV: 'production', DOWNLOAD_PROD_COS_BUCKET: config.bucket }
+    : { DSH_DESKTOP_AUTO_UPDATE_ENV: 'production', DOWNLOAD_PROD_ORIGIN: config.origin, DOWNLOAD_PROD_COS_BUCKET: config.bucket }
   const plan = await createDesktopUploadPlan(source.target, { artifactsRoot: directory,
     packagedProductVersion: source.productVersion, environment: { ...environment, DSH_DESKTOP_UPDATE_CHANNEL: source.channel } })
   if (plan.version !== source.version || plan.commit !== source.commit || plan.dirty !== false) throw new Error('desktop publish: completion record differs from retained source or has uncommitted changes')

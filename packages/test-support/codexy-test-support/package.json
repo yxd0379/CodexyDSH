@@ -1,0 +1,38 @@
+{
+  "name": "@codexydsh/test-support",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./config": "./src/config.ts",
+    "./host-tools": "./src/host-tools.ts",
+    "./workspace": "./src/workspace.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/cosmokit": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "vitest": "^4.1.8",
+    "typescript": "^6.0.3",
+    "@codexydsh/runtime": "workspace:*",
+    "@codexydsh/bridges": "workspace:*",
+    "@codexydsh/prompt-registry": "workspace:*",
+    "@deepseek-ai/dsh-system-prompt": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*",
+    "@deepseek-ai/dsh-sandbox": "workspace:*"
+  },
+  "files": [
+    "lib"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-subagent": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-subagent": "workspace:*"
+  }
+}

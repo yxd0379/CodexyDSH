@@ -16,6 +16,30 @@ afterEach(() => {
 })
 
 describe('createConversationStore', () => {
+  it('restores a deployment draft and View from the same scoped key as its store without reading another Host', () => {
+    const sessionId = 'same-session' as SessionId
+    const base = vi.spyOn(document, 'baseURI', 'get')
+    base.mockReturnValue('https://app.example/index.html')
+    const local = createConversationStore().create(sessionId)
+    local.actions.setDraft('local draft'); local.actions.setView('chat')
+    base.mockReturnValue('https://app.example/codexy-remote/alpha/')
+    expect(readConversationDraft(sessionId)).toEqual({ text: '', references: [] })
+    const alpha = createConversationStore().create(sessionId)
+    alpha.actions.setDraft('alpha draft'); alpha.actions.setView('trajectory')
+    expect(readConversationDraft(sessionId).text).toBe('alpha draft')
+    expect(readConversationViewPreference(sessionId)).toBe('trajectory')
+    base.mockReturnValue('https://app.example/codexy-remote/beta/')
+    expect(readConversationDraft(sessionId)).toEqual({ text: '', references: [] })
+    expect(readConversationViewPreference(sessionId)).toBeNull()
+    createConversationStore().create(sessionId).actions.setDraft('beta draft')
+    base.mockReturnValue('https://app.example/codexy-remote/alpha/?view=chat')
+    expect(createConversationStore().create(sessionId).getSnapshot().draft).toBe('alpha draft')
+    expect(readConversationDraft(sessionId).text).toBe('alpha draft')
+    base.mockReturnValue('https://app.example/')
+    expect(readConversationDraft(sessionId).text).toBe('local draft')
+    expect(readConversationViewPreference(sessionId)).toBe('chat')
+  })
+
   it('owns draft, selected View, and one-shot View requests', () => {
     const store = createConversationStore().create()
     expect(store.store.getSnapshot()).toEqual({ draft: '', view: null, viewRequest: null })

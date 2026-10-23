@@ -2,12 +2,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { connectDesktopWelcome } from '../src/welcome-backend.ts'
 
-function transport(preference?: string) {
+function transport() {
   const keys = new Map<string, string>()
   const namespaces = [
     { ns: 'llm-deepseek', value: { apiKeyEnv: 'CUSTOM_DEEPSEEK_KEY' } },
     { ns: 'llm-pi-ai', value: { profiles: { example: { apiKeyEnv: 'EXAMPLE_API_KEY' } } } },
-    { ns: 'locale', value: preference === undefined ? {} : { preference } },
   ]
   const send = vi.fn<Parameters<typeof connectDesktopWelcome>[1]>(async (_input, init) => {
     if (init?.method !== 'POST') return new Response('index')
@@ -36,30 +35,21 @@ describe('desktop welcome Web operations', () => {
     expect(host.send).toHaveBeenCalledExactlyOnceWith(url, { credentials: 'include' })
     expect(await backend.save('sk-example')).toEqual({ ok: true })
     expect(host.keys.get('CUSTOM_DEEPSEEK_KEY')).toBe('sk-example')
-    expect(await backend.read()).toEqual({ loggedIn: false, hasApiKey: true, writable: true, localePreference: null })
+    expect(await backend.read()).toEqual({ loggedIn: false, hasApiKey: true, writable: true })
     for (const [input, init] of host.send.mock.calls.slice(1)) {
       expect(input).toMatch(/^http:\/\/127\.0\.0\.1:19387\/api\//u)
       expect(init).toMatchObject({ credentials: 'include', redirect: 'error' })
     }
   })
 
-  it('reads the explicit language preference and recognizes another provider key', async () => {
-    const host = transport('zh')
+  it('无需语言设置命名空间也能识别其他模型提供方的密钥', async () => {
+    const host = transport()
     host.keys.set('EXAMPLE_API_KEY', 'sk-other')
     const backend = await connectDesktopWelcome(url, host.send)
-    expect(await backend.read()).toMatchObject({ localePreference: 'zh', hasApiKey: true })
+    expect(await backend.read()).toMatchObject({ hasApiKey: true })
     host.keys.clear()
     expect(await backend.read()).toMatchObject({ hasApiKey: false })
     expect(host.send.mock.calls.every(([, init]) => !(init?.body as string | undefined)?.includes('credentials/set'))).toBe(true)
-  })
-
-  it('reads language without querying account or model providers', async () => {
-    const host = transport('zh')
-    const backend = await connectDesktopWelcome(url, host.send)
-    host.send.mockClear()
-    expect(await backend.readLocalePreference()).toBe('zh')
-    expect(host.send).toHaveBeenCalledOnce()
-    expect(host.send.mock.calls[0]![0]).toContain('/api/settings/describe')
   })
 
   it('allows profiles without the official provider and retains custom key detection', async () => {
